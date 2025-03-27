@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
-import 'screens/home_screen.dart'; // Placeholder, to be created later
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'screens/home_screen.dart';
 
-void main() {
+Future main() async {
+  // Load the environment variables
+  await dotenv.load(fileName: ".env");
   runApp(MyApp());
 }
 
@@ -11,7 +14,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Group Dine',
+      title: 'What Do You Want?!',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         primarySwatch: Colors.orange,

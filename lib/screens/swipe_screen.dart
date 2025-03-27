@@ -1,26 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:tcard/tcard.dart';
 import '../models/restaurant.dart';
-import '../services/location_services.dart';
 import 'results_screen.dart';
+
+/// For the swipe direction, we assume the callback returns an enum or value that
+/// can be compared. Adjust accordingly if needed.
+enum SwipeDirection { left, right }
 
 class SwipeScreen extends StatefulWidget {
   final double radius;
   final int maxOptions;
+  final List<Restaurant> restaurants;
 
   const SwipeScreen({
-    Key? key,
+    super.key,
     required this.radius,
     required this.maxOptions,
-  }) : super(key: key);
+    required this.restaurants,
+  });
 
   @override
+  // ignore: library_private_types_in_public_api
   _SwipeScreenState createState() => _SwipeScreenState();
 }
 
 class _SwipeScreenState extends State<SwipeScreen> {
-  List<Restaurant> allRestaurants = [];
-  List<Restaurant> swipeOptions = [];
+  late List<Restaurant> swipeOptions;
   List<bool> swipeResults = []; // true = like, false = dislike
   late TCardController _tCardController;
 
@@ -28,54 +33,28 @@ class _SwipeScreenState extends State<SwipeScreen> {
   void initState() {
     super.initState();
     _tCardController = TCardController();
-
-    // Generate a list of dummy restaurants.
-    allRestaurants = _generateDummyRestaurants();
-
-    // Filter and randomize the list based on the selected radius and max options.
-    swipeOptions = LocationService.filterAndRandomizeRestaurants(
-      allRestaurants: allRestaurants,
-      radiusMiles: widget.radius,
-      maxOptions: widget.maxOptions,
-    );
-  }
-
-  List<Restaurant> _generateDummyRestaurants() {
-    List<Restaurant> dummyList = [];
-    for (int i = 1; i <= 16; i++) {
-      dummyList.add(
-        Restaurant(
-          id: i.toString(),
-          name: 'Restaurant $i',
-          address: 'Address $i',
-          rating: 3.0 + (i % 5) * 0.5, // Ratings between 3.0 and 5.0.
-          distance: (i % 10 + 1).toDouble(), // Distance between 1 and 10 miles.
-        ),
-      );
-    }
-    return dummyList;
+    // Use the list passed in from RoomScreen.
+    swipeOptions = widget.restaurants;
   }
 
   /// Called when a card is swiped.
-  /// [index] is the card index; [info] contains swipe details.
+  /// [index] is the index of the card swiped.
+  /// [info] contains the swipe details.
   void _handleSwipe(int index, dynamic info) {
-    // info is already an instance of SwipDirection.
-    // We treat a right swipe as a 'like'.
-    bool liked = (info == SwipDirection.Right);
+    // For demonstration, we assume info is an instance of SwipeDirection.
+    // If info is not directly comparable, adjust as needed.
+    bool liked = (info == SwipeDirection.right);
     swipeResults.add(liked);
   }
 
   /// Called when all cards have been swiped.
   void _onSwipingEnd() {
-    // Simulate aggregating votes. In a real app, you'd combine votes from multiple users.
-    const int totalParticipants = 5;
+    // For now, we simulate vote aggregation.
+    const int totalParticipants = 5; // Replace with real data in a multi-user scenario.
     Map<String, int> aggregatedVotes = {};
-
-    // Assume the order of swipeResults corresponds to swipeOptions.
     for (var restaurant in swipeOptions) {
       int index = swipeOptions.indexOf(restaurant);
       int userVote = (index < swipeResults.length && swipeResults[index]) ? 1 : 0;
-      // Add some dummy votes for demonstration.
       int dummyVotes = restaurant.id.hashCode % totalParticipants;
       aggregatedVotes[restaurant.id] = userVote + dummyVotes;
     }
@@ -92,7 +71,7 @@ class _SwipeScreenState extends State<SwipeScreen> {
     );
   }
 
-  /// Build card widgets for each restaurant.
+  /// Builds card widgets for each restaurant.
   List<Widget> _buildCards() {
     return swipeOptions.map((restaurant) {
       return Card(
@@ -114,7 +93,7 @@ class _SwipeScreenState extends State<SwipeScreen> {
               const SizedBox(height: 10),
               Text('Rating: ${restaurant.rating.toStringAsFixed(1)}'),
               const SizedBox(height: 10),
-              Text('Distance: ${restaurant.distance} miles'),
+              Text('Distance: ${restaurant.distance.toStringAsFixed(2)} miles'),
             ],
           ),
         ),

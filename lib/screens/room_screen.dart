@@ -1,28 +1,77 @@
 import 'package:flutter/material.dart';
+import '../services/location_services.dart';
 import 'swipe_screen.dart';
+import '../models/restaurant.dart';
 
 class RoomScreen extends StatefulWidget {
   final bool isCreator;
   final String? roomCode;
 
-  const RoomScreen({
-    Key? key,
-    this.isCreator = true,
-    this.roomCode,
-  }) : super(key: key);
+  const RoomScreen({super.key, this.isCreator = true, this.roomCode});
 
   @override
+  // ignore: library_private_types_in_public_api
   _RoomScreenState createState() => _RoomScreenState();
 }
 
 class _RoomScreenState extends State<RoomScreen> {
-  // Default values for the settings
+  // Default settings for search radius (in miles) and maximum options.
   double _selectedRadius = 5.0;
   int _selectedMaxOptions = 5;
 
-  // Predefined options for radius and max options
+  // Predefined options.
   final List<int> radiusOptions = [1, 3, 5, 10, 15, 25];
   final List<int> optionCounts = [5, 10, 15, 25];
+
+  bool _isLoading = false;
+
+  /// Called when the user taps "Start Swiping".
+  /// This function calls the LocationService to fetch real restaurant data,
+  /// filters/randomizes it, and then navigates to the SwipeScreen.
+  Future<void> _startSwiping() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Query the HERE API via LocationService to fetch nearby restaurants.
+      List<Restaurant> fetchedRestaurants = await LocationService.fetchNearbyRestaurants(
+        radiusMiles: _selectedRadius,
+      );
+      // Optionally filter and randomize the list.
+      List<Restaurant> finalRestaurants = LocationService.filterAndRandomizeRestaurants(
+        allRestaurants: fetchedRestaurants,
+        radiusMiles: _selectedRadius,
+        maxOptions: _selectedMaxOptions,
+      );
+
+      if (!mounted) return; // Ensure widget is still in the tree
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      // Navigate to the SwipeScreen with the fetched restaurant list.
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => SwipeScreen(
+            radius: _selectedRadius,
+            maxOptions: _selectedMaxOptions,
+            restaurants: finalRestaurants,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error fetching restaurants: $e')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,21 +87,21 @@ class _RoomScreenState extends State<RoomScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Room Code:',
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   Text(
                     widget.roomCode ?? 'N/A',
-                    style: TextStyle(fontSize: 24, color: Colors.orange),
+                    style: const TextStyle(fontSize: 24, color: Colors.orange),
                   ),
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
                 ],
               ),
             Align(
               alignment: Alignment.centerLeft,
-              child: Text(
+              child: const Text(
                 'Select Search Radius:',
                 style: TextStyle(fontSize: 18),
               ),
@@ -71,10 +120,10 @@ class _RoomScreenState extends State<RoomScreen> {
                 });
               },
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
             Align(
               alignment: Alignment.centerLeft,
-              child: Text(
+              child: const Text(
                 'Select Number of Options:',
                 style: TextStyle(fontSize: 18),
               ),
@@ -93,22 +142,13 @@ class _RoomScreenState extends State<RoomScreen> {
                 });
               },
             ),
-            Spacer(),
-            ElevatedButton(
-              onPressed: () {
-                // Navigate to the swipe screen with selected settings
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => SwipeScreen(
-                      radius: _selectedRadius,
-                      maxOptions: _selectedMaxOptions,
-                    ),
+            const Spacer(),
+            _isLoading
+                ? const CircularProgressIndicator()
+                : ElevatedButton(
+                    onPressed: _startSwiping,
+                    child: const Text('Start Swiping'),
                   ),
-                );
-              },
-              child: const Text('Start Swiping'),
-            ),
           ],
         ),
       ),
