@@ -91,7 +91,6 @@ class _SwipeScreenState extends State<SwipeScreen> {
               const SizedBox(height: 10),
               Text(restaurant.address),
               const SizedBox(height: 10),
-              Text('Rating: ${restaurant.rating.toStringAsFixed(1)}'),
               const SizedBox(height: 10),
               Text('Distance: ${restaurant.distance.toStringAsFixed(2)} miles'),
             ],

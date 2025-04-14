@@ -59,7 +59,6 @@ class ResultsScreen extends StatelessWidget {
                     style: const TextStyle(fontSize: 20),
                   ),
                   Text('Address: ${winningRestaurant.address}'),
-                  Text('Rating: ${winningRestaurant.rating.toStringAsFixed(1)}'),
                   Text('Distance: ${winningRestaurant.distance} miles'),
                   const SizedBox(height: 20),
                   Text(

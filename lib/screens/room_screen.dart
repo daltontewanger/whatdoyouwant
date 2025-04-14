@@ -20,7 +20,7 @@ class _RoomScreenState extends State<RoomScreen> {
   int _selectedMaxOptions = 5;
 
   // Predefined options.
-  final List<int> radiusOptions = [1, 3, 5, 10, 15, 25];
+  final List<int> radiusOptions = [1, 3, 5, 10, 15];
   final List<int> optionCounts = [5, 10, 15, 25];
 
   bool _isLoading = false;
@@ -35,7 +35,7 @@ class _RoomScreenState extends State<RoomScreen> {
 
     try {
       // Query the HERE API via LocationService to fetch nearby restaurants.
-      List<Restaurant> fetchedRestaurants = await LocationService.fetchNearbyRestaurants(
+      List<Restaurant> fetchedRestaurants = await LocationService.fetchNearbyRestaurantsTiled(
         radiusMiles: _selectedRadius,
       );
       // Optionally filter and randomize the list.
