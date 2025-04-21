@@ -1,11 +1,60 @@
 import 'package:flutter/material.dart';
-import 'room_screen.dart';
+import '../models/user.dart';
 import '../services/room_service.dart';
-import '../models/room.dart';
+import 'room_screen.dart';
+import 'join_screen.dart';
 
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
-  
+class HomeScreen extends StatefulWidget {
+  final String currentUid;
+  const HomeScreen({super.key, required this.currentUid});
+
+  @override
+  _HomeScreenState createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  late AppUser _currentUser;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentUser = AppUser(id: widget.currentUid, name: 'Guest');
+  }
+
+  Future<void> _createRoom() async {
+    setState(() => _isLoading = true);
+    try {
+      final String code = await RoomService().createRoom(_currentUser.id);
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RoomScreen(
+            currentUser: _currentUser,
+            isCreator: true,
+            roomCode: code,
+          ),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error creating room: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _joinRoom() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => JoinRoomScreen(currentUser: _currentUser),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -13,65 +62,27 @@ class HomeScreen extends StatelessWidget {
         title: const Text('What Do You Want?!'),
       ),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Image.asset(
-              'assets/images/wdyw.gif',
-              height: 200, // Adjust the size as needed
-            ),
-            const SizedBox(height: 40),
-            ElevatedButton(
-              onPressed: () {
-                // Create a new room using the RoomService
-                Room newRoom = RoomService.createRoom();
-                // Navigate to RoomScreen, passing the generated room code
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => RoomScreen(
-                      isCreator: true,
-                      roomCode: newRoom.roomCode,
-                    ),
+        child: _isLoading
+            ? const CircularProgressIndicator()
+            : Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Image.asset(
+                    'assets/images/wdyw.gif',
+                    height: 200,
                   ),
-                );
-              },
-              child: const Text('Create Room'),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                // Navigate to a placeholder Join Room screen
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const JoinRoomScreenPlaceholder(),
+                  const SizedBox(height: 40),
+                  ElevatedButton(
+                    onPressed: _createRoom,
+                    child: const Text('Create Room'),
                   ),
-                );
-              },
-              child: const Text('Join Room'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class JoinRoomScreenPlaceholder extends StatelessWidget {
-  const JoinRoomScreenPlaceholder({super.key});
-  
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Join Room'),
-      ),
-      body: const Center(
-        child: Text(
-          'This is a placeholder for the Join Room screen',
-          style: TextStyle(fontSize: 18),
-        ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: _joinRoom,
+                    child: const Text('Join Room'),
+                  ),
+                ],
+              ),
       ),
     );
   }

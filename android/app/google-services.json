@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1086599505073",
+    "project_id": "what-do-you-want-8a404",
+    "storage_bucket": "what-do-you-want-8a404.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1086599505073:android:9e373690ee1ffe9fe02e90",
+        "android_client_info": {
+          "package_name": "com.example.whatdoyouwant"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAVnNqv-GJ8KFS2sV_OyNR6qPn1b6eiq2c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

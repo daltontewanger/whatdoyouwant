@@ -1,61 +1,96 @@
 import 'package:flutter/material.dart';
+import '../services/room_service.dart';
 import '../services/location_services.dart';
 import 'swipe_screen.dart';
-import '../models/restaurant.dart';
+import '../models/user.dart';
 
 class RoomScreen extends StatefulWidget {
   final bool isCreator;
   final String? roomCode;
+  final AppUser currentUser;
 
-  const RoomScreen({super.key, this.isCreator = true, this.roomCode});
+  const RoomScreen({
+    super.key,
+    required this.currentUser,
+    this.isCreator = true,
+    this.roomCode,
+  });
 
   @override
-  // ignore: library_private_types_in_public_api
   _RoomScreenState createState() => _RoomScreenState();
 }
 
 class _RoomScreenState extends State<RoomScreen> {
-  // Default settings for search radius (in miles) and maximum options.
+  String? _roomCode;
   double _selectedRadius = 5.0;
   int _selectedMaxOptions = 5;
-
-  // Predefined options.
   final List<int> radiusOptions = [1, 3, 5, 10, 15];
   final List<int> optionCounts = [5, 10, 15, 25];
-
   bool _isLoading = false;
 
-  /// Called when the user taps "Start Swiping".
-  /// This function calls the LocationService to fetch real restaurant data,
-  /// filters/randomizes it, and then navigates to the SwipeScreen.
-  Future<void> _startSwiping() async {
-    setState(() {
-      _isLoading = true;
-    });
+  @override
+  void initState() {
+    super.initState();
+    _roomCode = widget.roomCode;
+    // Only create a room if this is the creator and no code was pre-generated
+    if (widget.isCreator && widget.roomCode == null) {
+      _createRoom();
+    }
+    // Only join if this is a joiner and a roomCode was provided
+    else if (!widget.isCreator && widget.roomCode != null) {
+      _joinRoom(widget.roomCode!);
+    }
+  }
 
+  Future<void> _createRoom() async {
+    setState(() => _isLoading = true);
     try {
-      // Query the HERE API via LocationService to fetch nearby restaurants.
-      List<Restaurant> fetchedRestaurants = await LocationService.fetchNearbyRestaurantsTiled(
+      final code = await RoomService().createRoom(widget.currentUser.id);
+      setState(() {
+        _roomCode = code;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error creating room: $e')),
+      );
+    }
+  }
+
+  Future<void> _joinRoom(String code) async {
+    setState(() => _isLoading = true);
+    try {
+      await RoomService().joinRoom(code, widget.currentUser.id);
+      setState(() => _isLoading = false);
+    } catch (e) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error joining room: $e')),
+      );
+    }
+  }
+
+  Future<void> _startSwiping() async {
+    if (_roomCode == null) return;
+    setState(() => _isLoading = true);
+    try {
+      final fetched = await LocationService.fetchNearbyRestaurantsTiled(
         radiusMiles: _selectedRadius,
       );
-      // Optionally filter and randomize the list.
-      List<Restaurant> finalRestaurants = LocationService.filterAndRandomizeRestaurants(
-        allRestaurants: fetchedRestaurants,
+      final finalRestaurants = LocationService.filterAndRandomizeRestaurants(
+        allRestaurants: fetched,
         radiusMiles: _selectedRadius,
         maxOptions: _selectedMaxOptions,
       );
-
-      if (!mounted) return; // Ensure widget is still in the tree
-
-      setState(() {
-        _isLoading = false;
-      });
-
-      // Navigate to the SwipeScreen with the fetched restaurant list.
+      if (!mounted) return;
+      setState(() => _isLoading = false);
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => SwipeScreen(
+          builder: (_) => SwipeScreen(
+            roomCode: _roomCode!,
+            currentUser: widget.currentUser,
             radius: _selectedRadius,
             maxOptions: _selectedMaxOptions,
             restaurants: finalRestaurants,
@@ -64,9 +99,7 @@ class _RoomScreenState extends State<RoomScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error fetching restaurants: $e')),
       );
@@ -83,72 +116,39 @@ class _RoomScreenState extends State<RoomScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            if (widget.isCreator)
+            if (_roomCode != null)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Room Code:',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
+                  const Text('Room Code:', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-                  Text(
-                    widget.roomCode ?? 'N/A',
-                    style: const TextStyle(fontSize: 24, color: Colors.orange),
-                  ),
+                  Text(_roomCode!, style: const TextStyle(fontSize: 24, color: Colors.orange)),
                   const SizedBox(height: 20),
                 ],
               ),
-            Align(
+            const Align(
               alignment: Alignment.centerLeft,
-              child: const Text(
-                'Select Search Radius:',
-                style: TextStyle(fontSize: 18),
-              ),
+              child: Text('Select Search Radius:', style: TextStyle(fontSize: 18)),
             ),
             DropdownButton<double>(
               value: _selectedRadius,
-              items: radiusOptions.map((radius) {
-                return DropdownMenuItem<double>(
-                  value: radius.toDouble(),
-                  child: Text('$radius miles'),
-                );
-              }).toList(),
-              onChanged: (newValue) {
-                setState(() {
-                  _selectedRadius = newValue!;
-                });
-              },
+              items: radiusOptions.map((r) => DropdownMenuItem(value: r.toDouble(), child: Text('$r miles'))).toList(),
+              onChanged: (v) => setState(() => _selectedRadius = v!),
             ),
             const SizedBox(height: 20),
-            Align(
+            const Align(
               alignment: Alignment.centerLeft,
-              child: const Text(
-                'Select Number of Options:',
-                style: TextStyle(fontSize: 18),
-              ),
+              child: Text('Select Number of Options:', style: TextStyle(fontSize: 18)),
             ),
             DropdownButton<int>(
               value: _selectedMaxOptions,
-              items: optionCounts.map((count) {
-                return DropdownMenuItem<int>(
-                  value: count,
-                  child: Text('$count options'),
-                );
-              }).toList(),
-              onChanged: (newValue) {
-                setState(() {
-                  _selectedMaxOptions = newValue!;
-                });
-              },
+              items: optionCounts.map((c) => DropdownMenuItem(value: c, child: Text('$c options'))).toList(),
+              onChanged: (v) => setState(() => _selectedMaxOptions = v!),
             ),
             const Spacer(),
             _isLoading
                 ? const CircularProgressIndicator()
-                : ElevatedButton(
-                    onPressed: _startSwiping,
-                    child: const Text('Start Swiping'),
-                  ),
+                : ElevatedButton(onPressed: _startSwiping, child: const Text('Start Swiping')),
           ],
         ),
       ),
