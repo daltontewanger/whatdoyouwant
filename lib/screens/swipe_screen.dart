@@ -7,8 +7,6 @@ import '../models/user.dart';
 import '../services/room_service.dart';
 import 'results_screen.dart';
 
-enum SwipeDirection { left, right }
-
 class SwipeScreen extends StatefulWidget {
   final String roomCode;
   final AppUser currentUser;
@@ -36,6 +34,7 @@ class _SwipeScreenState extends State<SwipeScreen> {
   Timer? _cardTimer;
   int _currentIndex = 0;
   static const int swipeTimeoutSeconds = 10;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -53,7 +52,10 @@ class _SwipeScreenState extends State<SwipeScreen> {
 
   void _startCardTimer() {
     _cancelCardTimer();
-    _cardTimer = Timer(const Duration(seconds: swipeTimeoutSeconds), _simulateLeftSwipe);
+    _cardTimer = Timer(
+      const Duration(seconds: swipeTimeoutSeconds),
+      _simulateLeftSwipe,
+    );
   }
 
   void _cancelCardTimer() {
@@ -77,9 +79,21 @@ class _SwipeScreenState extends State<SwipeScreen> {
 
   void _handleSwipe(int index, dynamic info) {
     _cancelCardTimer();
-    bool liked = (info == SwipeDirection.right);
+
+    bool liked = false;
+
+    var direction =
+        info?.direction ?? info;
+
+    if (direction.toString().contains('Right')) {
+      liked = true;
+    }
+
+    print('Direction enum: $direction, liked: $liked, at card $index');
+
     swipeResults.add(liked);
     _currentIndex++;
+
     if (_currentIndex < swipeOptions.length) {
       _startCardTimer();
     }
@@ -98,25 +112,40 @@ class _SwipeScreenState extends State<SwipeScreen> {
       userVotes[swipeOptions[i].id] = swipeResults[i];
     }
 
-    // Determine the authenticated user ID
-    final String authUid = FirebaseAuth.instance.currentUser?.uid ?? widget.currentUser.id;
+    // Make sure there is a real authenticated Firebase user
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You must be signed in to vote.')),
+      );
+      return;
+    }
 
-    // Submit votes to Firestore under the authenticated UID
-    await RoomService().submitUserVotes(
-      widget.roomCode,
-      authUid,
-      userVotes,
-    );
+    setState(() => _isSubmitting = true);
+
+    try {
+      // Submit votes to Firestore under the authenticated UID
+      await RoomService().submitUserVotes(widget.roomCode, user.uid, userVotes);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error submitting votes: $e')));
+    } finally {
+      setState(() => _isSubmitting = false);
+    }
 
     // Navigate to ResultsScreen
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => ResultsScreen(
-          roomCode: widget.roomCode,
-          restaurants: swipeOptions,
-        ),
+        builder:
+            (_) => ResultsScreen(
+              roomCode: widget.roomCode,
+              restaurants: swipeOptions,
+            ),
       ),
     );
   }
@@ -125,9 +154,7 @@ class _SwipeScreenState extends State<SwipeScreen> {
     return swipeOptions.map((restaurant) {
       return Card(
         elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Padding(
           padding: const EdgeInsets.all(24.0),
           child: Column(
@@ -135,7 +162,10 @@ class _SwipeScreenState extends State<SwipeScreen> {
             children: [
               Text(
                 restaurant.name,
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 10),
               Text(restaurant.address),
@@ -150,6 +180,12 @@ class _SwipeScreenState extends State<SwipeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isSubmitting) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Submitting Votes')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
     if (swipeOptions.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: const Text('Swipe Screen')),
@@ -166,7 +202,7 @@ class _SwipeScreenState extends State<SwipeScreen> {
         child: TCard(
           controller: _tCardController,
           cards: _buildCards(),
-          onForward: (index, info) => _handleSwipe(index, info),
+          onForward: _handleSwipe,
           onEnd: _onSwipingEnd,
         ),
       ),

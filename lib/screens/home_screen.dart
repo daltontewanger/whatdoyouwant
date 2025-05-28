@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/user.dart';
 import '../services/room_service.dart';
 import 'room_screen.dart';
@@ -19,7 +20,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _currentUser = AppUser(id: widget.currentUid, name: 'Guest');
+    final user = FirebaseAuth.instance.currentUser;
+    _currentUser = AppUser(
+      id: user != null && user.uid.isNotEmpty ? user.uid : 'guest',
+      name: 'Guest',
+    );
   }
 
   Future<void> _createRoom() async {
@@ -30,17 +35,18 @@ class _HomeScreenState extends State<HomeScreen> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => RoomScreen(
-            currentUser: _currentUser,
-            isCreator: true,
-            roomCode: code,
-          ),
+          builder:
+              (_) => RoomScreen(
+                currentUser: _currentUser,
+                isCreator: true,
+                roomCode: code,
+              ),
         ),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error creating room: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error creating room: $e')));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -58,31 +64,27 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('What Do You Want?!'),
-      ),
+      appBar: AppBar(title: const Text('What Do You Want?!')),
       body: Center(
-        child: _isLoading
-            ? const CircularProgressIndicator()
-            : Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Image.asset(
-                    'assets/images/wdyw.gif',
-                    height: 200,
-                  ),
-                  const SizedBox(height: 40),
-                  ElevatedButton(
-                    onPressed: _createRoom,
-                    child: const Text('Create Room'),
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: _joinRoom,
-                    child: const Text('Join Room'),
-                  ),
-                ],
-              ),
+        child:
+            _isLoading
+                ? const CircularProgressIndicator()
+                : Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Image.asset('assets/images/wdyw.gif', height: 200),
+                    const SizedBox(height: 40),
+                    ElevatedButton(
+                      onPressed: _createRoom,
+                      child: const Text('Create Room'),
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: _joinRoom,
+                      child: const Text('Join Room'),
+                    ),
+                  ],
+                ),
       ),
     );
   }
