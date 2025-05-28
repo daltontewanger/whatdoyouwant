@@ -52,9 +52,9 @@ class _RoomScreenState extends State<RoomScreen> {
       });
     } catch (e) {
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error creating room: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error creating room: $e')));
     }
   }
 
@@ -65,9 +65,9 @@ class _RoomScreenState extends State<RoomScreen> {
       setState(() => _isLoading = false);
     } catch (e) {
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error joining room: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error joining room: $e')));
     }
   }
 
@@ -75,6 +75,7 @@ class _RoomScreenState extends State<RoomScreen> {
     if (_roomCode == null) return;
     setState(() => _isLoading = true);
     try {
+      // 1. Fetch restaurants from your API/service
       final fetched = await LocationService.fetchNearbyRestaurantsTiled(
         radiusMiles: _selectedRadius,
       );
@@ -83,26 +84,38 @@ class _RoomScreenState extends State<RoomScreen> {
         radiusMiles: _selectedRadius,
         maxOptions: _selectedMaxOptions,
       );
+
+      // 2. Save restaurant list and settings to the room in Firestore
+      await RoomService().setRoomOptionsAndStart(
+        roomCode: _roomCode!,
+        radius: _selectedRadius,
+        maxOptions: _selectedMaxOptions,
+        options: finalRestaurants,
+      );
+
       if (!mounted) return;
       setState(() => _isLoading = false);
+
+      // 3. Navigate to swipe screen, passing the finalRestaurants
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => SwipeScreen(
-            roomCode: _roomCode!,
-            currentUser: widget.currentUser,
-            radius: _selectedRadius,
-            maxOptions: _selectedMaxOptions,
-            restaurants: finalRestaurants,
-          ),
+          builder:
+              (_) => SwipeScreen(
+                roomCode: _roomCode!,
+                currentUser: widget.currentUser,
+                radius: _selectedRadius,
+                maxOptions: _selectedMaxOptions,
+                restaurants: finalRestaurants,
+              ),
         ),
       );
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error fetching restaurants: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error fetching restaurants: $e')));
     }
   }
 
@@ -120,35 +133,66 @@ class _RoomScreenState extends State<RoomScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Room Code:', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Room Code:',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 8),
-                  Text(_roomCode!, style: const TextStyle(fontSize: 24, color: Colors.orange)),
+                  Text(
+                    _roomCode!,
+                    style: const TextStyle(fontSize: 24, color: Colors.orange),
+                  ),
                   const SizedBox(height: 20),
                 ],
               ),
             const Align(
               alignment: Alignment.centerLeft,
-              child: Text('Select Search Radius:', style: TextStyle(fontSize: 18)),
+              child: Text(
+                'Select Search Radius:',
+                style: TextStyle(fontSize: 18),
+              ),
             ),
             DropdownButton<double>(
               value: _selectedRadius,
-              items: radiusOptions.map((r) => DropdownMenuItem(value: r.toDouble(), child: Text('$r miles'))).toList(),
+              items:
+                  radiusOptions
+                      .map(
+                        (r) => DropdownMenuItem(
+                          value: r.toDouble(),
+                          child: Text('$r miles'),
+                        ),
+                      )
+                      .toList(),
               onChanged: (v) => setState(() => _selectedRadius = v!),
             ),
             const SizedBox(height: 20),
             const Align(
               alignment: Alignment.centerLeft,
-              child: Text('Select Number of Options:', style: TextStyle(fontSize: 18)),
+              child: Text(
+                'Select Number of Options:',
+                style: TextStyle(fontSize: 18),
+              ),
             ),
             DropdownButton<int>(
               value: _selectedMaxOptions,
-              items: optionCounts.map((c) => DropdownMenuItem(value: c, child: Text('$c options'))).toList(),
+              items:
+                  optionCounts
+                      .map(
+                        (c) => DropdownMenuItem(
+                          value: c,
+                          child: Text('$c options'),
+                        ),
+                      )
+                      .toList(),
               onChanged: (v) => setState(() => _selectedMaxOptions = v!),
             ),
             const Spacer(),
             _isLoading
                 ? const CircularProgressIndicator()
-                : ElevatedButton(onPressed: _startSwiping, child: const Text('Start Swiping')),
+                : ElevatedButton(
+                  onPressed: _startSwiping,
+                  child: const Text('Start Swiping'),
+                ),
           ],
         ),
       ),

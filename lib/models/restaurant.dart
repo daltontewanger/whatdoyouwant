@@ -2,7 +2,7 @@ class Restaurant {
   final String id;
   final String name;
   final String address;
-  final double distance; // distance in kilometers, for example
+  final double distance;
 
   Restaurant({
     required this.id,
