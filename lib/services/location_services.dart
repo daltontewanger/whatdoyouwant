@@ -158,7 +158,7 @@ class LocationService {
   /// Fetches nearby restaurants using tile-based queries.
   /// Make 4 API calls with slightly shifted center points (north, south, east, and west),
   /// each offset by approximately 5 miles from the user's location.
-  /// Combines the results and removes duplicates them by restaurant name,
+  /// Combines the results and removes duplicates by restaurant name,
   /// keeping only the closest result for each name.
   static Future<List<Restaurant>> fetchNearbyRestaurantsTiled({
     required double radiusMiles,

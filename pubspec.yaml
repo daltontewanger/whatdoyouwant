@@ -1,5 +1,5 @@
 name: whatdoyouwant
-description: "A new Flutter project."
+description: "An app designed to make it simple and easy to determine where you want to eat when no one can make up their minds. No sign ups or info required."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -44,6 +44,7 @@ dependencies:
   cloud_firestore: ^5.6.6
   uuid: ^4.5.1
   firebase_auth: ^5.5.2
+  flutter_launcher_icons: ^0.14.4
 
 dev_dependencies:
   flutter_test:
