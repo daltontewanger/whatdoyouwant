@@ -18,10 +18,6 @@ class LocationService {
     List<Restaurant> withinRadius =
         allRestaurants.where((r) => r.distance <= radiusMiles).toList();
 
-    // Debug logging.
-    print('Total restaurants from API: ${allRestaurants.length}');
-    print('Restaurants within $radiusMiles miles: ${withinRadius.length}');
-
     // If nothing is within the selected radius, return an empty list.
     if (withinRadius.isEmpty) return withinRadius;
 
@@ -128,7 +124,6 @@ class LocationService {
       'apiKey': dotenv.env['HERE_API_KEY'] ?? '',
     });
 
-    print('Fetching restaurants with URL: $url');
     final response = await http.get(url);
     List<Restaurant> restaurants = [];
 
@@ -216,9 +211,6 @@ class LocationService {
     }
     List<Restaurant> uniqueResults = uniqueByName.values.toList();
 
-    print(
-      'Total restaurants fetched via tiling (deduplicated): ${uniqueResults.length}',
-    );
     return uniqueResults;
   }
 }

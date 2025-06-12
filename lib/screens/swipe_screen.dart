@@ -24,10 +24,10 @@ class SwipeScreen extends StatefulWidget {
   });
 
   @override
-  _SwipeScreenState createState() => _SwipeScreenState();
+  SwipeScreenState createState() => SwipeScreenState();
 }
 
-class _SwipeScreenState extends State<SwipeScreen> {
+class SwipeScreenState extends State<SwipeScreen> {
   late List<Restaurant> swipeOptions;
   List<bool> swipeResults = [];
   late TCardController _tCardController;
@@ -82,14 +82,11 @@ class _SwipeScreenState extends State<SwipeScreen> {
 
     bool liked = false;
 
-    var direction =
-        info?.direction ?? info;
+    var direction = info?.direction ?? info;
 
     if (direction.toString().contains('Right')) {
       liked = true;
     }
-
-    print('Direction enum: $direction, liked: $liked, at card $index');
 
     swipeResults.add(liked);
     _currentIndex++;

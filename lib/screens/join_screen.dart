@@ -11,10 +11,10 @@ class JoinRoomScreen extends StatefulWidget {
   const JoinRoomScreen({super.key, required this.currentUser});
 
   @override
-  _JoinRoomScreenState createState() => _JoinRoomScreenState();
+  JoinRoomScreenState createState() => JoinRoomScreenState();
 }
 
-class _JoinRoomScreenState extends State<JoinRoomScreen> {
+class JoinRoomScreenState extends State<JoinRoomScreen> {
   final TextEditingController _codeController = TextEditingController();
   bool _isLoading = false;
 
@@ -41,16 +41,17 @@ class _JoinRoomScreenState extends State<JoinRoomScreen> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => WaitingForOptionsScreen(
-            roomCode: code,
-            currentUser: widget.currentUser,
-          ),
+          builder:
+              (_) => WaitingForOptionsScreen(
+                roomCode: code,
+                currentUser: widget.currentUser,
+              ),
         ),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error joining room: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error joining room: $e')));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -69,7 +70,9 @@ class _JoinRoomScreenState extends State<JoinRoomScreen> {
               controller: _codeController,
               textCapitalization: TextCapitalization.characters,
               decoration: InputDecoration(
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
                 labelText: 'Room Code',
                 hintText: 'Enter 6‑character code',
               ),
@@ -78,12 +81,12 @@ class _JoinRoomScreenState extends State<JoinRoomScreen> {
             _isLoading
                 ? const CircularProgressIndicator()
                 : SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _joinRoom,
-                      child: const Text('Join'),
-                    ),
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _joinRoom,
+                    child: const Text('Join'),
                   ),
+                ),
           ],
         ),
       ),
@@ -111,7 +114,9 @@ class WaitingForOptionsScreen extends StatelessWidget {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-          if (snapshot.hasError || !snapshot.hasData || !snapshot.data!.exists) {
+          if (snapshot.hasError ||
+              !snapshot.hasData ||
+              !snapshot.data!.exists) {
             return const Center(child: Text('Error joining room.'));
           }
           final data = snapshot.data!.data() as Map<String, dynamic>;
@@ -124,11 +129,16 @@ class WaitingForOptionsScreen extends StatelessWidget {
               settings != null &&
               restaurantsData.isNotEmpty) {
             // Parse restaurants and settings
-            final List<Restaurant> restaurants = restaurantsData
-                .map((r) => Restaurant.fromJson(Map<String, dynamic>.from(r)))
-                .toList();
-            final double radius = (settings['radius'] as num?)?.toDouble() ?? 5.0;
-            final int maxOptions = (settings['maxOptions'] as num?)?.toInt() ?? 5;
+            final List<Restaurant> restaurants =
+                restaurantsData
+                    .map(
+                      (r) => Restaurant.fromJson(Map<String, dynamic>.from(r)),
+                    )
+                    .toList();
+            final double radius =
+                (settings['radius'] as num?)?.toDouble() ?? 5.0;
+            final int maxOptions =
+                (settings['maxOptions'] as num?)?.toInt() ?? 5;
 
             // Navigate to SwipeScreen automatically
             // Use addPostFrameCallback to prevent navigation build conflicts
@@ -136,13 +146,14 @@ class WaitingForOptionsScreen extends StatelessWidget {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => SwipeScreen(
-                    roomCode: roomCode,
-                    currentUser: currentUser,
-                    radius: radius,
-                    maxOptions: maxOptions,
-                    restaurants: restaurants,
-                  ),
+                  builder:
+                      (_) => SwipeScreen(
+                        roomCode: roomCode,
+                        currentUser: currentUser,
+                        radius: radius,
+                        maxOptions: maxOptions,
+                        restaurants: restaurants,
+                      ),
                 ),
               );
             });

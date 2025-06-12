@@ -15,10 +15,10 @@ class ResultsScreen extends StatefulWidget {
   });
 
   @override
-  _ResultsScreenState createState() => _ResultsScreenState();
+  ResultsScreenState createState() => ResultsScreenState();
 }
 
-class _ResultsScreenState extends State<ResultsScreen> {
+class ResultsScreenState extends State<ResultsScreen> {
   late Stream<DocumentSnapshot> _roomStream;
 
   @override
@@ -38,7 +38,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, result) {
         // On any back action, send to home and clear stack
         _returnToHome();
       },

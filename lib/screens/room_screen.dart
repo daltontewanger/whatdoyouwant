@@ -17,10 +17,10 @@ class RoomScreen extends StatefulWidget {
   });
 
   @override
-  _RoomScreenState createState() => _RoomScreenState();
+  createState() => RoomScreenState();
 }
 
-class _RoomScreenState extends State<RoomScreen> {
+class RoomScreenState extends State<RoomScreen> {
   String? _roomCode;
   double _selectedRadius = 5.0;
   int _selectedMaxOptions = 5;
@@ -46,11 +46,13 @@ class _RoomScreenState extends State<RoomScreen> {
     setState(() => _isLoading = true);
     try {
       final code = await RoomService().createRoom(widget.currentUser.id);
+      if (!mounted) return;
       setState(() {
         _roomCode = code;
         _isLoading = false;
       });
     } catch (e) {
+      if(!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(
         context,
@@ -62,8 +64,10 @@ class _RoomScreenState extends State<RoomScreen> {
     setState(() => _isLoading = true);
     try {
       await RoomService().joinRoom(code, widget.currentUser.id);
+      if(!mounted) return;
       setState(() => _isLoading = false);
     } catch (e) {
+      if(!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(
         context,

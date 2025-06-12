@@ -13,7 +13,6 @@ Future<void> main() async {
 
   // Sign in anonymously
   final cred = await FirebaseAuth.instance.signInAnonymously();
-  print(">> anon uid: ${cred.user!.uid}");
   runApp(MyApp(currentUid: cred.user!.uid));
 }
 
