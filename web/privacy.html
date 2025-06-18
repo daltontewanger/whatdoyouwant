@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Privacy Policy | What Do You Want?!</title>
+    <meta name="description" content="Privacy Policy for the What Do You Want?! app">
+    <link rel="icon" href="favicon.png">
+    <style>
+        :root {
+            color-scheme: light dark;
+        }
+
+        body {
+            margin: 0;
+            font-family: system-ui, sans-serif;
+            line-height: 1.6;
+            background: #fff;
+            color: #222;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header,
+        footer {
+            background: #ff9800;
+            color: #fff;
+            padding: 1.5rem 1rem;
+            text-align: center;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 2rem;
+            letter-spacing: 1px;
+        }
+
+        nav[aria-label="Main Navigation"] {
+            margin: 0.5rem 0;
+        }
+
+        nav a {
+            color: #fff;
+            text-decoration: underline;
+            margin: 0 0.5rem;
+            font-weight: 500;
+        }
+
+        main {
+            flex: 1 0 auto;
+            max-width: 600px;
+            margin: 2rem auto;
+            padding: 2rem 1rem;
+            background: #fafafa;
+            border-radius: 1.2rem;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+            position: relative;
+        }
+
+        .back-button {
+            display: inline-block;
+            background: #ff9800;
+            color: #fff;
+            border: none;
+            border-radius: 2em;
+            padding: 0.6em 1.5em;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 2em;
+            margin-top: 0.5em;
+            box-shadow: 0 1px 5px rgba(0, 0, 0, 0.07);
+            transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+            text-decoration: none;
+        }
+
+        .back-button:focus,
+        .back-button:hover {
+            background: #f57c00;
+            color: #fff;
+            outline: 2px solid #ff9800;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14);
+            text-decoration: underline;
+        }
+
+        h2,
+        h3 {
+            color: #ff9800;
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+        }
+
+        ul,
+        ol {
+            padding-left: 1.5em;
+        }
+
+        a {
+            color: #ff9800;
+            word-break: break-all;
+        }
+
+        @media (max-width: 600px) {
+            main {
+                margin: 1rem;
+                padding: 1rem;
+            }
+
+            header,
+            footer {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header role="banner">
+        <h1>Privacy Policy</h1>
+        <nav aria-label="Main Navigation">
+            <a href="index.html">Home</a>
+            <a href="privacy.html" aria-current="page">Privacy Policy</a>
+        </nav>
+    </header>
+
+    <main id="main-content" role="main" tabindex="-1">
+        <a href="index.html" class="back-button" role="button" aria-label="Back to App" title="Back to App">
+            ← Back to App
+        </a>
+        <article aria-labelledby="privacy-policy-heading">
+            <h2 id="privacy-policy-heading">Your Privacy Matters</h2>
+            <p>
+                This privacy policy describes how the <strong>What Do You Want?!</strong> app (“the App”) handles your
+                information.
+            </p>
+
+            <section aria-labelledby="data-collected-heading">
+                <h3 id="data-collected-heading">Information Collected</h3>
+                <ul>
+                    <li>
+                        <strong>Location Data:</strong> The App requests access to your device location <em>only while
+                            using the app</em> in order to show you nearby restaurants and places to eat.
+                    </li>
+                </ul>
+                <p>
+                    <strong>No other personal data</strong> is collected, stored, or shared. The app does not require
+                    registration or account creation, and does not track users.
+                </p>
+            </section>
+
+            <section aria-labelledby="use-of-location-heading">
+                <h3 id="use-of-location-heading">How Location Data is Used</h3>
+                <ul>
+                    <li>Your current location is used only to display options for nearby restaurants.</li>
+                    <li>No location history is stored, transmitted, or retained after your session ends.</li>
+                </ul>
+            </section>
+
+            <section aria-labelledby="third-party-heading">
+                <h3 id="third-party-heading">Third-Party Services</h3>
+                <ul>
+                    <li>
+                        The App may use map or restaurant search providers (such as HERE API or Google Places) to show
+                        nearby places, but your location is sent only for finding results and is never linked to your
+                        identity.
+                    </li>
+                </ul>
+            </section>
+
+            <section aria-labelledby="data-security-heading">
+                <h3 id="data-security-heading">Data Security</h3>
+                <ul>
+                    <li>
+                        The App does <strong>not</strong> collect, store, or transmit any personal information beyond
+                        your current location for the purpose of searching.
+                    </li>
+                </ul>
+            </section>
+
+            <section aria-labelledby="changes-heading">
+                <h3 id="changes-heading">Changes to This Policy</h3>
+                <p>
+                    This policy may be updated as needed. Any changes will be posted here with the “Last updated” date.
+                </p>
+            </section>
+
+            <section aria-labelledby="contact-heading">
+                <h3 id="contact-heading">Contact</h3>
+                <p>
+                    If you have questions about this privacy policy, please contact:<br>
+                    PENDING
+                </p>
+            </section>
+            <p style="margin-top:2em;color:#777;"><small>Last updated: June 2025</small></p>
+        </article>
+    </main>
+
+    <footer role="contentinfo">
+        &copy; 2025 What Do You Want?! &mdash; All rights reserved.
+    </footer>
+</body>
+
+</html>

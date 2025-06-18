@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/user.dart';
 import '../services/room_service.dart';
 import 'room_screen.dart';
@@ -82,6 +83,34 @@ class HomeScreenState extends State<HomeScreen> {
                     ElevatedButton(
                       onPressed: _joinRoom,
                       child: const Text('Join Room'),
+                    ),
+                    const SizedBox(height: 40),
+                    TextButton(
+                      onPressed: () async {
+                        final messenger = ScaffoldMessenger.of(context);
+                        final url = Uri.parse(
+                          'https://daltontewanger.github.io/whatdoyouwant/privacy.html',
+                        );
+
+                        if (await canLaunchUrl(url)) {
+                          await launchUrl(
+                            url,
+                            mode: LaunchMode.externalApplication,
+                          );
+                        } else {
+                          messenger.showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Could not open the privacy policy.',
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                      child: const Text(
+                        'Privacy Policy',
+                        style: TextStyle(decoration: TextDecoration.underline),
+                      ),
                     ),
                   ],
                 ),
