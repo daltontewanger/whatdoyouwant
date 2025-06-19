@@ -4,10 +4,11 @@ import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'themes/main_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  //await dotenv.load();
+  //await dotenv.load(); // local testing
   
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
@@ -25,7 +26,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'What Do You Want?!',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(primarySwatch: Colors.orange),
+      theme: appTheme,
       home: HomeScreen(currentUid: currentUid),
     );
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import '../services/room_service.dart';
 import '../services/location_services.dart';
 import 'swipe_screen.dart';
@@ -17,10 +18,10 @@ class RoomScreen extends StatefulWidget {
   });
 
   @override
-  createState() => RoomScreenState();
+  State<RoomScreen> createState() => _RoomScreenState();
 }
 
-class RoomScreenState extends State<RoomScreen> {
+class _RoomScreenState extends State<RoomScreen> {
   String? _roomCode;
   double _selectedRadius = 5.0;
   int _selectedMaxOptions = 5;
@@ -36,10 +37,6 @@ class RoomScreenState extends State<RoomScreen> {
     if (widget.isCreator && widget.roomCode == null) {
       _createRoom();
     }
-    // Only join if this is a joiner and a roomCode was provided
-    else if (!widget.isCreator && widget.roomCode != null) {
-      _joinRoom(widget.roomCode!);
-    }
   }
 
   Future<void> _createRoom() async {
@@ -52,7 +49,7 @@ class RoomScreenState extends State<RoomScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      if(!mounted) return;
+      if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(
         context,
@@ -60,144 +57,227 @@ class RoomScreenState extends State<RoomScreen> {
     }
   }
 
-  Future<void> _joinRoom(String code) async {
-    setState(() => _isLoading = true);
-    try {
-      await RoomService().joinRoom(code, widget.currentUser.id);
-      if(!mounted) return;
-      setState(() => _isLoading = false);
-    } catch (e) {
-      if(!mounted) return;
-      setState(() => _isLoading = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error joining room: $e')));
-    }
-  }
-
   Future<void> _startSwiping() async {
-    if (_roomCode == null) return;
-    setState(() => _isLoading = true);
-    try {
-      // 1. Fetch restaurants from your API/service
-      final fetched = await LocationService.fetchNearbyRestaurantsTiled(
-        radiusMiles: _selectedRadius,
-      );
-      final finalRestaurants = LocationService.filterAndRandomizeRestaurants(
-        allRestaurants: fetched,
-        radiusMiles: _selectedRadius,
-        maxOptions: _selectedMaxOptions,
-      );
+  if (_roomCode == null) return;
+  setState(() => _isLoading = true);
 
-      // 2. Save restaurant list and settings to the room in Firestore
-      await RoomService().setRoomOptionsAndStart(
-        roomCode: _roomCode!,
-        radius: _selectedRadius,
-        maxOptions: _selectedMaxOptions,
-        options: finalRestaurants,
-      );
-
-      if (!mounted) return;
+  try {
+    // Check if location services are enabled
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
       setState(() => _isLoading = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Location services are disabled. Please enable them in settings.')),
+      );
+      return;
+    }
 
-      // 3. Navigate to swipe screen, passing the finalRestaurants
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder:
-              (_) => SwipeScreen(
-                roomCode: _roomCode!,
-                currentUser: widget.currentUser,
-                radius: _selectedRadius,
-                maxOptions: _selectedMaxOptions,
-                restaurants: finalRestaurants,
-              ),
+    // Check and request location permission
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        setState(() => _isLoading = false);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Location permission is required to use this feature.')),
+        );
+        return;
+      }
+    }
+    if (permission == LocationPermission.deniedForever) {
+      setState(() => _isLoading = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Location permissions are permanently denied. Please enable them in your device settings.',
+          ),
+          action: SnackBarAction(
+            label: 'Open Settings',
+            onPressed: () async {
+              await Geolocator.openAppSettings();
+            },
+          ),
+          duration: const Duration(seconds: 6),
         ),
       );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error fetching restaurants: $e')));
+      return;
     }
+
+    final fetched = await LocationService.fetchNearbyRestaurantsTiled(
+      radiusMiles: _selectedRadius,
+    );
+    final finalRestaurants = LocationService.filterAndRandomizeRestaurants(
+      allRestaurants: fetched,
+      radiusMiles: _selectedRadius,
+      maxOptions: _selectedMaxOptions,
+    );
+
+    // Save to Firestore
+    await RoomService().setRoomOptionsAndStart(
+      roomCode: _roomCode!,
+      radius: _selectedRadius,
+      maxOptions: _selectedMaxOptions,
+      options: finalRestaurants,
+    );
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    // Go to swipe screen
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SwipeScreen(
+          roomCode: _roomCode!,
+          currentUser: widget.currentUser,
+          radius: _selectedRadius,
+          maxOptions: _selectedMaxOptions,
+          restaurants: finalRestaurants,
+        ),
+      ),
+    );
+  } catch (e) {
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Error fetching restaurants: $e')));
   }
+}
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.isCreator ? 'Create Room' : 'Join Room'),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            if (_roomCode != null)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Room Code:',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _roomCode!,
-                    style: const TextStyle(fontSize: 24, color: Colors.orange),
-                  ),
-                  const SizedBox(height: 20),
-                ],
-              ),
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Select Search Radius:',
-                style: TextStyle(fontSize: 18),
-              ),
-            ),
-            DropdownButton<double>(
-              value: _selectedRadius,
-              items:
-                  radiusOptions
-                      .map(
-                        (r) => DropdownMenuItem(
-                          value: r.toDouble(),
-                          child: Text('$r miles'),
-                        ),
-                      )
-                      .toList(),
-              onChanged: (v) => setState(() => _selectedRadius = v!),
-            ),
-            const SizedBox(height: 20),
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Select Number of Options:',
-                style: TextStyle(fontSize: 18),
-              ),
-            ),
-            DropdownButton<int>(
-              value: _selectedMaxOptions,
-              items:
-                  optionCounts
-                      .map(
-                        (c) => DropdownMenuItem(
-                          value: c,
-                          child: Text('$c options'),
-                        ),
-                      )
-                      .toList(),
-              onChanged: (v) => setState(() => _selectedMaxOptions = v!),
-            ),
-            const Spacer(),
-            _isLoading
-                ? const CircularProgressIndicator()
-                : ElevatedButton(
-                  onPressed: _startSwiping,
-                  child: const Text('Start Swiping'),
+      backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.10),
+      body: Center(
+        child: SingleChildScrollView(
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 400),
+            padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: BorderRadius.circular(28),
+              boxShadow: [
+                BoxShadow(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withOpacity(0.08),
+                  blurRadius: 14,
+                  offset: const Offset(0, 7),
                 ),
-          ],
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.arrow_back,
+                        color: Colors.black54,
+                        size: 28,
+                      ),
+                      tooltip: 'Back',
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
+                if (_roomCode != null)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const SizedBox(height: 4),
+                      Text(
+                        'Room Code',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 6),
+                      SelectableText(
+                        _roomCode!,
+                        style: TextStyle(
+                          fontSize: 30,
+                          color: Colors.black,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 3,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Select Search Radius:',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                DropdownButton<double>(
+                  value: _selectedRadius,
+                  items:
+                      radiusOptions
+                          .map(
+                            (r) => DropdownMenuItem(
+                              value: r.toDouble(),
+                              child: Text('$r miles'),
+                            ),
+                          )
+                          .toList(),
+                  onChanged:
+                      widget.isCreator
+                          ? (v) => setState(() => _selectedRadius = v!)
+                          : null, // disable for joiners
+                ),
+                const SizedBox(height: 18),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Select Number of Options:',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                DropdownButton<int>(
+                  value: _selectedMaxOptions,
+                  items:
+                      optionCounts
+                          .map(
+                            (c) => DropdownMenuItem(
+                              value: c,
+                              child: Text('$c options'),
+                            ),
+                          )
+                          .toList(),
+                  onChanged:
+                      widget.isCreator
+                          ? (v) => setState(() => _selectedMaxOptions = v!)
+                          : null, // disable for joiners
+                ),
+                const SizedBox(height: 30),
+                if (_isLoading)
+                  const CircularProgressIndicator()
+                else
+                  ElevatedButton(
+                    onPressed: widget.isCreator ? _startSwiping : null,
+                    child: const Text('Start Swiping'),
+                  ),
+                if (!widget.isCreator)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 32),
+                    child: Text(
+                      "Waiting for host to select options...",
+                      style: TextStyle(
+                        color: Colors.grey[700],
+                        fontSize: 16,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );
