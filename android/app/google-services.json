@@ -7,6 +7,25 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:1086599505073:android:a631621b0ae42711e02e90",
+        "android_client_info": {
+          "package_name": "com.daltontewanger.whatdoyouwant"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDoyShjxWSBIWVoP99NtKJQPX1cAe3oImY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:1086599505073:android:9e373690ee1ffe9fe02e90",
         "android_client_info": {
           "package_name": "com.example.whatdoyouwant"

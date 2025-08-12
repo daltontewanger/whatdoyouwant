@@ -76,9 +76,9 @@ flutter:
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
   assets:
-    - assets/images/wdyw.gif
+    - assets/images/wdyw.png
     - assets/icon/wdywicon2.png
-    # - .env # local testing
+   # - .env # local testing
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

@@ -1,7 +1,7 @@
 import 'dart:math';
 import 'dart:convert';
 import 'package:geolocator/geolocator.dart';
-//import 'package:flutter_dotenv/flutter_dotenv.dart'; // local testing
+// import 'package:flutter_dotenv/flutter_dotenv.dart'; // local testing
 import 'package:http/http.dart' as http;
 import '../models/restaurant.dart';
 
@@ -121,7 +121,7 @@ class LocationService {
       'at': '$centerLat,$centerLon',
       'q': 'restaurant',
       'limit': '100',
-      //'apiKey': dotenv.env['HERE_API_KEY'] ?? '', // local testing
+      // 'apiKey': dotenv.env['HERE_API_KEY'] ?? '', // local testing
       'apiKey': const String.fromEnvironment('HERE_API_KEY'), // production
     });
 
