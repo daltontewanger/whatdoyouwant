@@ -8,8 +8,8 @@ import 'themes/main_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // await dotenv.load(); // local testing
-  
+  // await dotenv.load();  // local testing
+
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // Sign in anonymously

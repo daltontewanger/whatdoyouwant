@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/restaurant.dart';
@@ -19,12 +20,28 @@ class ResultsScreen extends StatefulWidget {
 }
 
 class ResultsScreenState extends State<ResultsScreen> {
-  late Stream<DocumentSnapshot> _roomStream;
+  late final Stream<DocumentSnapshot> _roomStream;
+  bool _closedOnce = false;
+  Timer? _kickTimer;
 
   @override
   void initState() {
     super.initState();
     _roomStream = RoomService().roomStream(widget.roomCode);
+
+    // Starts a kicker and stops once throttled in RoomService, then cancels as soon as results are ready
+    _kickTimer = Timer.periodic(const Duration(seconds: 6), (_) async {
+      try {
+        await RoomService().timeoutStaleByVote(roomCode: widget.roomCode);
+      } catch (_) {
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _kickTimer?.cancel();
+    super.dispose();
   }
 
   void _returnToHome() {
@@ -34,15 +51,24 @@ class ResultsScreenState extends State<ResultsScreen> {
     );
   }
 
+  void _closeRoomOnce() {
+    if (_closedOnce) return;
+    _closedOnce = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        await RoomService().closeRoom(widget.roomCode);
+      } catch (_) {
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return PopScope(
       canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        _returnToHome();
-      },
+      onPopInvokedWithResult: (didPop, result) => _returnToHome(),
       child: Scaffold(
         backgroundColor: theme.colorScheme.primary.withOpacity(0.10),
         body: SafeArea(
@@ -70,7 +96,6 @@ class ResultsScreenState extends State<ResultsScreen> {
                         stream: _roomStream,
                         builder: (context, snapshot) {
                           if (snapshot.connectionState == ConnectionState.waiting) {
-                            // Small, centered loader — does NOT stretch the card
                             return const Center(child: _ResultsLoader());
                           }
 
@@ -80,52 +105,113 @@ class ResultsScreenState extends State<ResultsScreen> {
                           }
 
                           final data = rawData as Map<String, dynamic>;
-                          final participantsMap = Map<String, dynamic>.from(data['participants'] ?? {});
-                          final votesRaw = Map<String, dynamic>.from(data['votes'] ?? {});
-                          final int totalParticipants = participantsMap.length;
 
-                          // Waiting until all have voted
-                          if (votesRaw.length < totalParticipants) {
-                            final remaining = totalParticipants - votesRaw.length;
-                            // Keep the loader small & centered
+                          final Map<String, dynamic> participants =
+                              Map<String, dynamic>.from(data['participants'] ?? {});
+                          final Map<String, dynamic> votesRaw =
+                              Map<String, dynamic>.from(data['votes'] ?? {});
+                          final Map<String, dynamic> stats =
+                              Map<String, dynamic>.from(data['stats'] ?? {});
+                          final List<dynamic> restaurantsDoc =
+                              List<dynamic>.from(data['restaurants'] ?? const []);
+
+                          final String status = (data['status'] ?? 'closed') as String;
+
+                          // Count with fallbacks
+                          final int participantsCount =
+                              (stats['participantsCount'] ?? participants.length) is int
+                                  ? (stats['participantsCount'] ?? participants.length) as int
+                                  : participants.length;
+
+                          final int restaurantsCount =
+                              (stats['restaurantsCount'] ?? restaurantsDoc.length) is int
+                                  ? (stats['restaurantsCount'] ?? restaurantsDoc.length) as int
+                                  : restaurantsDoc.length;
+
+                          int doneCount = (stats['doneCount'] ?? 0) is int
+                              ? stats['doneCount'] as int
+                              : 0;
+
+                          // Fallback compute if doneCount is missing
+                          if (doneCount == 0 && participantsCount > 0 && restaurantsCount > 0) {
+                            int computed = 0;
+                            for (final uid in participants.keys) {
+                              final mv = Map<String, dynamic>.from(votesRaw[uid] ?? {});
+                              if (mv.length >= restaurantsCount) computed++;
+                            }
+                            doneCount = computed;
+                          }
+
+                          // Ensure the kicker is running if still waiting
+                          final bool waitingForOthers =
+                              (status == 'voting') &&
+                              (participantsCount > 0) &&
+                              (restaurantsCount > 0) &&
+                              (doneCount < participantsCount);
+
+                          if (waitingForOthers) {
+                            // Extra nudge right here just in case
+                            RoomService().timeoutStaleByVote(roomCode: widget.roomCode)
+                              .catchError((_) {});
+                            final remaining = (participantsCount - doneCount).clamp(0, 9999);
                             return Center(child: _ResultsLoader(remaining: remaining));
                           }
 
-                          // Aggregate vote counts
-                          final Map<String, int> voteCounts = {};
-                          votesRaw.forEach((userId, userVotes) {
+                          // Stop the kicker.
+                          _kickTimer?.cancel();
+
+                          final Map<String, Restaurant> byId = {
+                            for (final r in widget.restaurants) r.id: r
+                          };
+
+                          final Map<String, int> likeCounts = {};
+                          votesRaw.forEach((uid, userVotes) {
                             if (userVotes is Map<String, dynamic>) {
                               userVotes.forEach((resId, liked) {
                                 if (liked == true) {
-                                  voteCounts[resId] = (voteCounts[resId] ?? 0) + 1;
+                                  likeCounts[resId] = (likeCounts[resId] ?? 0) + 1;
                                 }
                               });
                             }
                           });
 
-                          // Determine winner
                           Restaurant? winning;
-                          for (var r in widget.restaurants) {
-                            if ((voteCounts[r.id] ?? 0) == totalParticipants) {
-                              winning = r;
-                              break;
+                          int winnerLikes = 0;
+
+                          if (likeCounts.isEmpty) {
+                            if (widget.restaurants.isNotEmpty) {
+                              final sorted = [...widget.restaurants]
+                                ..sort((a, b) => a.distance.compareTo(b.distance));
+                              winning = sorted.first;
+                              winnerLikes = 0;
                             }
-                          }
-                          if (winning == null) {
-                            int maxVotes = -1;
-                            List<Restaurant> top = [];
-                            for (var r in widget.restaurants) {
-                              final v = voteCounts[r.id] ?? 0;
-                              if (v > maxVotes) {
-                                maxVotes = v;
-                                top = [r];
-                              } else if (v == maxVotes) {
-                                top.add(r);
+                          } else {
+                            int maxLikes = -1;
+                            for (final c in likeCounts.values) {
+                              if (c > maxLikes) maxLikes = c;
+                            }
+                            final topIds = likeCounts.entries
+                                .where((e) => e.value == maxLikes)
+                                .map((e) => e.key)
+                                .toList();
+
+                            if (topIds.length == 1) {
+                              winning = byId[topIds.first];
+                              winnerLikes = maxLikes;
+                            } else {
+                              final candidates = <Restaurant>[];
+                              for (final id in topIds) {
+                                final r = byId[id];
+                                if (r != null) candidates.add(r);
                               }
-                            }
-                            if (top.isNotEmpty) {
-                              top.sort((a, b) => a.distance.compareTo(b.distance));
-                              winning = top.first;
+                              if (candidates.isEmpty && widget.restaurants.isNotEmpty) {
+                                candidates.addAll(widget.restaurants);
+                              }
+                              if (candidates.isNotEmpty) {
+                                candidates.sort((a, b) => a.distance.compareTo(b.distance));
+                                winning = candidates.first;
+                                winnerLikes = likeCounts[winning.id] ?? maxLikes;
+                              }
                             }
                           }
 
@@ -138,12 +224,13 @@ class ResultsScreenState extends State<ResultsScreen> {
                             );
                           }
 
-                          // Full-height, evenly spaced layout for results
+                          // Close room once there are results
+                          _closeRoomOnce();
+
                           return IntrinsicHeight(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                // TOP — Title
                                 Center(
                                   child: Text(
                                     'Results',
@@ -165,10 +252,8 @@ class ResultsScreenState extends State<ResultsScreen> {
                                 ),
                                 const SizedBox(height: 12),
 
-                                // Spacer pushes middle content to vertical center
                                 const Spacer(),
 
-                                // MIDDLE — Winner & votes
                                 Text(
                                   'Winning Restaurant:',
                                   style: theme.textTheme.titleLarge!.copyWith(
@@ -199,7 +284,8 @@ class ResultsScreenState extends State<ResultsScreen> {
                                       const SizedBox(height: 4),
                                       Text(
                                         'Distance: ${winning.distance.toStringAsFixed(2)} miles',
-                                        style: theme.textTheme.bodyMedium!.copyWith(color: Colors.black54),
+                                        style: theme.textTheme.bodyMedium!
+                                            .copyWith(color: Colors.black54),
                                       ),
                                     ],
                                   ),
@@ -207,7 +293,7 @@ class ResultsScreenState extends State<ResultsScreen> {
                                 const SizedBox(height: 18),
                                 Center(
                                   child: Text(
-                                    'Votes: ${voteCounts[winning.id] ?? 0} of $totalParticipants',
+                                    'Votes: $winnerLikes of $participantsCount',
                                     style: theme.textTheme.bodyLarge!.copyWith(
                                       fontWeight: FontWeight.w700,
                                       fontSize: 18,
@@ -216,10 +302,8 @@ class ResultsScreenState extends State<ResultsScreen> {
                                   ),
                                 ),
 
-                                // Spacer pushes button to bottom
                                 const Spacer(),
 
-                                // BOTTOM — Button
                                 Center(
                                   child: ElevatedButton(
                                     onPressed: _returnToHome,
@@ -244,7 +328,7 @@ class ResultsScreenState extends State<ResultsScreen> {
   }
 }
 
-// Loader/waiting state for consistent style
+// Loader/waiting state
 class _ResultsLoader extends StatelessWidget {
   final int? remaining;
   const _ResultsLoader({this.remaining});

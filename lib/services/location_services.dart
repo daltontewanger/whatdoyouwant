@@ -14,7 +14,7 @@ class LocationService {
     required double radiusMiles,
     required int maxOptions,
   }) {
-    // Filter so that we only consider restaurants within the selected radius.
+    // Filter to only consider restaurants within the selected radius.
     List<Restaurant> withinRadius =
         allRestaurants.where((r) => r.distance <= radiusMiles).toList();
 
@@ -88,7 +88,7 @@ class LocationService {
     }
   }
 
-  /// Gets the current device location using the Geolocator package.
+  // Gets the current device location using the Geolocator package.
   static Future<Position> getCurrentLocation() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
@@ -112,7 +112,6 @@ class LocationService {
   }
 
   /// Makes a single API call to fetch up to 100 restaurants for a given center coordinate.
-  /// Uses limit=100
   static Future<List<Restaurant>> _fetchRestaurantsForCenterTiled(
     double centerLat,
     double centerLon,
@@ -202,7 +201,7 @@ class LocationService {
       String nameKey =
           res.name.toLowerCase(); // Lowercase to avoid case mismatches.
       if (uniqueByName.containsKey(nameKey)) {
-        // Check if the new result is closer.
+        // Checks if the new result is closer.
         if (res.distance < uniqueByName[nameKey]!.distance) {
           uniqueByName[nameKey] = res;
         }

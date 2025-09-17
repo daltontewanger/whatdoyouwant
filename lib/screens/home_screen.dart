@@ -229,19 +229,17 @@ class HomeScreenState extends State<HomeScreen>
                           ],
                         ),
                       ),
-                      // Center - Animated Meme/Image with Branded Border
+                      // Center - Image
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         child: ScaleTransition(
                           scale: _scaleAnimation,
                           child: AspectRatio(
-                            aspectRatio:
-                                1.83,
+                            aspectRatio: 1.83,
                             child: Container(
                               decoration: BoxDecoration(
                                 border: Border.all(
-                                  color:
-                                      theme.colorScheme.primary,
+                                  color: theme.colorScheme.primary,
                                   width: 4,
                                 ),
                                 borderRadius: BorderRadius.circular(24),
@@ -272,10 +270,9 @@ class HomeScreenState extends State<HomeScreen>
                             width: double.infinity,
                             child: ElevatedButton(
                               onPressed: _isLoading ? null : _createRoom,
-                              child: const Text('Create Room',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                ),
+                              child: const Text(
+                                'Create Room',
+                                style: TextStyle(fontSize: 16),
                               ),
                             ),
                           ),
@@ -293,10 +290,9 @@ class HomeScreenState extends State<HomeScreen>
                                 ),
                                 elevation: 0,
                               ),
-                              child: const Text('Join Room',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                ),
+                              child: const Text(
+                                'Join Room',
+                                style: TextStyle(fontSize: 16),
                               ),
                             ),
                           ),
@@ -340,7 +336,7 @@ class HomeScreenState extends State<HomeScreen>
               ),
             );
 
-            // Always allow scroll if content does not fit
+            // Allow scroll if content does not fit
             return SingleChildScrollView(
               child: ConstrainedBox(
                 constraints: BoxConstraints(minHeight: constraints.maxHeight),

@@ -30,10 +30,10 @@ class JoinRoomScreenState extends State<JoinRoomScreen> {
     if (code.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a room code.')),
-      );
+      ); 
       return;
     }
-     // Go to waiting screen while generating options
+    // Go to waiting screen while generating options
     setState(() => _isLoading = true);
     try {
       await RoomService().joinRoom(code, widget.currentUser.id);
@@ -243,7 +243,7 @@ class WaitingForOptionsScreen extends StatelessWidget {
                       final int maxOptions =
                           (settings['maxOptions'] as num?)?.toInt() ?? 5;
 
-                      // Navigate to SwipeScreen automatically
+                      // Navigate to Swipe Screen automatically
                       WidgetsBinding.instance.addPostFrameCallback((_) {
                         Navigator.pushReplacement(
                           context,

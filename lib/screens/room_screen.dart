@@ -210,7 +210,6 @@ class _RoomScreenState extends State<RoomScreen> {
                         }
                       }
 
-                      // Magic scroll + expanded combo:
                       return LayoutBuilder(
                         builder: (context, innerConstraints) {
                           return SingleChildScrollView(
@@ -221,7 +220,7 @@ class _RoomScreenState extends State<RoomScreen> {
                               child: IntrinsicHeight(
                                 child: Column(
                                   children: [
-                                    // ---- Top: Room Code (fixed top)
+                                    // Top - Room Code
                                     Row(
                                       children: [
                                         IconButton(
@@ -253,7 +252,7 @@ class _RoomScreenState extends State<RoomScreen> {
                                       ),
                                     ],
 
-                                    // ---- Instructional text (evenly spaced)
+                                    // Instructional text
                                     Expanded(
                                       flex: 1,
                                       child: Align(
@@ -275,7 +274,7 @@ class _RoomScreenState extends State<RoomScreen> {
                                       ),
                                     ),
 
-                                    // ---- Search Options (evenly spaced)
+                                    // Search Options
                                     Expanded(
                                       flex: 2, 
                                       child: Column(
@@ -343,7 +342,7 @@ class _RoomScreenState extends State<RoomScreen> {
                                       ),
                                     ),
 
-                                    // ---- Participant count (evenly spaced)
+                                    // Participant count
                                     Expanded(
                                       flex: 1,
                                       child: Align(
@@ -363,7 +362,7 @@ class _RoomScreenState extends State<RoomScreen> {
                                       ),
                                     ),
 
-                                    // ---- Bottom: Start Swiping Button (fixed bottom)
+                                    // Bottom - Start Swiping Button
                                     Padding(
                                       padding: const EdgeInsets.only(
                                         top: 12.0,
