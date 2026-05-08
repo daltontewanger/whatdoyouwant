@@ -1,8 +1,6 @@
 import 'dart:math';
-import 'dart:convert';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:geolocator/geolocator.dart';
-// import 'package:flutter_dotenv/flutter_dotenv.dart'; // local testing
-import 'package:http/http.dart' as http;
 import '../models/restaurant.dart';
 
 class LocationService {
@@ -34,6 +32,7 @@ class LocationService {
           withinRadius
               .where((r) => r.distance > 3 && r.distance <= radiusMiles)
               .toList();
+
       bucket1.shuffle(Random());
       bucket2.shuffle(Random());
 
@@ -102,6 +101,7 @@ class LocationService {
         throw Exception('Location permissions are denied.');
       }
     }
+
     if (permission == LocationPermission.deniedForever) {
       throw Exception('Location permissions are permanently denied.');
     }
@@ -111,55 +111,79 @@ class LocationService {
     );
   }
 
-  /// Makes a single API call to fetch up to 100 restaurants for a given center coordinate.
-  static Future<List<Restaurant>> _fetchRestaurantsForCenterTiled(
-    double centerLat,
-    double centerLon,
+  /// Calls the Firebase backend, which handles HERE API requests, monthly usage limits,
+  /// tile-based queries, duplicate removal, and HERE API key protection.
+  static Future<List<Restaurant>> _fetchRestaurantsFromFirebase(
+    double baseLat,
+    double baseLon,
   ) async {
-    final url = Uri.https('discover.search.hereapi.com', '/v1/discover', {
-      'at': '$centerLat,$centerLon',
-      'q': 'restaurant',
-      'limit': '100',
-      // 'apiKey': dotenv.env['HERE_API_KEY'] ?? '', // local testing
-      'apiKey': const String.fromEnvironment('HERE_API_KEY'), // production
-    });
+    try {
+      final callable = FirebaseFunctions.instance.httpsCallable(
+        'fetchNearbyRestaurants',
+      );
 
-    final response = await http.get(url);
-    List<Restaurant> restaurants = [];
+      final result = await callable.call({
+        'baseLat': baseLat,
+        'baseLon': baseLon,
+      });
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      List items = data['items'] ?? [];
+      final data = result.data;
+
+      if (data == null || data is! Map) {
+        throw Exception('Invalid response from Firebase restaurant function.');
+      }
+
+      final items = data['restaurants'];
+
+      if (items == null || items is! List) {
+        return [];
+      }
+
+      List<Restaurant> restaurants = [];
+
       for (var item in items) {
-        String id = item['id'];
-        String name = item['title'];
-        String address = item['address']?['label'] ?? 'Address not available';
-        double distanceMeters = (item['distance'] as num?)?.toDouble() ?? 0.0;
-        double distanceMiles = distanceMeters * 0.000621371;
+        if (item is! Map) continue;
+
+        String id = item['id']?.toString() ?? '';
+        String name = item['name']?.toString() ?? 'Unknown Restaurant';
+        String address = item['address']?.toString() ?? 'Address not available';
+        double distance = (item['distance'] as num?)?.toDouble() ?? 0.0;
+
+        if (id.isEmpty || name.trim().isEmpty) continue;
 
         restaurants.add(
           Restaurant(
             id: id,
             name: name,
             address: address,
-            distance: distanceMiles,
+            distance: distance,
           ),
         );
       }
-    } else {
-      throw Exception(
-        'Failed to load restaurants from HERE API: ${response.statusCode}',
-      );
-    }
 
-    return restaurants;
+      return restaurants;
+    } on FirebaseFunctionsException catch (e) {
+      if (e.code == 'resource-exhausted') {
+        throw Exception(
+          'Monthly HERE API limit reached. Restaurant search is temporarily unavailable.',
+        );
+      }
+
+      if (e.code == 'invalid-argument') {
+        throw Exception('Invalid location data sent to restaurant search.');
+      }
+
+      throw Exception(
+        'Failed to load restaurants from Firebase function: ${e.code} - ${e.message}',
+      );
+    } catch (e) {
+      throw Exception('Failed to load restaurants: $e');
+    }
   }
 
-  /// Fetches nearby restaurants using tile-based queries.
-  /// Make 4 API calls with slightly shifted center points (north, south, east, and west),
-  /// each offset by approximately 5 miles from the user's location.
-  /// Combines the results and removes duplicates by restaurant name,
-  /// keeping only the closest result for each name.
+  /// Fetches nearby restaurants using the Firebase backend.
+  /// The backend makes the tile-based HERE queries with slightly shifted center points
+  /// and removes duplicates before returning the restaurant list.
   static Future<List<Restaurant>> fetchNearbyRestaurantsTiled({
     required double radiusMiles,
   }) async {
@@ -168,49 +192,11 @@ class LocationService {
     double baseLat = position.latitude;
     double baseLon = position.longitude;
 
-    // For latitude, roughly 1 degree ~ 69 miles.
-    double latOffset = 5.0 / 69.0; // ~5 miles offset in degrees.
-    // For longitude, the degree distance depends on latitude.
-    double lonOffset = 5.0 / (cos(baseLat * pi / 180) * 69.0);
+    List<Restaurant> restaurants = await _fetchRestaurantsFromFirebase(
+      baseLat,
+      baseLon,
+    );
 
-    // Define four query centers for tiling: north, south, east, and west.
-    List<Map<String, double>> centers = [
-      {'lat': baseLat + latOffset, 'lon': baseLon}, // North
-      {'lat': baseLat - latOffset, 'lon': baseLon}, // South
-      {'lat': baseLat, 'lon': baseLon + lonOffset}, // East
-      {'lat': baseLat, 'lon': baseLon - lonOffset}, // West
-    ];
-
-    List<Restaurant> aggregatedResults = [];
-
-    // For each center, fetch results.
-    for (var center in centers) {
-      double queryLat = center['lat']!;
-      double queryLon = center['lon']!;
-      List<Restaurant> results = await _fetchRestaurantsForCenterTiled(
-        queryLat,
-        queryLon,
-      );
-      aggregatedResults.addAll(results);
-    }
-
-    // Remove duplicate results by restaurant name. If the same name exists at multiple locations,
-    // keep only the entry with the smallest distance.
-    Map<String, Restaurant> uniqueByName = {};
-    for (var res in aggregatedResults) {
-      String nameKey =
-          res.name.toLowerCase(); // Lowercase to avoid case mismatches.
-      if (uniqueByName.containsKey(nameKey)) {
-        // Checks if the new result is closer.
-        if (res.distance < uniqueByName[nameKey]!.distance) {
-          uniqueByName[nameKey] = res;
-        }
-      } else {
-        uniqueByName[nameKey] = res;
-      }
-    }
-    List<Restaurant> uniqueResults = uniqueByName.values.toList();
-
-    return uniqueResults;
+    return restaurants.where((r) => r.distance <= radiusMiles).toList();
   }
 }
