@@ -303,12 +303,21 @@ class HomeScreenState extends State<HomeScreen>
                               final url = Uri.parse(
                                 'https://daltontewanger.github.io/whatdoyouwant/privacy.html',
                               );
-                              if (await canLaunchUrl(url)) {
-                                await launchUrl(
+                              try {
+                                final opened = await launchUrl(
                                   url,
                                   mode: LaunchMode.externalApplication,
                                 );
-                              } else {
+                                if (!opened) {
+                                  messenger.showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Could not open the privacy policy.',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
                                 messenger.showSnackBar(
                                   const SnackBar(
                                     content: Text(
