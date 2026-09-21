@@ -287,7 +287,7 @@ class _RoomScreenState extends State<RoomScreen> {
                                           ),
                                           const SizedBox(height: 4),
                                           SizedBox(
-                                            width: 100,
+                                            width: 110,
                                             child: DropdownButton<double>(
                                               value: _selectedRadius,
                                               isExpanded: true,
@@ -315,7 +315,7 @@ class _RoomScreenState extends State<RoomScreen> {
                                           ),
                                           const SizedBox(height: 4),
                                           SizedBox(
-                                            width: 100,
+                                            width: 110,
                                             child: DropdownButton<int>(
                                               value: _selectedMaxOptions,
                                               isExpanded: true,
