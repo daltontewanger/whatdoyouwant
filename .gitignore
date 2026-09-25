@@ -12,6 +12,8 @@
 .swiftpm/
 migrate_working_dir/
 .env
+.env.*
+!.env.example
 .agents/
 
 # IntelliJ related
@@ -61,3 +63,9 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+
+# Private working plans, discovery reports and testing notes.
+/docs/
+
+# Repository-local Node development tools.
+/node_modules/

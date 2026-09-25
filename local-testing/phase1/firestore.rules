@@ -1,0 +1,44 @@
+// LOCAL-ONLY prototype; not connected to any deploy configuration.
+// Server-owned rooms: creator (UID), status (lobby/voting/closed),
+// expiresAt (timestamp). Members/{uid}: active (bool), server-owned.
+// candidates/{resId}: server-owned deck. Ballot: liked (bool), at (timestamp).
+// Existing app's aggregate votes/membership writes are intentionally incompatible.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function member(room) {
+      return request.auth != null &&
+        get(/databases/$(database)/documents/rooms/$(room)/members/$(request.auth.uid)).data.active == true;
+    }
+    function live(room) {
+      return get(/databases/$(database)/documents/rooms/$(room)).data.expiresAt > request.time;
+    }
+    function validBallot(data) {
+      return data.keys().hasAll(['liked', 'at']) &&
+        data.keys().hasOnly(['liked', 'at']) &&
+        data.liked is bool && data.at is timestamp && data.at == request.time;
+    }
+    match /rooms/{room} {
+      allow get: if member(room) && live(room);
+      allow list, create, update, delete: if false;
+      match /members/{uid} {
+        allow get: if member(room) && live(room) && request.auth.uid == uid;
+        allow list, write: if false;
+      }
+      match /candidates/{resId} {
+        allow read: if member(room) && live(room);
+        allow write: if false;
+      }
+      match /votes/{uid}/ballot/{resId} {
+        allow read: if member(room) && live(room) && request.auth.uid == uid;
+        allow create: if member(room) && live(room) && request.auth.uid == uid &&
+          get(/databases/$(database)/documents/rooms/$(room)).data.status == 'voting' &&
+          exists(/databases/$(database)/documents/rooms/$(room)/candidates/$(resId)) &&
+          validBallot(request.resource.data);
+        // Votes are immutable; aggregation and timeouts are server-owned.
+        allow update, delete: if false;
+      }
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

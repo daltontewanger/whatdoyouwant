@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "what-do-you-want-8a404"
+    "default": "what-do-you-want-8a404",
+    "staging": "whatdoyouwant-staging"
   }
 }

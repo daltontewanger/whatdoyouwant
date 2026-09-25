@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'firebase_options.dart';
+import 'environment_guard.dart';
 import 'screens/home_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -9,13 +10,19 @@ import 'themes/main_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  checkFirebaseEnvironment(
+    'production',
+    DefaultFirebaseOptions.currentPlatform.projectId,
+  );
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   await FirebaseAppCheck.instance.activate(
     providerAndroid:
         kDebugMode ? AndroidDebugProvider() : AndroidPlayIntegrityProvider(),
-    providerWeb: ReCaptchaEnterpriseProvider('6LfB8dwsAAAAADI3urO26SxS_C_lHi7jiydt1KSv'),
+    providerWeb: ReCaptchaEnterpriseProvider(
+      '6LfB8dwsAAAAADI3urO26SxS_C_lHi7jiydt1KSv',
+    ),
   );
 
   // Sign in anonymously

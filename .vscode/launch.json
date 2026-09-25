@@ -1,0 +1,29 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Local preview - Android emulator",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main_local.dart",
+      "flutterMode": "debug",
+      "toolArgs": [
+        "--flavor", "local",
+        "--dart-define=EMULATOR_HOST=10.0.2.2",
+        "--dart-define=ACCOUNT_FLOW_PREVIEW=true"
+      ]
+    },
+    {
+      "name": "Local preview - Web",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main_local.dart",
+      "deviceId": "chrome",
+      "flutterMode": "debug",
+      "toolArgs": [
+        "--dart-define=EMULATOR_HOST=127.0.0.1",
+        "--dart-define=ACCOUNT_FLOW_PREVIEW=true"
+      ]
+    }
+  ]
+}

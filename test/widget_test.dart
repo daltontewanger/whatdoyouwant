@@ -1,30 +1,27 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:whatdoyouwant/main.dart';
+import 'package:whatdoyouwant/models/user.dart';
+import 'package:whatdoyouwant/screens/join_screen.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp(currentUid: '',));
-
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
+  testWidgets('joining with an empty code stays on the form and explains why', (
+    tester,
+  ) async {
+    // No Firebase initialization: invalid input must not reach the backend.
+    await tester.pumpWidget(
+      MaterialApp(
+        home: JoinRoomScreen(
+          currentUser: AppUser(id: 'fixture-guest', name: 'Guest'),
+        ),
+      ),
+    );
+    expect(find.text('Join a Room'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Join'));
     await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('Please enter a room code.'), findsOneWidget);
+    expect(find.byType(JoinRoomScreen), findsOneWidget);
+    expect(find.byType(WaitingForOptionsScreen), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 }

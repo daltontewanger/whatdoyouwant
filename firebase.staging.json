@@ -1,0 +1,15 @@
+{
+  "firestore": {
+    "database": "(default)",
+    "location": "nam5",
+    "rules": "staging/firestore.rules",
+    "indexes": "staging/firestore.indexes.json"
+  },
+  "auth": {
+    "authorizedDomains": ["localhost", "whatdoyouwant-staging.firebaseapp.com", "whatdoyouwant-staging.web.app"],
+    "providers": {
+      "anonymous": true,
+      "emailPassword": true
+    }
+  }
+}

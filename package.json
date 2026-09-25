@@ -1,0 +1,26 @@
+{
+  "name": "whatdoyouwant-local-tools",
+  "private": true,
+  "scripts": {
+    "local": "node scripts/local.mjs start",
+    "local:preview": "node scripts/local.mjs preview",
+    "test:local": "node scripts/local.mjs test",
+    "test:unit": "node --test local-testing/unit.test.cjs",
+    "test:tooling": "node --test local-testing/tooling.test.cjs",
+    "test:policy": "node scripts/local.mjs policy"
+  },
+  "engines": {
+    "node": "22.x || 24.x"
+  },
+  "devDependencies": {
+    "firebase-tools": "15.31.0"
+  },
+  "overrides": {
+    "@google-cloud/pubsub": {
+      "@opentelemetry/core": "2.8.0"
+    },
+    "gaxios@6.7.1": {
+      "uuid": "11.1.1"
+    }
+  }
+}

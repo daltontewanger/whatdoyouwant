@@ -1,0 +1,17 @@
+{
+  "project_info": {
+    "project_number": "123456789",
+    "project_id": "demo-whatdoyouwant"
+  },
+  "client": [{
+    "client_info": {
+      "mobilesdk_app_id": "1:123456789:android:0123456789abcdef0123456789abcdef",
+      "android_client_info": {
+        "package_name": "com.daltontewanger.whatdoyouwant.local"
+      }
+    },
+    "oauth_client": [],
+    "api_key": [{ "current_key": "demo-api-key" }]
+  }],
+  "configuration_version": "1"
+}
