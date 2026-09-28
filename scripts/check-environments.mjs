@@ -13,7 +13,9 @@ check(web.projectId === staging && native.project_info.project_id === staging, '
 check(JSON.stringify(native) === JSON.stringify(downloaded), 'Android download/native copy');
 check(json('android/app/google-services.json').project_info.project_id === production, 'production native project');
 check(json('.firebaserc').projects.staging === staging, 'staging alias');
-check(json('.firebaserc').projects.default === production, 'existing default alias');
+check(json('.firebaserc').projects.production === production, 'production alias');
+// With no default alias, a bare firebase command fails instead of reaching production.
+check(!Object.hasOwn(json('.firebaserc').projects, 'default'), 'no default alias');
 const client = native.client.find(c => c.client_info.android_client_info.package_name === 'com.daltontewanger.whatdoyouwant.staging');
 check(!!client, 'Android staging package');
 const dart = readFileSync(resolve(root, 'lib/firebase_options_staging.dart'), 'utf8');
