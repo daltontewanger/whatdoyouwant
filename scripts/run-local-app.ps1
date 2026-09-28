@@ -1,7 +1,8 @@
 param(
-    [string]$Device = 'chrome',
+    [string]$Device,
     [switch]$Android,
     [switch]$Accounts,
+    [int]$WebPort = 5080,
     [string]$FlutterSdk
 )
 $ErrorActionPreference = 'Stop'
@@ -41,9 +42,34 @@ if ($Accounts) {
         if ($preview.result.project -ne 'demo-whatdoyouwant' -or $preview.result.policy -ne 'phase1') { throw 'Wrong preview' }
     } catch { throw 'Account/room preview requires: node scripts/local.mjs preview. Stop the baseline emulators first.' }
 }
+if (-not $Device) {
+    if ($Android) { throw 'Pass -Device with the emulator or device ID shown by adb devices.' }
+    $Device = 'web-server'
+}
 $flavorArgs = if ($Android) { @('--flavor', 'local') } else { @() }
+$webArgs = @()
+if ($Device -eq 'web-server') {
+    if (Get-NetTCPConnection -State Listen -LocalPort $WebPort -ErrorAction SilentlyContinue) {
+        throw "Port $WebPort is already in use. Stop the other server or pass -WebPort."
+    }
+    $webArgs = @('--web-hostname', 'localhost', '--web-port', "$WebPort")
+    # Flutter's own Chrome launch fails intermittently on this machine, so serve the app and
+    # open it in the default browser. A fixed origin also keeps the signed-in session between runs.
+    $url = "http://localhost:$WebPort/whatdoyouwant/"
+    Start-Job -ArgumentList $url -ScriptBlock {
+        param($target)
+        for ($i = 0; $i -lt 180; $i++) {
+            try {
+                Invoke-WebRequest -Uri $target -UseBasicParsing -TimeoutSec 2 | Out-Null
+                Start-Process $target
+                return
+            } catch { Start-Sleep -Seconds 1 }
+        }
+    } | Out-Null
+    Write-Output "Opening $url once it is ready. Use a private window for a second, separate user."
+}
 Push-Location $projectRoot
 try {
-    & $dart --disable-analytics "--packages=$toolPackages" $snapshot --suppress-analytics --no-version-check run --debug --no-pub -t lib/main_local.dart -d $Device "--dart-define=EMULATOR_HOST=$emulatorHost" "--dart-define=ACCOUNT_FLOW_PREVIEW=$($Accounts.IsPresent.ToString().ToLowerInvariant())" @flavorArgs
+    & $dart --disable-analytics "--packages=$toolPackages" $snapshot --suppress-analytics --no-version-check run --debug --no-pub -t lib/main_local.dart -d $Device "--dart-define=EMULATOR_HOST=$emulatorHost" "--dart-define=ACCOUNT_FLOW_PREVIEW=$($Accounts.IsPresent.ToString().ToLowerInvariant())" @flavorArgs @webArgs
     exit $LASTEXITCODE
 } finally { Pop-Location }

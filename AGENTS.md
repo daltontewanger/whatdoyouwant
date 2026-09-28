@@ -39,8 +39,9 @@ Repository files and verified console evidence describe actual state. The playbo
 
 Run from the repository root. Node 22 or 24 is required. Flutter may not be on
 PATH; the PowerShell launchers read the SDK location from `android/local.properties`.
-From Git Bash, run `.ps1` launchers through `powershell.exe -NoProfile -File`;
-invoking them directly makes bash try to parse them.
+Run `.ps1` launchers through `powershell.exe -NoProfile -ExecutionPolicy Bypass -File`:
+invoking them directly from Git Bash makes bash parse them, and Windows blocks
+local scripts by default. The bypass applies only to that process.
 
 | Purpose | Command |
 | --- | --- |
@@ -52,8 +53,8 @@ invoking them directly makes bash try to parse them.
 | Functions/emulator tests | `npm run test:unit`, `npm run test:local`, `npm run test:tooling` |
 | Firestore rules + callable tests | `npm run test:policy` |
 | Start emulators | `npm run local:preview` (candidate rules) or `npm run local` (baseline) |
-| Run account preview (web) | `powershell.exe -NoProfile -File ./scripts/run-local-app.ps1 -Accounts` |
-| Run account preview (Android) | `powershell.exe -NoProfile -File ./scripts/run-local-app.ps1 -Accounts -Android -Device <device-id>` |
+| Run account preview (web) | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-local-app.ps1 -Accounts` (serves on `localhost:5080` and opens it in the default browser; `-WebPort` to change) |
+| Run account preview (Android) | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-local-app.ps1 -Accounts -Android -Device <device-id>` |
 | Web build | `flutter build web --release --no-pub` |
 | Android debug build | `flutter build apk --debug --no-pub --flavor production -t lib/main.dart` (staging: `--flavor staging -t lib/main_staging.dart`) |
 

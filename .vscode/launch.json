@@ -14,13 +14,15 @@
       ]
     },
     {
-      "name": "Local preview - Web",
+      "name": "Local preview - Web (open localhost:5080/whatdoyouwant/)",
       "request": "launch",
       "type": "dart",
       "program": "lib/main_local.dart",
-      "deviceId": "chrome",
+      "deviceId": "web-server",
       "flutterMode": "debug",
       "toolArgs": [
+        "--web-hostname", "localhost",
+        "--web-port", "5080",
         "--dart-define=EMULATOR_HOST=127.0.0.1",
         "--dart-define=ACCOUNT_FLOW_PREVIEW=true"
       ]
