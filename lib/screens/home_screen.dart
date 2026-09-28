@@ -108,7 +108,9 @@ class HomeScreenState extends State<HomeScreen>
                     borderRadius: BorderRadius.circular(28),
                     boxShadow: [
                       BoxShadow(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.10),
+                        color: theme.colorScheme.primary.withValues(
+                          alpha: 0.10,
+                        ),
                         blurRadius: 18,
                         offset: const Offset(0, 8),
                       ),

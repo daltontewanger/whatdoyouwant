@@ -60,9 +60,7 @@ final ThemeData appTheme = ThemeData(
   ),
   cardTheme: CardThemeData(
     color: lightBackground,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(24),
-    ),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
     elevation: 3,
     margin: EdgeInsets.symmetric(vertical: 10, horizontal: 8),
     shadowColor: Colors.black.withValues(alpha: 0.08),

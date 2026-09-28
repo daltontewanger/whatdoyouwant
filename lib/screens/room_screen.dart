@@ -180,7 +180,9 @@ class _RoomScreenState extends State<RoomScreen> {
                     borderRadius: BorderRadius.circular(28),
                     boxShadow: [
                       BoxShadow(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.10),
+                        color: theme.colorScheme.primary.withValues(
+                          alpha: 0.10,
+                        ),
                         blurRadius: 18,
                         offset: const Offset(0, 8),
                       ),
@@ -276,7 +278,7 @@ class _RoomScreenState extends State<RoomScreen> {
 
                                     // Search Options
                                     Expanded(
-                                      flex: 2, 
+                                      flex: 2,
                                       child: Column(
                                         mainAxisAlignment:
                                             MainAxisAlignment.center,

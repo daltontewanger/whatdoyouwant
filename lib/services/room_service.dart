@@ -5,16 +5,18 @@ import '../models/restaurant.dart';
 class RoomService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Code generation 
+  // Code generation
   static const int _roomCodeLength = 6;
   static const String _chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
   static String _randomCode() {
     final r = Random();
-    return String.fromCharCodes(Iterable.generate(
-      _roomCodeLength,
-      (_) => _chars.codeUnitAt(r.nextInt(_chars.length)),
-    ));
+    return String.fromCharCodes(
+      Iterable.generate(
+        _roomCodeLength,
+        (_) => _chars.codeUnitAt(r.nextInt(_chars.length)),
+      ),
+    );
   }
 
   static Future<String> _generateUniqueRoomCode() async {
@@ -24,7 +26,9 @@ class RoomService {
         return code;
       }
     }
-    return DateTime.now().millisecondsSinceEpoch.toRadixString(36).toUpperCase();
+    return DateTime.now().millisecondsSinceEpoch
+        .toRadixString(36)
+        .toUpperCase();
   }
 
   //  Create room (lobby)
@@ -43,7 +47,7 @@ class RoomService {
       'closedAt': null,
       'expiresAt': expiresAt,
 
-      'status': 'lobby',          // lobby -> voting -> closed
+      'status': 'lobby', // lobby -> voting -> closed
       'participants': {creatorId: true},
 
       'settings': {'radius': null, 'maxOptions': null},
@@ -58,17 +62,13 @@ class RoomService {
 
       // Stats to avoid expensive scans
       // stats = { restaurantsCount, participantsCount, doneCount }
-      'stats': {
-        'restaurantsCount': 0,
-        'participantsCount': 1,
-        'doneCount': 0,
-      },
+      'stats': {'restaurantsCount': 0, 'participantsCount': 1, 'doneCount': 0},
     });
 
     return code;
   }
 
-  // Join rules/helpers 
+  // Join rules/helpers
   bool _isExpired(Map<String, dynamic> data) {
     final expires = data['expiresAt'];
     if (expires is Timestamp) {
@@ -98,11 +98,14 @@ class RoomService {
         throw Exception('This room is no longer joinable.');
       }
 
-      final participants = Map<String, dynamic>.from(data['participants'] ?? {});
+      final participants = Map<String, dynamic>.from(
+        data['participants'] ?? {},
+      );
       if (!participants.containsKey(userId)) {
         participants[userId] = true;
         final stats = Map<String, dynamic>.from(data['stats'] ?? {});
-        final int pCount = (stats['participantsCount'] ?? participants.length) as int;
+        final int pCount =
+            (stats['participantsCount'] ?? participants.length) as int;
         tx.update(ref, {
           'participants': participants,
           'stats.participantsCount': pCount + 1,
@@ -111,7 +114,7 @@ class RoomService {
     });
   }
 
-  // Start voting 
+  // Start voting
   Future<void> setRoomOptionsAndStart({
     required String roomCode,
     required double radius,
@@ -126,7 +129,9 @@ class RoomService {
       final data = snap.data() as Map<String, dynamic>;
       if (_isExpired(data)) throw Exception('This room has expired.');
 
-      final participants = Map<String, dynamic>.from(data['participants'] ?? {});
+      final participants = Map<String, dynamic>.from(
+        data['participants'] ?? {},
+      );
       if (participants.isEmpty) {
         throw Exception('No participants in room.');
       }
@@ -167,7 +172,11 @@ class RoomService {
     required int totalCount,
   }) async {
     final roomRef = _firestore.collection('rooms').doc(roomCode);
-    final ballotRef = roomRef.collection('votes').doc(userId).collection('ballot').doc(restaurantId);
+    final ballotRef = roomRef
+        .collection('votes')
+        .doc(userId)
+        .collection('ballot')
+        .doc(restaurantId);
 
     await _firestore.runTransaction((tx) async {
       final snap = await tx.get(roomRef);
@@ -181,7 +190,10 @@ class RoomService {
       // Stats & existing votes/meta
       final stats = Map<String, dynamic>.from(data['stats'] ?? {});
       final int restaurantsCount =
-          (stats['restaurantsCount'] ?? (data['restaurants'] as List?)?.length ?? totalCount) as int;
+          (stats['restaurantsCount'] ??
+                  (data['restaurants'] as List?)?.length ??
+                  totalCount)
+              as int;
 
       final votes = Map<String, dynamic>.from(data['votes'] ?? {});
       final myVotes = Map<String, dynamic>.from(votes[userId] ?? {});
@@ -195,7 +207,9 @@ class RoomService {
       myVotes[restaurantId] = liked;
 
       // Determine if this vote makes user "done"
-      final wasDone = Map<String, dynamic>.from(data['votesMeta']?[userId] ?? {})['done'] == true;
+      final wasDone =
+          Map<String, dynamic>.from(data['votesMeta']?[userId] ?? {})['done'] ==
+          true;
       final bool nowDone = myVotes.length >= restaurantsCount;
 
       // Prepare updates
@@ -240,11 +254,20 @@ class RoomService {
 
     final stats = Map<String, dynamic>.from(data['stats'] ?? {});
     final int restaurantsCount =
-        (stats['restaurantsCount'] ?? (data['restaurants'] as List?)?.length ?? 0) as int;
+        (stats['restaurantsCount'] ??
+                (data['restaurants'] as List?)?.length ??
+                0)
+            as int;
     if (restaurantsCount == 0) return;
 
-    final restaurants = List<Map<String, dynamic>>.from(data['restaurants'] ?? const []);
-    final restaurantIds = restaurants.map((e) => (e['id'] ?? '') as String).where((id) => id.isNotEmpty).toList();
+    final restaurants = List<Map<String, dynamic>>.from(
+      data['restaurants'] ?? const [],
+    );
+    final restaurantIds =
+        restaurants
+            .map((e) => (e['id'] ?? '') as String)
+            .where((id) => id.isNotEmpty)
+            .toList();
     if (restaurantIds.isEmpty) return;
 
     final votes = Map<String, dynamic>.from(data['votes'] ?? {});
@@ -260,7 +283,10 @@ class RoomService {
       if (done) continue;
 
       final lastTS = meta['lastVoteAt'];
-      final last = (lastTS is Timestamp) ? lastTS.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+      final last =
+          (lastTS is Timestamp)
+              ? lastTS.toDate()
+              : DateTime.fromMillisecondsSinceEpoch(0);
       final tooOld = now.isAfter(last.add(idle));
 
       if (!tooOld) continue;
@@ -291,7 +317,8 @@ class RoomService {
 
     // After we stage updates, check if this would close the room
     final int currentDone = (stats['doneCount'] ?? 0) as int;
-    final int participantsCount = (stats['participantsCount'] ?? participants.length) as int;
+    final int participantsCount =
+        (stats['participantsCount'] ?? participants.length) as int;
     final int finalDone = currentDone + doneInThisPass;
     final bool allDone = finalDone >= participantsCount;
 

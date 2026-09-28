@@ -59,7 +59,9 @@ class SwipeScreenState extends State<SwipeScreen> {
     _roomSub = RoomService().roomStream(widget.roomCode).listen(_onRoomUpdate);
 
     _watchdogTimer = Timer.periodic(_watchdogInterval, (_) {
-      RoomService().timeoutStaleByVote(roomCode: widget.roomCode).catchError((_) {});
+      RoomService()
+          .timeoutStaleByVote(roomCode: widget.roomCode)
+          .catchError((_) {});
     });
   }
 
@@ -74,9 +76,12 @@ class SwipeScreenState extends State<SwipeScreen> {
 
   // Helpers for room state
   int _restaurantsLenFromRoom(Map<String, dynamic> data) {
-    final restaurantsDoc =
-        List<Map<String, dynamic>>.from(data['restaurants'] ?? const []);
-    return restaurantsDoc.isNotEmpty ? restaurantsDoc.length : swipeOptions.length;
+    final restaurantsDoc = List<Map<String, dynamic>>.from(
+      data['restaurants'] ?? const [],
+    );
+    return restaurantsDoc.isNotEmpty
+        ? restaurantsDoc.length
+        : swipeOptions.length;
   }
 
   // Room stream - navigate when this user is done and close when all are done
@@ -91,8 +96,9 @@ class SwipeScreenState extends State<SwipeScreen> {
     final votes = Map<String, dynamic>.from(data['votes'] ?? {});
 
     // Checks being done with server
-    final Map<String, dynamic> myVotes =
-        Map<String, dynamic>.from(votes[_uid] ?? {});
+    final Map<String, dynamic> myVotes = Map<String, dynamic>.from(
+      votes[_uid] ?? {},
+    );
     final bool iAmDone = restaurantsLen > 0 && myVotes.length >= restaurantsLen;
     if (iAmDone && !_navigated) {
       _goToResults();
@@ -102,8 +108,9 @@ class SwipeScreenState extends State<SwipeScreen> {
     bool allComplete = false;
     if (participants.isNotEmpty && restaurantsLen > 0) {
       allComplete = participants.keys.every((uid) {
-        final Map<String, dynamic> uVotes =
-            Map<String, dynamic>.from(votes[uid] ?? {});
+        final Map<String, dynamic> uVotes = Map<String, dynamic>.from(
+          votes[uid] ?? {},
+        );
         return uVotes.length >= restaurantsLen;
       });
     }
@@ -124,10 +131,11 @@ class SwipeScreenState extends State<SwipeScreen> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => ResultsScreen(
-            roomCode: widget.roomCode,
-            restaurants: swipeOptions,
-          ),
+          builder:
+              (_) => ResultsScreen(
+                roomCode: widget.roomCode,
+                restaurants: swipeOptions,
+              ),
         ),
       );
     });
@@ -177,8 +185,9 @@ class SwipeScreenState extends State<SwipeScreen> {
         })
         .catchError((e) {
           if (!mounted || _isLeaving) return;
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text('Vote failed: $e')));
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Vote failed: $e')));
         });
 
     if (mounted && !_isLeaving) setState(() {});
@@ -201,10 +210,10 @@ class SwipeScreenState extends State<SwipeScreen> {
                 restaurant.name,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineMedium!.copyWith(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 26,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 26,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
               const SizedBox(height: 14),
               Text(
@@ -215,10 +224,9 @@ class SwipeScreenState extends State<SwipeScreen> {
               const SizedBox(height: 14),
               Text(
                 'Distance: ${restaurant.distance.toStringAsFixed(2)} miles',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium!
-                    .copyWith(color: Colors.black54),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium!.copyWith(color: Colors.black54),
               ),
             ],
           ),
@@ -255,13 +263,18 @@ class SwipeScreenState extends State<SwipeScreen> {
                   minHeight: constraints.maxHeight,
                 ),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 30,
+                    horizontal: 20,
+                  ),
                   decoration: BoxDecoration(
                     color: theme.cardColor,
                     borderRadius: BorderRadius.circular(28),
                     boxShadow: [
                       BoxShadow(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.10),
+                        color: theme.colorScheme.primary.withValues(
+                          alpha: 0.10,
+                        ),
                         blurRadius: 18,
                         offset: const Offset(0, 8),
                       ),
@@ -271,7 +284,9 @@ class SwipeScreenState extends State<SwipeScreen> {
                     builder: (context, innerConstraints) {
                       return SingleChildScrollView(
                         child: ConstrainedBox(
-                          constraints: BoxConstraints(minHeight: innerConstraints.maxHeight),
+                          constraints: BoxConstraints(
+                            minHeight: innerConstraints.maxHeight,
+                          ),
                           child: IntrinsicHeight(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.center,
@@ -279,32 +294,39 @@ class SwipeScreenState extends State<SwipeScreen> {
                                 Text(
                                   "Swipe to Choose!",
                                   textAlign: TextAlign.center,
-                                  style: theme.textTheme.headlineMedium!.copyWith(
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 34,
-                                    letterSpacing: 1.2,
-                                    shadows: const [
-                                      Shadow(
-                                        color: Colors.black12,
-                                        blurRadius: 4,
-                                        offset: Offset(1, 2),
+                                  style: theme.textTheme.headlineMedium!
+                                      .copyWith(
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 34,
+                                        letterSpacing: 1.2,
+                                        shadows: const [
+                                          Shadow(
+                                            color: Colors.black12,
+                                            blurRadius: 4,
+                                            offset: Offset(1, 2),
+                                          ),
+                                        ],
                                       ),
-                                    ],
-                                  ),
                                 ),
 
                                 Expanded(
                                   child: Align(
                                     alignment: Alignment.center,
                                     child: Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 6,
+                                      ),
                                       child: Text(
                                         "Swipe right to vote YES, left to vote NO.\nAuto NO after $swipeTimeoutSeconds seconds.",
                                         textAlign: TextAlign.center,
-                                        style: theme.textTheme.bodyLarge!.copyWith(
-                                          fontSize: 16,
-                                          color: Colors.black.withValues(alpha: 0.7),
-                                        ),
+                                        style: theme.textTheme.bodyLarge!
+                                            .copyWith(
+                                              fontSize: 16,
+                                              color: Colors.black.withValues(
+                                                alpha: 0.7,
+                                              ),
+                                            ),
                                       ),
                                     ),
                                   ),
@@ -319,7 +341,9 @@ class SwipeScreenState extends State<SwipeScreen> {
                                         controller: _cardSwiperController,
                                         cardsCount: _cardWidgets.length,
                                         cardBuilder: (context, index, h, v) {
-                                          if (index >= _cardWidgets.length) return null;
+                                          if (index >= _cardWidgets.length) {
+                                            return null;
+                                          }
                                           return _cardWidgets[index];
                                         },
                                         isLoop: false,
@@ -329,7 +353,9 @@ class SwipeScreenState extends State<SwipeScreen> {
                                           if (!_navigated) _goToResults();
                                           // Also nudge watchdog
                                           await RoomService()
-                                              .timeoutStaleByVote(roomCode: widget.roomCode)
+                                              .timeoutStaleByVote(
+                                                roomCode: widget.roomCode,
+                                              )
                                               .catchError((_) {});
                                         },
                                       ),
@@ -339,49 +365,76 @@ class SwipeScreenState extends State<SwipeScreen> {
 
                                 if (!finishedDeck)
                                   Padding(
-                                    padding: const EdgeInsets.only(top: 20, bottom: 6),
+                                    padding: const EdgeInsets.only(
+                                      top: 20,
+                                      bottom: 6,
+                                    ),
                                     child: TweenAnimationBuilder<double>(
                                       key: ValueKey(_currentIndex),
-                                      duration: const Duration(seconds: swipeTimeoutSeconds),
+                                      duration: const Duration(
+                                        seconds: swipeTimeoutSeconds,
+                                      ),
                                       tween: Tween(begin: 1.0, end: 0.0),
                                       builder: (context, value, child) {
-                                        if (_isLeaving) return const SizedBox.shrink();
-                                        final secondsLeft = (swipeTimeoutSeconds * value).ceil();
+                                        if (_isLeaving) {
+                                          return const SizedBox.shrink();
+                                        }
+                                        final secondsLeft =
+                                            (swipeTimeoutSeconds * value)
+                                                .ceil();
                                         return Column(
                                           children: [
                                             Text(
-                                              secondsLeft > 0 ? '$secondsLeft' : '',
-                                              style: theme.textTheme.headlineMedium!
-                                                  .copyWith(color: Colors.orange, fontSize: 38),
+                                              secondsLeft > 0
+                                                  ? '$secondsLeft'
+                                                  : '',
+                                              style: theme
+                                                  .textTheme
+                                                  .headlineMedium!
+                                                  .copyWith(
+                                                    color: Colors.orange,
+                                                    fontSize: 38,
+                                                  ),
                                             ),
                                             const SizedBox(height: 6),
                                             LinearProgressIndicator(
                                               value: value,
                                               color: Colors.orange,
-                                              backgroundColor:
-                                                  theme.colorScheme.primary.withValues(alpha: 0.13),
+                                              backgroundColor: theme
+                                                  .colorScheme
+                                                  .primary
+                                                  .withValues(alpha: 0.13),
                                               minHeight: 8,
-                                              borderRadius: BorderRadius.circular(7),
+                                              borderRadius:
+                                                  BorderRadius.circular(7),
                                             ),
                                           ],
                                         );
                                       },
                                       onEnd: () {
                                         if (_isLeaving || finishedDeck) return;
-                                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                                          if (mounted && !_isLeaving && !finishedDeck) {
-                                            _simulateLeftSwipe();
-                                          }
-                                        });
+                                        WidgetsBinding.instance
+                                            .addPostFrameCallback((_) {
+                                              if (mounted &&
+                                                  !_isLeaving &&
+                                                  !finishedDeck) {
+                                                _simulateLeftSwipe();
+                                              }
+                                            });
                                       },
                                     ),
                                   ),
 
                                 Padding(
-                                  padding: const EdgeInsets.only(bottom: 8, top: 4),
+                                  padding: const EdgeInsets.only(
+                                    bottom: 8,
+                                    top: 4,
+                                  ),
                                   child: Text(
                                     'Option ${(_currentIndex + 1).clamp(1, swipeOptions.length)} of ${swipeOptions.length}',
-                                    style: theme.textTheme.bodyMedium!.copyWith(color: Colors.black54),
+                                    style: theme.textTheme.bodyMedium!.copyWith(
+                                      color: Colors.black54,
+                                    ),
                                   ),
                                 ),
                               ],

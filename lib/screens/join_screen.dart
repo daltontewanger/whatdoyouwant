@@ -30,7 +30,7 @@ class JoinRoomScreenState extends State<JoinRoomScreen> {
     if (code.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a room code.')),
-      ); 
+      );
       return;
     }
     // Go to waiting screen while generating options
@@ -41,16 +41,17 @@ class JoinRoomScreenState extends State<JoinRoomScreen> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => WaitingForOptionsScreen(
-            roomCode: code,
-            currentUser: widget.currentUser,
-          ),
+          builder:
+              (_) => WaitingForOptionsScreen(
+                roomCode: code,
+                currentUser: widget.currentUser,
+              ),
         ),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error joining room: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error joining room: $e')));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -85,7 +86,11 @@ class JoinRoomScreenState extends State<JoinRoomScreen> {
                 Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.black54, size: 28),
+                      icon: const Icon(
+                        Icons.arrow_back,
+                        color: Colors.black54,
+                        size: 28,
+                      ),
                       tooltip: 'Back',
                       onPressed: () => Navigator.of(context).pop(),
                     ),
@@ -128,12 +133,12 @@ class JoinRoomScreenState extends State<JoinRoomScreen> {
                 _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _joinRoom,
-                          child: const Text('Join'),
-                        ),
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _joinRoom,
+                        child: const Text('Join'),
                       ),
+                    ),
               ],
             ),
           ),
@@ -194,7 +199,11 @@ class WaitingForOptionsScreen extends StatelessWidget {
                 Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.black54, size: 28),
+                      icon: const Icon(
+                        Icons.arrow_back,
+                        color: Colors.black54,
+                        size: 28,
+                      ),
                       tooltip: 'Back',
                       onPressed: () => Navigator.of(context).pop(),
                     ),
@@ -226,7 +235,8 @@ class WaitingForOptionsScreen extends StatelessWidget {
                     }
                     final data = snapshot.data!.data() as Map<String, dynamic>;
 
-                    final restaurantsData = data['restaurants'] as List<dynamic>?;
+                    final restaurantsData =
+                        data['restaurants'] as List<dynamic>?;
                     final settings = data['settings'] as Map<String, dynamic>?;
 
                     if (restaurantsData != null &&
@@ -235,7 +245,9 @@ class WaitingForOptionsScreen extends StatelessWidget {
                       final List<Restaurant> restaurants =
                           restaurantsData
                               .map(
-                                (r) => Restaurant.fromJson(Map<String, dynamic>.from(r)),
+                                (r) => Restaurant.fromJson(
+                                  Map<String, dynamic>.from(r),
+                                ),
                               )
                               .toList();
                       final double radius =
@@ -248,13 +260,14 @@ class WaitingForOptionsScreen extends StatelessWidget {
                         Navigator.pushReplacement(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => SwipeScreen(
-                              roomCode: roomCode,
-                              currentUser: currentUser,
-                              radius: radius,
-                              maxOptions: maxOptions,
-                              restaurants: restaurants,
-                            ),
+                            builder:
+                                (_) => SwipeScreen(
+                                  roomCode: roomCode,
+                                  currentUser: currentUser,
+                                  radius: radius,
+                                  maxOptions: maxOptions,
+                                  restaurants: restaurants,
+                                ),
                           ),
                         );
                       });
@@ -268,7 +281,9 @@ class WaitingForOptionsScreen extends StatelessWidget {
                         const SizedBox(height: 20),
                         Text(
                           'Waiting for host to choose restaurant options...',
-                          style: theme.textTheme.bodyLarge?.copyWith(fontSize: 18),
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            fontSize: 18,
+                          ),
                           textAlign: TextAlign.center,
                         ),
                       ],

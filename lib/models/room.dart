@@ -6,7 +6,8 @@ class Room {
   final DateTime createdAt;
   final String status;
   final Map<String, bool> participants; // userId -> joined
-  final Map<String, Map<String, bool>> votes; // userId -> (restaurantId -> liked)
+  final Map<String, Map<String, bool>>
+  votes; // userId -> (restaurantId -> liked)
 
   Room({
     required this.roomCode,
@@ -22,8 +23,9 @@ class Room {
     final data = doc.data() as Map<String, dynamic>;
     final participantsMap = <String, bool>{};
     if (data['participants'] is Map) {
-      (data['participants'] as Map<String, dynamic>)
-          .forEach((key, value) => participantsMap[key] = value as bool);
+      (data['participants'] as Map<String, dynamic>).forEach(
+        (key, value) => participantsMap[key] = value as bool,
+      );
     }
     final votesMap = <String, Map<String, bool>>{};
     if (data['votes'] is Map) {
