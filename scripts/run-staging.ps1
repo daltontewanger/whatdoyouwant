@@ -1,7 +1,8 @@
 param(
     [string]$Device = 'chrome',
     [switch]$Android,
-    [string]$FlutterSdk
+    [string]$FlutterSdk,
+    [string]$AppCheckDebugFile
 )
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
@@ -13,12 +14,18 @@ if (-not $FlutterSdk) {
     if ($sdkLine) { $FlutterSdk = $sdkLine.Substring('flutter.sdk='.Length).Replace('\\', '\').Replace('\:', ':') }
 }
 if (-not $FlutterSdk) { throw 'Pass -FlutterSdk with your Flutter SDK directory.' }
-$dart = Join-Path $FlutterSdk 'bin/cache/dart-sdk/bin/dart.exe'
-$snapshot = Join-Path $FlutterSdk 'bin/cache/flutter_tools.snapshot'
+$flutter = Join-Path $FlutterSdk 'bin/flutter.bat'
 $flavorArgs = @()
 if ($Android) { $flavorArgs = @('--flavor', 'staging') }
+$webArgs = @()
+if (-not $Android) { $webArgs = @('--web-hostname', 'localhost', '--web-port', '7357') }
+$debugArgs = @()
+if ($AppCheckDebugFile) {
+    if (-not (Test-Path -LiteralPath $AppCheckDebugFile -PathType Leaf)) { throw 'App Check debug file not found.' }
+    $debugArgs = @('--dart-define-from-file', (Resolve-Path -LiteralPath $AppCheckDebugFile).Path)
+}
 Push-Location $projectRoot
 try {
-    & $dart --disable-analytics $snapshot --suppress-analytics --no-version-check run --debug --no-pub -t lib/main_staging.dart -d $Device @flavorArgs
+    & $flutter --suppress-analytics --no-version-check run --debug --no-pub -t lib/main_staging.dart -d $Device @flavorArgs @webArgs @debugArgs
     exit $LASTEXITCODE
 } finally { Pop-Location }

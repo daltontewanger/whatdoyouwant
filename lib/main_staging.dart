@@ -1,10 +1,23 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 import 'firebase_options_staging.dart';
 import 'environment_guard.dart';
+
+class _StagingDebugTokens {
+  const _StagingDebugTokens(this.android, this.web)
+    : assert(
+        kDebugMode || (android == '' && web == ''),
+        'App Check debug tokens must not be compiled into staging release builds.',
+      );
+
+  final String android;
+  final String web;
+}
 
 // Foundation smoke check only. The live room UI requires reviewed permissions
 // and a staging backend before it can be connected here.
@@ -16,6 +29,22 @@ Future<void> main() async {
     throw StateError('Staging must never use another Firebase project.');
   }
   await Firebase.initializeApp(options: options);
+  const debugTokens = _StagingDebugTokens(
+    String.fromEnvironment('STAGING_ANDROID_APPCHECK_DEBUG_TOKEN'),
+    String.fromEnvironment('STAGING_WEB_APPCHECK_DEBUG_TOKEN'),
+  );
+  await FirebaseAppCheck.instance.activate(
+    providerAndroid:
+        kDebugMode && debugTokens.android.isNotEmpty
+            ? AndroidDebugProvider(debugToken: debugTokens.android)
+            : const AndroidPlayIntegrityProvider(),
+    providerWeb:
+        kDebugMode && debugTokens.web.isNotEmpty
+            ? WebDebugProvider(debugToken: debugTokens.web)
+            : ReCaptchaEnterpriseProvider(
+              '6LcXxtItAAAAALnRWSxKceE_-dWM8JYmcuvV7miO',
+            ),
+  );
   FirebaseFirestore.instance.settings = const Settings(
     persistenceEnabled: false,
   );
@@ -33,34 +62,65 @@ class _StagingCheckState extends State<StagingCheck> {
   String status = 'Ready to check staging. No room data will be written.';
   bool running = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // Opt-in automation for disposable staging accounts, never production.
+    if (kDebugMode && const bool.fromEnvironment('STAGING_AUTOCHECK')) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => check());
+    }
+  }
+
   Future<void> check() async {
     setState(() => running = true);
     var result = '';
+    var operation = 'App Check';
+    User? testUser;
     try {
+      final appCheckToken = await FirebaseAppCheck.instance
+          .getToken(true)
+          .timeout(const Duration(seconds: 30));
+      if (appCheckToken == null || appCheckToken.isEmpty) {
+        throw StateError('No App Check token was issued.');
+      }
+      operation = 'Sign-in';
       await FirebaseAuth.instance.signOut();
-      await FirebaseAuth.instance.signInAnonymously();
+      final credential = await FirebaseAuth.instance.signInAnonymously();
+      testUser = credential.user;
+      if (testUser == null) throw StateError('No staging test identity.');
+      final refreshed = await testUser.getIdToken(true);
+      if (refreshed == null || refreshed.isEmpty) {
+        throw StateError('Token refresh failed.');
+      }
       try {
         await FirebaseFirestore.instance
             .doc('_connection_check/nonexistent')
-            .get(const GetOptions(source: Source.server));
+            .get(const GetOptions(source: Source.server))
+            .timeout(const Duration(seconds: 30));
         result = 'FAILED: Firestore unexpectedly allowed a client read.';
       } on FirebaseException catch (error) {
         result =
             error.code == 'permission-denied'
-                ? 'PASS: anonymous sign-in works and Firestore denies client reads.'
+                ? 'PASS: App Check, anonymous sign-in, and token refresh work; Firestore denied the read. Confirm deny-all rules in the console.'
                 : 'Firestore check failed: ${error.code}';
       }
     } on FirebaseException catch (error) {
-      result = 'Sign-in failed: ${error.code}';
+      result = '$operation failed: ${error.code}';
     } catch (_) {
       result = 'Connection check failed. Check your network and configuration.';
     } finally {
       // Remove only the temporary anonymous account created by this check.
       try {
-        final user = FirebaseAuth.instance.currentUser;
-        if (user != null && user.isAnonymous) await user.delete();
+        if (testUser != null && testUser.isAnonymous) {
+          await testUser.delete();
+          result += ' Temporary test account deleted.';
+        }
       } catch (_) {
-        result += ' Temporary staging account cleanup failed.';
+        result =
+            'FAIL: temporary staging account cleanup failed. Review staging Authentication users.';
+      }
+      if (kDebugMode && const bool.fromEnvironment('STAGING_AUTOCHECK')) {
+        debugPrint('Staging connection check: $result');
       }
       if (mounted) {
         setState(() {

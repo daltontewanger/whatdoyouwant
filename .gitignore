@@ -66,6 +66,19 @@ key.properties
 
 # Private working plans, discovery reports and testing notes.
 /docs/
+/staging/app-check-debug.json
+
+# Firebase CLI state, runtime config and emulator exports.
+.firebase/
+.runtimeconfig.json
+firebase-export-*/
+
+# Credentials and signing material.
+*service-account*.json
+*serviceAccount*.json
+*.p12
+*.p8
+*.pem
 
 # Repository-local Node development tools.
 /node_modules/
