@@ -39,6 +39,8 @@ Repository files and verified console evidence describe actual state. The playbo
 
 Run from the repository root. Node 22 or 24 is required. Flutter may not be on
 PATH; the PowerShell launchers read the SDK location from `android/local.properties`.
+From Git Bash, run `.ps1` launchers through `powershell.exe -NoProfile -File`;
+invoking them directly makes bash try to parse them.
 
 | Purpose | Command |
 | --- | --- |
@@ -50,8 +52,8 @@ PATH; the PowerShell launchers read the SDK location from `android/local.propert
 | Functions/emulator tests | `npm run test:unit`, `npm run test:local`, `npm run test:tooling` |
 | Firestore rules + callable tests | `npm run test:policy` |
 | Start emulators | `npm run local:preview` (candidate rules) or `npm run local` (baseline) |
-| Run account preview (web) | `flutter run --debug -t lib/main_local.dart --dart-define=ACCOUNT_FLOW_PREVIEW=true -d chrome` |
-| Run account preview (Android) | `./scripts/run-local-app.ps1 -Accounts -Android -Device <device-id>` |
+| Run account preview (web) | `powershell.exe -NoProfile -File ./scripts/run-local-app.ps1 -Accounts` |
+| Run account preview (Android) | `powershell.exe -NoProfile -File ./scripts/run-local-app.ps1 -Accounts -Android -Device <device-id>` |
 | Web build | `flutter build web --release --no-pub` |
 | Android debug build | `flutter build apk --debug --no-pub --flavor production -t lib/main.dart` (staging: `--flavor staging -t lib/main_staging.dart`) |
 
