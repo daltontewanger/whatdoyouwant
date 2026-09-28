@@ -18,7 +18,11 @@ if (-not $FlutterSdk) {
 if (-not $FlutterSdk) { throw 'Pass -FlutterSdk with your existing Flutter SDK directory.' }
 $dart = Join-Path $FlutterSdk 'bin/cache/dart-sdk/bin/dart.exe'
 $snapshot = Join-Path $FlutterSdk 'bin/cache/flutter_tools.snapshot'
-if (-not (Test-Path $dart) -or -not (Test-Path $snapshot)) { throw 'The existing Flutter SDK cache is incomplete.' }
+# flutter.bat passes the tool's own package map; web runs crash without it.
+$toolPackages = Join-Path $FlutterSdk 'packages/flutter_tools/.dart_tool/package_config.json'
+if (-not (Test-Path $dart) -or -not (Test-Path $snapshot) -or -not (Test-Path $toolPackages)) {
+    throw 'The existing Flutter SDK cache is incomplete.'
+}
 foreach ($port in @(9099, 8080, 5001)) {
     $client = New-Object System.Net.Sockets.TcpClient
     try {
@@ -40,6 +44,6 @@ if ($Accounts) {
 $flavorArgs = if ($Android) { @('--flavor', 'local') } else { @() }
 Push-Location $projectRoot
 try {
-    & $dart --disable-analytics $snapshot --suppress-analytics --no-version-check run --debug --no-pub -t lib/main_local.dart -d $Device "--dart-define=EMULATOR_HOST=$emulatorHost" "--dart-define=ACCOUNT_FLOW_PREVIEW=$($Accounts.IsPresent.ToString().ToLowerInvariant())" @flavorArgs
+    & $dart --disable-analytics "--packages=$toolPackages" $snapshot --suppress-analytics --no-version-check run --debug --no-pub -t lib/main_local.dart -d $Device "--dart-define=EMULATOR_HOST=$emulatorHost" "--dart-define=ACCOUNT_FLOW_PREVIEW=$($Accounts.IsPresent.ToString().ToLowerInvariant())" @flavorArgs
     exit $LASTEXITCODE
 } finally { Pop-Location }
