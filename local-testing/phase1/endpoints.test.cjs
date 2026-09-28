@@ -27,8 +27,24 @@ async function user(registered = false, verified = false) {
     assert.equal((await auth('update', { oobCode: code })).status, 200);
     result = await auth('signInWithPassword', { email, password, returnSecureToken: true });
   }
-  return { uid: result.data.localId, token: result.data.idToken };
+  return { uid: result.data.localId, token: result.data.idToken, refreshToken: result.data.refreshToken };
 }
+// Stands in for an app restart: the persisted refresh token is exchanged for a new ID token.
+async function resume(session) {
+  const result = await request(`http://127.0.0.1:9099/securetoken.googleapis.com/v1/token?key=demo-api-key`,
+    { grant_type: 'refresh_token', refresh_token: session.refreshToken });
+  assert.equal(result.status, 200);
+  return { uid: result.data.user_id, token: result.data.id_token };
+}
+const ballotPath = (code, uid, candidate) => `projects/${PROJECT}/databases/(default)/documents/rooms/${code}/votes/${uid}/ballot/${candidate}`;
+function vote(code, voter, candidate, liked = true) {
+  return request(`${documents}:commit`, { writes: [{ update: { name: ballotPath(code, voter.uid, candidate), fields: { liked: { booleanValue: liked } } },
+    updateTransforms: [{ fieldPath: 'at', setToServerValue: 'REQUEST_TIME' }] }] }, voter.token);
+}
+const readBallot = (code, uid, candidate, reader) =>
+  request(`${documents}/rooms/${code}/votes/${uid}/ballot/${candidate}`, undefined, reader.token, 'GET');
+const listBallots = (code, uid, reader) =>
+  request(`${documents}/rooms/${code}/votes/${uid}/ballot`, undefined, reader.token, 'GET');
 async function room(host) {
   const result = await call('phase1CreateRoom', { requestId: randomUUID() }, host);
   assert.equal(result.status, 200);
@@ -61,6 +77,54 @@ test('endpoints: verified host creates; guest joins, reads and votes; fixture se
   assert.equal((await request(`${documents}/rooms/${code}/votes/${guest.uid}/ballot/fixture-pizza`, undefined, linked.data.idToken, 'GET')).status, 200);
   assert.equal((await call('phase1JoinRoom', { roomCode: code }, { token: linked.data.idToken })).status, 200);
   assert.equal((await db.collection('hereUsage').get()).size, 0);
+});
+test('endpoints: other members, the host and a switched-in account cannot read private ballots', async () => {
+  const host = await user(true, true); const first = await user(); const second = await user();
+  const code = await room(host);
+  for (const guest of [first, second]) assert.equal((await call('phase1JoinRoom', { roomCode: code }, guest)).status, 200);
+  assert.equal((await call('phase1Search', { roomCode: code }, host)).status, 200);
+  assert.equal((await vote(code, first, 'fixture-pizza')).status, 200);
+  assert.equal((await readBallot(code, first.uid, 'fixture-pizza', first)).status, 200);
+  for (const reader of [second, host]) {
+    assert.equal((await readBallot(code, first.uid, 'fixture-pizza', reader)).status, 403);
+    assert.equal((await listBallots(code, first.uid, reader)).status, 403);
+    // A member also cannot plant a ballot under someone else's UID.
+    assert.equal((await vote(code, { uid: first.uid, token: reader.token }, 'fixture-tacos')).status, 403);
+  }
+  // Signing out on a shared device and starting a fresh guest session yields a new UID
+  // with no membership, so neither the room nor the previous guest's ballots are visible.
+  const switched = await user();
+  assert.notEqual(switched.uid, first.uid);
+  assert.equal((await request(`${documents}/rooms/${code}`, undefined, switched.token, 'GET')).status, 403);
+  assert.equal((await readBallot(code, first.uid, 'fixture-pizza', switched)).status, 403);
+  assert.equal((await listBallots(code, first.uid, switched)).status, 403);
+  // Voting has started, so only existing members may reconnect.
+  assert.equal((await call('phase1JoinRoom', { roomCode: code }, switched)).status, 403);
+});
+test('endpoints: a restarted or linked session keeps membership, its ballots and the ability to vote', async () => {
+  const host = await user(true, true); const guest = await user(); const code = await room(host);
+  assert.equal((await call('phase1JoinRoom', { roomCode: code }, guest)).status, 200);
+  assert.equal((await call('phase1Search', { roomCode: code }, host)).status, 200);
+  assert.equal((await vote(code, guest, 'fixture-pizza')).status, 200);
+  const restarted = await resume(guest);
+  assert.equal(restarted.uid, guest.uid);
+  assert.equal((await call('phase1JoinRoom', { roomCode: code }, restarted)).status, 200);
+  assert.equal((await readBallot(code, guest.uid, 'fixture-pizza', restarted)).status, 200);
+  // Ballots stay immutable across sessions; the restarted client can still vote on the rest.
+  assert.equal((await vote(code, restarted, 'fixture-pizza', false)).status, 403);
+  assert.equal((await vote(code, restarted, 'fixture-tacos', false)).status, 200);
+  const restartedHost = await resume(host);
+  assert.equal((await call('phase1Search', { roomCode: code }, restartedHost)).status, 200);
+  const email = `${randomUUID()}@example.test`;
+  const link = await auth('update', { idToken: restarted.token, email, password: 'fictional-link-password', returnSecureToken: true });
+  assert.equal(link.status, 200);
+  const linked = await resume({ refreshToken: link.data.refreshToken });
+  assert.equal(linked.uid, guest.uid);
+  assert.equal((await vote(code, linked, 'fixture-noodles')).status, 200);
+  assert.equal((await listBallots(code, guest.uid, linked)).status, 200);
+  assert.equal((await db.doc(`rooms/${code}`).get()).data().memberCount, 2);
+  // Linking an anonymous guest never grants creation rights until the email is verified.
+  assert.equal((await call('phase1CreateRoom', { requestId: randomUUID() }, linked)).status, 403);
 });
 test('endpoints: anonymous, unverified and missing identities cannot create; supplied claims are rejected', async () => {
   assert.equal((await call('phase1CreateRoom', { requestId: randomUUID() })).status, 401);
