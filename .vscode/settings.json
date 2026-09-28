@@ -3,5 +3,6 @@
     "node_modules",
     "functions/node_modules",
     "build/local-functions/node_modules"
-  ]
+  ],
+  "dart.flutterShowWebServerDevice": "always"
 }
