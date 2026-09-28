@@ -61,7 +61,7 @@ class JoinRoomScreenState extends State<JoinRoomScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.primary.withOpacity(0.10),
+      backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.10),
       body: Center(
         child: SingleChildScrollView(
           child: Container(
@@ -72,7 +72,7 @@ class JoinRoomScreenState extends State<JoinRoomScreen> {
               borderRadius: BorderRadius.circular(28),
               boxShadow: [
                 BoxShadow(
-                  color: theme.colorScheme.primary.withOpacity(0.10),
+                  color: theme.colorScheme.primary.withValues(alpha: 0.10),
                   blurRadius: 18,
                   offset: const Offset(0, 8),
                 ),
@@ -171,7 +171,7 @@ class WaitingForOptionsScreen extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.primary.withOpacity(0.10),
+      backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.10),
       body: Center(
         child: SingleChildScrollView(
           child: Container(
@@ -182,7 +182,7 @@ class WaitingForOptionsScreen extends StatelessWidget {
               borderRadius: BorderRadius.circular(28),
               boxShadow: [
                 BoxShadow(
-                  color: theme.colorScheme.primary.withOpacity(0.10),
+                  color: theme.colorScheme.primary.withValues(alpha: 0.10),
                   blurRadius: 18,
                   offset: const Offset(0, 8),
                 ),

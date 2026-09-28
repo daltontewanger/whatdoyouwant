@@ -70,7 +70,7 @@ class ResultsScreenState extends State<ResultsScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) => _returnToHome(),
       child: Scaffold(
-        backgroundColor: theme.colorScheme.primary.withOpacity(0.10),
+        backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.10),
         body: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -86,7 +86,7 @@ class ResultsScreenState extends State<ResultsScreen> {
                         borderRadius: BorderRadius.circular(28),
                         boxShadow: [
                           BoxShadow(
-                            color: theme.colorScheme.primary.withOpacity(0.10),
+                            color: theme.colorScheme.primary.withValues(alpha: 0.10),
                             blurRadius: 18,
                             offset: const Offset(0, 8),
                           ),
@@ -265,7 +265,7 @@ class ResultsScreenState extends State<ResultsScreen> {
                                 const SizedBox(height: 14),
                                 Container(
                                   decoration: BoxDecoration(
-                                    color: theme.colorScheme.primary.withOpacity(0.08),
+                                    color: theme.colorScheme.primary.withValues(alpha: 0.08),
                                     borderRadius: BorderRadius.circular(18),
                                   ),
                                   padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 18),

@@ -233,7 +233,7 @@ class SwipeScreenState extends State<SwipeScreen> {
 
     if (swipeOptions.isEmpty) {
       return Scaffold(
-        backgroundColor: theme.scaffoldBackgroundColor.withOpacity(0.10),
+        backgroundColor: theme.scaffoldBackgroundColor.withValues(alpha: 0.10),
         body: const Center(
           child: Text('No restaurants available within the selected radius.'),
         ),
@@ -243,7 +243,7 @@ class SwipeScreenState extends State<SwipeScreen> {
     final bool finishedDeck = _currentIndex >= swipeOptions.length;
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.primary.withOpacity(0.10),
+      backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.10),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -261,7 +261,7 @@ class SwipeScreenState extends State<SwipeScreen> {
                     borderRadius: BorderRadius.circular(28),
                     boxShadow: [
                       BoxShadow(
-                        color: theme.colorScheme.primary.withOpacity(0.10),
+                        color: theme.colorScheme.primary.withValues(alpha: 0.10),
                         blurRadius: 18,
                         offset: const Offset(0, 8),
                       ),
@@ -303,7 +303,7 @@ class SwipeScreenState extends State<SwipeScreen> {
                                         textAlign: TextAlign.center,
                                         style: theme.textTheme.bodyLarge!.copyWith(
                                           fontSize: 16,
-                                          color: Colors.black.withOpacity(0.7),
+                                          color: Colors.black.withValues(alpha: 0.7),
                                         ),
                                       ),
                                     ),
@@ -359,7 +359,7 @@ class SwipeScreenState extends State<SwipeScreen> {
                                               value: value,
                                               color: Colors.orange,
                                               backgroundColor:
-                                                  theme.colorScheme.primary.withOpacity(0.13),
+                                                  theme.colorScheme.primary.withValues(alpha: 0.13),
                                               minHeight: 8,
                                               borderRadius: BorderRadius.circular(7),
                                             ),

@@ -65,7 +65,7 @@ final ThemeData appTheme = ThemeData(
     ),
     elevation: 3,
     margin: EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-    shadowColor: Colors.black.withOpacity(0.08),
+    shadowColor: Colors.black.withValues(alpha: 0.08),
   ),
   inputDecorationTheme: InputDecorationTheme(
     filled: true,

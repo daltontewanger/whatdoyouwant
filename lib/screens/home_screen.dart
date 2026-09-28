@@ -86,7 +86,7 @@ class HomeScreenState extends State<HomeScreen>
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.primary.withOpacity(0.10),
+      backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.10),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -108,7 +108,7 @@ class HomeScreenState extends State<HomeScreen>
                     borderRadius: BorderRadius.circular(28),
                     boxShadow: [
                       BoxShadow(
-                        color: theme.colorScheme.primary.withOpacity(0.10),
+                        color: theme.colorScheme.primary.withValues(alpha: 0.10),
                         blurRadius: 18,
                         offset: const Offset(0, 8),
                       ),
@@ -245,7 +245,7 @@ class HomeScreenState extends State<HomeScreen>
                                 borderRadius: BorderRadius.circular(24),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.33),
+                                    color: Colors.black.withValues(alpha: 0.33),
                                     blurRadius: 18,
                                     spreadRadius: 2,
                                     offset: const Offset(0, 5),
