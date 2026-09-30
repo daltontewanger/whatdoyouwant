@@ -11,7 +11,7 @@
       }
     },
     "oauth_client": [],
-    "api_key": [{ "current_key": "demo-api-key" }]
+    "api_key": [{ "current_key": "A-local-emulator-placeholder-not-a-key-" }]
   }],
   "configuration_version": "1"
 }
