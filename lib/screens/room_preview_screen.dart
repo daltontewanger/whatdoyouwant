@@ -37,13 +37,15 @@ class _RoomPreviewScreenState extends State<RoomPreviewScreen> {
       }
       await action();
     } on FirebaseException catch (error) {
+      // Emulator-only screen; the raw message makes client-side failures diagnosable.
+      debugPrint('Room preview action failed: ${error.code} ${error.message}');
       if (mounted) {
         setState(
           () =>
               message =
                   error.code == 'resource-exhausted'
                       ? 'Too many attempts. Wait and try again.'
-                      : 'Action unavailable. Check your account, room code and room status.',
+                      : 'Action unavailable (${error.code}). Check your account, room code and room status.',
         );
       }
     } catch (_) {
