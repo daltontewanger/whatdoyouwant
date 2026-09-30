@@ -9,6 +9,8 @@ class FakeUser extends Fake implements User {
   bool verified = false;
   bool failLink = false;
   bool failReauth = false;
+  String? reloadError;
+  String? reloadMessage;
   final calls = <String>[];
   @override
   bool get isAnonymous => anonymous;
@@ -34,6 +36,9 @@ class FakeUser extends Fake implements User {
   @override
   Future<void> reload() async {
     calls.add('reload');
+    if (reloadError != null) {
+      throw FirebaseAuthException(code: reloadError!, message: reloadMessage);
+    }
   }
 
   @override
@@ -62,10 +67,25 @@ class FakeCredential extends Fake implements UserCredential {}
 class FakeAuth extends Fake implements FirebaseAuth {
   User? user;
   int creates = 0;
+  int guests = 0;
+  int signOuts = 0;
   String? resetError;
   FakeAuth(this.user);
   @override
   User? get currentUser => user;
+  @override
+  Future<void> signOut() async {
+    signOuts++;
+    user = null;
+  }
+
+  @override
+  Future<UserCredential> signInAnonymously() async {
+    guests++;
+    user = FakeUser();
+    return FakeCredential();
+  }
+
   @override
   Stream<User?> userChanges() => Stream.value(user);
   @override
@@ -197,6 +217,66 @@ void main() {
       expect(auth.creates, 0);
     },
   );
+  test('guest session starts one only when there is no saved user', () async {
+    final auth = FakeAuth(null);
+    await AccountService(auth).guest();
+    expect(auth.guests, 1);
+    final saved = FakeUser();
+    final restored = FakeAuth(saved);
+    await AccountService(restored).guest();
+    expect(saved.calls, ['reload']);
+    expect(restored.guests, 0);
+    expect(restored.currentUser, same(saved));
+  });
+  test(
+    'a saved session for a deleted account is replaced by a new guest',
+    () async {
+      for (final code in [
+        'user-not-found',
+        'user-token-expired',
+        'invalid-user-token',
+      ]) {
+        final stale = FakeUser()..reloadError = code;
+        final auth = FakeAuth(stale);
+        await AccountService(auth).guest();
+        expect(auth.signOuts, 1, reason: code);
+        expect(auth.guests, 1, reason: code);
+        expect(auth.currentUser, isNot(same(stale)), reason: code);
+      }
+    },
+  );
+  test(
+    'the emulator refresh-token rejection seen on Android also resets the session',
+    () async {
+      final stale =
+          FakeUser()
+            ..reloadError = 'unknown'
+            ..reloadMessage =
+                'An internal error has occurred. [ INVALID_REFRESH_TOKEN ]';
+      final auth = FakeAuth(stale);
+      await AccountService(auth).guest();
+      expect(auth.guests, 1);
+      final other =
+          FakeUser()
+            ..reloadError = 'unknown'
+            ..reloadMessage = 'An internal error has occurred. [ UNAVAILABLE ]';
+      final kept = FakeAuth(other);
+      await AccountService(kept).guest();
+      expect(kept.guests, 0);
+      expect(kept.currentUser, same(other));
+    },
+  );
+  test('an offline start keeps the saved session', () async {
+    final saved =
+        FakeUser()
+          ..anonymous = false
+          ..reloadError = 'network-request-failed';
+    final auth = FakeAuth(saved);
+    await AccountService(auth).guest();
+    expect(auth.signOuts, 0);
+    expect(auth.guests, 0);
+    expect(auth.currentUser, same(saved));
+  });
   test('verification refresh reloads profile and forces new claims', () async {
     final user = FakeUser()..anonymous = false;
     await AccountService(FakeAuth(user)).refreshVerification();

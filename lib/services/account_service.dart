@@ -56,7 +56,36 @@ class AccountService {
   }
 
   Future<void> guest() async {
-    if (auth.currentUser == null) await auth.signInAnonymously();
+    final user = auth.currentUser;
+    if (user != null) {
+      try {
+        await user.reload();
+        return;
+      } on FirebaseAuthException catch (error) {
+        // A saved session for an account that no longer exists (for example after
+        // the local emulators restart) can never get a token again. Anything else,
+        // such as being offline, keeps the session.
+        if (!_accountGone(error)) return;
+        await auth.signOut();
+      }
+    }
+    await auth.signInAnonymously();
+  }
+
+  static bool _accountGone(FirebaseAuthException error) {
+    if (const {
+      'user-not-found',
+      'user-token-expired',
+      'invalid-user-token',
+    }.contains(error.code)) {
+      return true;
+    }
+    // Android reports a rejected refresh token from the Auth emulator as an
+    // "internal error" that only names the server reason in its message.
+    final message = error.message ?? '';
+    return error.code == 'unknown' &&
+        (message.contains('INVALID_REFRESH_TOKEN') ||
+            message.contains('USER_NOT_FOUND'));
   }
 
   Future<void> deleteLocalAccount(String password) async {
