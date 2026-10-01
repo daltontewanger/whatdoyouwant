@@ -217,6 +217,40 @@ void main() {
       expect(auth.creates, 0);
     },
   );
+  test(
+    'server deletion runs after reauthentication and then clears the local session',
+    () async {
+      final user = FakeUser()..anonymous = false;
+      final auth = FakeAuth(user);
+      var serverCalls = 0;
+      final accounts = AccountService(
+        auth,
+        deleteOnServer: () async {
+          serverCalls++;
+          expect(user.calls, ['reauth']);
+        },
+      );
+      await accounts.deleteLocalAccount('local-fixture-only');
+      expect(serverCalls, 1);
+      expect(user.calls, [
+        'reauth',
+      ], reason: 'the server deletes the Auth user');
+      expect(auth.signOuts, 1);
+
+      final wrong =
+          FakeUser()
+            ..anonymous = false
+            ..failReauth = true;
+      await expectLater(
+        AccountService(
+          FakeAuth(wrong),
+          deleteOnServer: () async => serverCalls++,
+        ).deleteLocalAccount('wrong'),
+        throwsA(isA<FirebaseAuthException>()),
+      );
+      expect(serverCalls, 1, reason: 'no server call without reauthentication');
+    },
+  );
   test('guest session starts one only when there is no saved user', () async {
     final auth = FakeAuth(null);
     await AccountService(auth).guest();

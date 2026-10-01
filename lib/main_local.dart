@@ -44,7 +44,12 @@ Future<void> main() async {
   FirebaseFunctions.instance.useFunctionsEmulator(host, 5001);
   if (const bool.fromEnvironment('ACCOUNT_FLOW_PREVIEW')) {
     // Only this emulator-wired entry point exposes the account preview.
-    final accounts = AccountService(FirebaseAuth.instance);
+    final accounts = AccountService(
+      FirebaseAuth.instance,
+      deleteOnServer:
+          () =>
+              FirebaseFunctions.instance.httpsCallable('deleteAccount').call(),
+    );
     await accounts.guest();
     runApp(MaterialApp(home: AccountPreviewScreen(accounts: accounts)));
     return;

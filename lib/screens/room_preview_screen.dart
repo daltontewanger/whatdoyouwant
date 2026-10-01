@@ -11,11 +11,22 @@ class RoomPreviewScreen extends StatefulWidget {
   State<RoomPreviewScreen> createState() => _RoomPreviewScreenState();
 }
 
+/// Turns what someone typed into a join request: a six-character join code for
+/// new members, or the longer room ID that existing members reconnect with.
+Map<String, String>? joinRequestFor(String typed) {
+  final cleaned = typed.toUpperCase().replaceAll(RegExp(r'[\s-]'), '');
+  if (RegExp(r'^[A-HJKMNP-Z2-9]{6}$').hasMatch(cleaned)) {
+    return {'joinCode': cleaned};
+  }
+  if (RegExp(r'^[A-F0-9]{24}$').hasMatch(cleaned)) return {'roomId': cleaned};
+  return null;
+}
+
 class _RoomPreviewScreenState extends State<RoomPreviewScreen> {
   final code = TextEditingController();
   final requestId = const Uuid().v4();
   final uid = FirebaseAuth.instance.currentUser?.uid;
-  String? roomCode;
+  String? roomId;
   bool busy = false;
   String message = '';
 
@@ -57,12 +68,26 @@ class _RoomPreviewScreenState extends State<RoomPreviewScreen> {
     }
   }
 
-  Future<void> enter(String function, Map<String, String> data) async {
+  Future<Map<String, dynamic>> call(
+    String function,
+    Map<String, String> data,
+  ) async {
     final response = await FirebaseFunctions.instance
         .httpsCallable(function)
         .call(data);
-    if (mounted) setState(() => roomCode = response.data['roomCode'] as String);
+    return Map<String, dynamic>.from(response.data as Map);
   }
+
+  Future<void> enter(String function, Map<String, String> data) async {
+    final result = await call(function, data);
+    if (mounted) setState(() => roomId = result['roomId'] as String);
+  }
+
+  Widget action(String label, String function) => ElevatedButton(
+    onPressed:
+        busy ? null : () => perform(() => call(function, {'roomId': roomId!})),
+    child: Text(label),
+  );
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -84,15 +109,13 @@ class _RoomPreviewScreenState extends State<RoomPreviewScreen> {
             const Text(
               'Fictional restaurants only. Invite guests before starting the deck.',
             ),
-            if (roomCode == null) ...[
+            if (roomId == null) ...[
               ElevatedButton(
                 onPressed:
                     busy || !verified
                         ? null
                         : () => perform(
-                          () => enter('phase1CreateRoom', {
-                            'requestId': requestId,
-                          }),
+                          () => enter('createRoom', {'requestId': requestId}),
                         ),
                 child: const Text('Create test room'),
               ),
@@ -101,57 +124,30 @@ class _RoomPreviewScreenState extends State<RoomPreviewScreen> {
               TextField(
                 controller: code,
                 enabled: !busy,
-                decoration: const InputDecoration(labelText: 'Room code'),
+                decoration: const InputDecoration(
+                  labelText: 'Join code (or room ID to reconnect)',
+                ),
               ),
               ElevatedButton(
                 onPressed:
                     busy
                         ? null
-                        : () => perform(
-                          () => enter('phase1JoinRoom', {
-                            'roomCode': code.text.trim().toUpperCase(),
-                          }),
-                        ),
+                        : () {
+                          final request = joinRequestFor(code.text);
+                          if (request == null) {
+                            setState(
+                              () =>
+                                  message =
+                                      'Enter the 6-character join code or the room ID.',
+                            );
+                            return;
+                          }
+                          perform(() => enter('joinRoom', request));
+                        },
                 child: const Text('Join or reconnect'),
               ),
-            ] else ...[
-              SelectableText('Room code: $roomCode'),
-              StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                stream:
-                    FirebaseFirestore.instance
-                        .doc('rooms/$roomCode')
-                        .snapshots(),
-                builder: (context, snapshot) {
-                  if (snapshot.hasError) {
-                    return const Text('Room access is unavailable.');
-                  }
-                  if (!snapshot.hasData) return const LinearProgressIndicator();
-                  final room = snapshot.data!.data();
-                  if (room == null) return const Text('Room unavailable.');
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Status: ${room['status']} · Members: ${room['memberCount']}',
-                      ),
-                      if (room['creator'] == uid && room['status'] == 'lobby')
-                        ElevatedButton(
-                          onPressed:
-                              busy
-                                  ? null
-                                  : () => perform(() async {
-                                    await FirebaseFunctions.instance
-                                        .httpsCallable('phase1Search')
-                                        .call({'roomCode': roomCode});
-                                  }),
-                          child: const Text('Start fictional restaurant deck'),
-                        ),
-                      if (room['status'] == 'voting') _ballots(),
-                    ],
-                  );
-                },
-              ),
-            ],
+            ] else
+              _room(),
             if (busy) const LinearProgressIndicator(),
             if (message.isNotEmpty) Text(message),
           ],
@@ -160,17 +156,84 @@ class _RoomPreviewScreenState extends State<RoomPreviewScreen> {
     ),
   );
 
-  Widget _ballots() => StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+  Widget _room() => StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+    stream: FirebaseFirestore.instance.doc('rooms/$roomId').snapshots(),
+    builder: (context, snapshot) {
+      if (snapshot.hasError) return const Text('Room access is unavailable.');
+      if (!snapshot.hasData) return const LinearProgressIndicator();
+      final room = snapshot.data!.data();
+      if (room == null) return const Text('Room unavailable.');
+      final host = room['creator'] == uid;
+      final status = room['status'] as String?;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (room['joinCode'] != null)
+            SelectableText('Join code: ${room['joinCode']}'),
+          SelectableText('Room ID (for reconnecting): $roomId'),
+          Text('Status: $status · Members: ${room['memberCount']}'),
+          if (host && status == 'lobby') ...[
+            action('Start fictional restaurant deck', 'startRoom'),
+            action('New join code', 'rotateJoinCode'),
+            action('Close room', 'closeRoom'),
+          ],
+          if (status == 'voting') ...[
+            _ballots(room['expiresAt'] as Timestamp),
+            action('Check results', 'roomResults'),
+            if (host) action('Close voting now', 'closeRoom'),
+          ],
+          if (status == 'closed') _results(room['results']),
+        ],
+      );
+    },
+  );
+
+  Widget _results(Object? results) {
+    if (results is! Map) return const Text('Room closed before voting.');
+    final likes = Map<String, dynamic>.from(results['likes'] as Map);
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream:
+          FirebaseFirestore.instance
+              .collection('rooms/$roomId/candidates')
+              .snapshots(),
+      builder: (context, candidates) {
+        final deck = [...?candidates.data?.docs]..sort(
+          (a, b) =>
+              (a.data()['order'] as int).compareTo(b.data()['order'] as int),
+        );
+        final titles = {
+          for (final doc in deck) doc.id: doc.data()['title'] as String,
+        };
+        String name(Object? id) => titles[id] ?? '$id';
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Winner: ${name(results['winner'])}'),
+            if (results['backup'] != null)
+              Text('Backup: ${name(results['backup'])}'),
+            Text('Voters: ${results['voters']}'),
+            for (final id in deck.isEmpty ? likes.keys : deck.map((d) => d.id))
+              Text('${name(id)}: ${likes[id] ?? 0} likes'),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _ballots(
+    Timestamp expiresAt,
+  ) => StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
     stream:
         FirebaseFirestore.instance
-            .collection('rooms/$roomCode/candidates')
+            .collection('rooms/$roomId/candidates')
+            .orderBy('order')
             .snapshots(),
     builder: (context, candidates) {
       if (candidates.hasError) return const Text('Deck access unavailable.');
       return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream:
             FirebaseFirestore.instance
-                .collection('rooms/$roomCode/votes/$uid/ballot')
+                .collection('rooms/$roomId/votes/$uid/ballot')
                 .snapshots(),
         builder: (context, votes) {
           if (votes.hasError) return const Text('Ballot access unavailable.');
@@ -199,14 +262,17 @@ class _RoomPreviewScreenState extends State<RoomPreviewScreen> {
                                       busy || !votes.hasData
                                           ? null
                                           : () => perform(() async {
+                                            // Ballots carry the room's expiry so
+                                            // they are cleaned up with it.
                                             await FirebaseFirestore.instance
                                                 .doc(
-                                                  'rooms/$roomCode/votes/$uid/ballot/${candidate.id}',
+                                                  'rooms/$roomId/votes/$uid/ballot/${candidate.id}',
                                                 )
                                                 .set({
                                                   'liked': liked,
                                                   'at':
                                                       FieldValue.serverTimestamp(),
+                                                  'expiresAt': expiresAt,
                                                 });
                                           }),
                                   child: Text(liked ? 'Like' : 'Pass'),

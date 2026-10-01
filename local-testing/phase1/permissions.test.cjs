@@ -21,7 +21,10 @@ async function request(path, method = 'GET', body, uid) {
     body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(15000) });
   return response.status;
 }
-async function ballot(uid, fields = { liked: { booleanValue: true } }, restaurant = 'pizza') {
+// Ballots must carry the room's expiry so TTL can remove them with the room.
+let roomExpiry;
+const expiryField = () => ({ expiresAt: { timestampValue: roomExpiry.toDate().toISOString() } });
+async function ballot(uid, fields = { liked: { booleanValue: true }, ...expiryField() }, restaurant = 'pizza') {
   return request(':commit', 'POST', { writes: [{ update: {
     name: `projects/${PROJECT}/databases/(default)/documents/rooms/ROOM/votes/${uid}/ballot/${restaurant}`, fields },
     updateTransforms: [{ fieldPath: 'at', setToServerValue: 'REQUEST_TIME' }] }] }, uid);
@@ -29,7 +32,8 @@ async function ballot(uid, fields = { liked: { booleanValue: true } }, restauran
 beforeEach(async () => {
   const clear = await fetch(`http://127.0.0.1:8080/emulator/v1/projects/${PROJECT}/databases/(default)/documents`, { method: 'DELETE' });
   assert.equal(clear.status, 200);
-  await db.doc('rooms/ROOM').set({ creator: 'host', status: 'voting', expiresAt: Timestamp.fromMillis(Date.now()+3600000) });
+  roomExpiry = Timestamp.fromMillis(Date.now()+3600000);
+  await db.doc('rooms/ROOM').set({ creator: 'host', status: 'voting', expiresAt: roomExpiry });
   for (const uid of ['host', 'guest', 'other']) await db.doc(`rooms/ROOM/members/${uid}`).set({ active: true });
   await db.doc('rooms/ROOM/candidates/pizza').set({ title: 'Fictional Pizza' });
 });
@@ -40,14 +44,14 @@ test('contract: only verified registered identities create and initiate host sea
   for (const provider of ['password', 'google.com', 'apple.com']) {
     const host = { uid: 'host', provider, emailVerified: true };
     assert.equal(authorize('create', host), true);
-    assert.equal(authorize('search', host, room, true), true);
-    assert.equal(authorize('search', { ...host, uid: 'outsider' }, room, true), false);
-    assert.equal(authorize('search', host, room, false), false);
+    assert.equal(authorize('start', host, room, true), true);
+    assert.equal(authorize('start', { ...host, uid: 'outsider' }, room, true), false);
+    assert.equal(authorize('start', host, room, false), false);
     assert.equal(authorize('create', { ...host, emailVerified: false }), false);
   }
   for (const identity of [null, { uid: 'guest', provider: 'anonymous', emailVerified: true }, { uid: 'x', provider: 'custom', emailVerified: true }]) {
     assert.equal(authorize('create', identity), false);
-    assert.equal(authorize('search', identity, room, true), false);
+    assert.equal(authorize('start', identity, room, true), false);
   }
 });
 test('contract: anonymous guests can join a live lobby; closed/expired rooms and missing identity fail', () => {
@@ -91,10 +95,13 @@ test('anonymous member can submit and read an own ballot, but cannot rewrite or 
     assert.equal(await request('/rooms/ROOM/votes/guest/ballot/pizza', 'PATCH', { fields }, 'guest'), 403);
   }
 });
-test('ballots reject outsiders, unknown candidates, extra fields, missing fields and wrong types', async () => {
+test('ballots reject outsiders, unknown candidates, extra fields, missing fields, wrong types and a different expiry', async () => {
   assert.equal(await ballot('outsider'), 403);
-  assert.equal(await ballot('guest', { liked: { booleanValue: true } }, 'unknown'), 403);
-  for (const fields of [{}, { liked: { stringValue: 'true' } }, { liked: { booleanValue: true }, admin: { booleanValue: true } }]) {
+  assert.equal(await ballot('guest', { liked: { booleanValue: true }, ...expiryField() }, 'unknown'), 403);
+  const later = { expiresAt: { timestampValue: new Date(roomExpiry.toMillis() + 86400000).toISOString() } };
+  for (const fields of [{}, { liked: { stringValue: 'true' }, ...expiryField() },
+    { liked: { booleanValue: true }, admin: { booleanValue: true }, ...expiryField() },
+    { liked: { booleanValue: true } }, { liked: { booleanValue: true }, ...later }]) {
     assert.equal(await ballot('guest', fields), 403);
   }
 });

@@ -3,7 +3,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 // Used only by the opt-in local account preview until integration is reviewed.
 class AccountService {
   final FirebaseAuth auth;
-  AccountService(this.auth);
+
+  /// Removes the account's app data and Auth user on the server. Without it,
+  /// deletion only removes the Auth user.
+  final Future<void> Function()? deleteOnServer;
+  AccountService(this.auth, {this.deleteOnServer});
 
   Future<void> register(String email, String password) async {
     final user = auth.currentUser;
@@ -96,6 +100,14 @@ class AccountService {
         EmailAuthProvider.credential(email: user.email!, password: password),
       );
     }
-    await user.delete();
+    final server = deleteOnServer;
+    if (server == null) {
+      await user.delete();
+      return;
+    }
+    // The server deletes the Auth user after the data, so only the local
+    // session is left to clear.
+    await server();
+    await auth.signOut();
   }
 }

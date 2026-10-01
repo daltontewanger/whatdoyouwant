@@ -23,7 +23,7 @@ for (const value of [web.appId, web.apiKey, client.client_info.mobilesdk_app_id,
   check(typeof value === 'string' && dart.includes(`'${value}'`), 'Dart/native SDK configuration');
 }
 check(json('firebase.staging.json').firestore.rules === 'staging/firestore.rules', 'cloud deny-all rules path');
-check(json('firebase.phase1.emulators.json').firestore.rules === 'local-testing/phase1/firestore.rules', 'candidate local rules path');
+check(json('firebase.phase1.emulators.json').firestore.rules === 'rooms/firestore.rules', 'local emulators use the room rules');
 const local = json('android/app/src/local/google-services.json');
 check(local.project_info.project_id === 'demo-whatdoyouwant', 'local native project');
 const localClient = local.client.find(c => c.client_info.android_client_info.package_name === 'com.daltontewanger.whatdoyouwant.local');

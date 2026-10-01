@@ -1,0 +1,20 @@
+{
+  "indexes": [],
+  "fieldOverrides": [
+    { "collectionGroup": "rooms", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "members", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "candidates", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "ballot", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "roomCodes", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "_requests", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "_limits", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    {
+      "collectionGroup": "members",
+      "fieldPath": "uid",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    }
+  ]
+}

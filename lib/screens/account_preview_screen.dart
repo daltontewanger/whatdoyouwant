@@ -256,7 +256,7 @@ class _AccountPreviewScreenState extends State<AccountPreviewScreen> {
                             : () async {
                               if (!await confirm(
                                 'Delete this local test account?',
-                                'This deletes only the Auth emulator account. Full app data deletion is not implemented yet. Enter your password first for a registered account.',
+                                'This deletes the account, its room memberships and votes, and closes rooms it hosts. Enter your password first for a registered account.',
                               )) {
                                 return;
                               }

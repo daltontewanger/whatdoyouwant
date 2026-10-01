@@ -38,8 +38,8 @@ foreach ($port in @(9099, 8080, 5001)) {
 $emulatorHost = if ($Android) { '10.0.2.2' } else { '127.0.0.1' }
 if ($Accounts) {
     try {
-        $preview = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:5001/demo-whatdoyouwant/us-central1/phase1Status' -ContentType 'application/json' -Body '{"data":{}}' -TimeoutSec 10
-        if ($preview.result.project -ne 'demo-whatdoyouwant' -or $preview.result.policy -ne 'phase1') { throw 'Wrong preview' }
+        $preview = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:5001/demo-whatdoyouwant/us-central1/roomsStatus' -ContentType 'application/json' -Body '{"data":{}}' -TimeoutSec 10
+        if ($preview.result.project -ne 'demo-whatdoyouwant' -or $preview.result.policy -ne 'rooms') { throw 'Wrong preview' }
     } catch { throw 'Account/room preview requires: node scripts/local.mjs preview. Stop the baseline emulators first.' }
 }
 if (-not $Device) {

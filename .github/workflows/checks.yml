@@ -97,6 +97,7 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             functions/package-lock.json
+            rooms/package-lock.json
 
       # The Firestore emulator needs a JDK.
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
@@ -111,6 +112,7 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           npm ci --prefix functions --no-audit --no-fund
+          npm ci --prefix rooms --no-audit --no-fund
 
       - name: Functions unit tests
         run: npm run test:unit

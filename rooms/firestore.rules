@@ -1,0 +1,54 @@
+// Room data rules, used by the local emulators and the staging deployment.
+// Rooms, memberships, candidates, join codes, receipts and limits are written only
+// by the room callables. Clients write nothing but their own immutable ballots.
+//
+// rooms/{id}: creator, status (lobby | voting | closed), memberCount, joinCode
+//   (lobby only), expiresAt, results (after close)
+// rooms/{id}/members/{uid}: uid, active, expiresAt
+// rooms/{id}/candidates/{candidateId}: title, order, expiresAt
+// rooms/{id}/votes/{uid}/ballot/{candidateId}: liked, at, expiresAt
+// Every document carries expiresAt for TTL cleanup; reads check it as well
+// because TTL deletion can lag.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function roomDoc(room) {
+      return get(/databases/$(database)/documents/rooms/$(room));
+    }
+    function member(room) {
+      return request.auth != null &&
+        get(/databases/$(database)/documents/rooms/$(room)/members/$(request.auth.uid)).data.active == true;
+    }
+    function live(room) {
+      return roomDoc(room).data.expiresAt > request.time;
+    }
+    function validBallot(room, data) {
+      return data.keys().hasAll(['liked', 'at', 'expiresAt']) &&
+        data.keys().hasOnly(['liked', 'at', 'expiresAt']) &&
+        data.liked is bool && data.at is timestamp && data.at == request.time &&
+        data.expiresAt == roomDoc(room).data.expiresAt;
+    }
+    match /rooms/{room} {
+      allow get: if member(room) && live(room);
+      allow list, create, update, delete: if false;
+      match /members/{uid} {
+        allow get: if member(room) && live(room) && request.auth.uid == uid;
+        allow list, write: if false;
+      }
+      match /candidates/{candidateId} {
+        allow read: if member(room) && live(room);
+        allow write: if false;
+      }
+      match /votes/{uid}/ballot/{candidateId} {
+        allow read: if member(room) && live(room) && request.auth.uid == uid;
+        allow create: if member(room) && live(room) && request.auth.uid == uid &&
+          roomDoc(room).data.status == 'voting' &&
+          exists(/databases/$(database)/documents/rooms/$(room)/candidates/$(candidateId)) &&
+          validBallot(room, request.resource.data);
+        // Votes are immutable; tallying and closing are server-owned.
+        allow update, delete: if false;
+      }
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
