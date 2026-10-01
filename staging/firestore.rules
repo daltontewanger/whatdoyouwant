@@ -1,5 +1,5 @@
-// Provisioning-only prototype: no client access to any data or schema.
-// Replace with reviewed host/member permissions before live room testing.
+// Rollback rules for staging: no client access to anything. Staging normally
+// deploys rooms/firestore.rules; deploy this file to shut client access off.
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {

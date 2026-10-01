@@ -22,7 +22,19 @@ const dart = readFileSync(resolve(root, 'lib/firebase_options_staging.dart'), 'u
 for (const value of [web.appId, web.apiKey, client.client_info.mobilesdk_app_id, client.api_key[0].current_key]) {
   check(typeof value === 'string' && dart.includes(`'${value}'`), 'Dart/native SDK configuration');
 }
-check(json('firebase.staging.json').firestore.rules === 'staging/firestore.rules', 'cloud deny-all rules path');
+const stagingConfig = json('firebase.staging.json');
+check(stagingConfig.firestore.rules === 'rooms/firestore.rules' &&
+  stagingConfig.firestore.indexes === 'rooms/firestore.indexes.json', 'staging uses the room rules and TTL settings');
+check(JSON.stringify(stagingConfig.functions) === JSON.stringify([{ source: 'rooms', codebase: 'rooms',
+  disallowLegacyRuntimeConfig: true, ignore: ['node_modules', '.git', 'firebase-debug.log', '*.local'] }]),
+  'staging deploys only the rooms codebase');
+// The room callables must never reach production through its config.
+check(!JSON.stringify(json('firebase.json')).includes('rooms'), 'production config excludes the rooms codebase');
+check(/const STAGING = 'whatdoyouwant-staging';/.test(readFileSync(resolve(root, 'rooms/index.js'), 'utf8')),
+  'rooms entry is pinned to staging');
+const rollback = readFileSync(resolve(root, 'staging/firestore.rules'), 'utf8');
+check((rollback.match(/allow /g) || []).length === 1 && rollback.includes('allow read, write: if false;'),
+  'staging rollback rules deny everything');
 check(json('firebase.phase1.emulators.json').firestore.rules === 'rooms/firestore.rules', 'local emulators use the room rules');
 const local = json('android/app/src/local/google-services.json');
 check(local.project_info.project_id === 'demo-whatdoyouwant', 'local native project');

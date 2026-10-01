@@ -7,7 +7,8 @@
     "test:local": "node scripts/local.mjs test",
     "test:unit": "node --test local-testing/unit.test.cjs local-testing/rooms-entry.test.cjs",
     "test:tooling": "node --test local-testing/tooling.test.cjs",
-    "test:policy": "node scripts/local.mjs policy"
+    "test:policy": "node scripts/local.mjs policy",
+    "deploy:staging": "node scripts/deploy-staging.mjs"
   },
   "engines": {
     "node": "22.x || 24.x"

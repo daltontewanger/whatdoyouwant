@@ -2,14 +2,31 @@
   "firestore": {
     "database": "(default)",
     "location": "nam5",
-    "rules": "staging/firestore.rules",
-    "indexes": "staging/firestore.indexes.json"
+    "rules": "rooms/firestore.rules",
+    "indexes": "rooms/firestore.indexes.json"
   },
   "auth": {
-    "authorizedDomains": ["localhost", "whatdoyouwant-staging.firebaseapp.com", "whatdoyouwant-staging.web.app"],
+    "authorizedDomains": [
+      "localhost",
+      "whatdoyouwant-staging.firebaseapp.com",
+      "whatdoyouwant-staging.web.app"
+    ],
     "providers": {
       "anonymous": true,
       "emailPassword": true
     }
-  }
+  },
+  "functions": [
+    {
+      "source": "rooms",
+      "codebase": "rooms",
+      "disallowLegacyRuntimeConfig": true,
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "*.local"
+      ]
+    }
+  ]
 }
