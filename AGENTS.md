@@ -26,10 +26,11 @@ Repository files and verified console evidence describe actual state. The playbo
 - `lib/environment_guard.dart`, `lib/firebase_options.dart`, `lib/firebase_options_staging.dart`, `lib/firebase_options_local.dart`: per-environment config and guards.
 - `lib/screens/`, `lib/services/`, `lib/models/`, `lib/themes/`: app UI and services (`setState` + `Navigator`; `provider`/`flutter_riverpod` are declared but unused).
 - `functions/`: `fetchNearbyRestaurants` callable (`index.js`) and its handler (`search.js`). The manifest declares Node 22; production currently runs Node 20.
-- `local-testing/`: emulator harness and Node tests. `firestore.rules` is the open baseline copy; `phase1/` holds the candidate rules, local callable endpoints and their tests.
-- `staging/`: staging client config, deny-all rules, empty indexes. `app-check-debug.json` is a local secret and ignored.
+- `rooms/`: room callables (create/join/start/close/results/revoke/rotate code/delete account). `handlers.js` holds the logic; `index.js` is the staging-only deployed entry (runs as `rooms-runtime`, App Check enforced); `firestore.rules` and `firestore.indexes.json` (TTL) serve both the emulators and staging. Separate from production `functions/`.
+- `local-testing/`: emulator harness and Node tests. `firestore.rules` is the open baseline copy; `phase1/` wires `rooms/` into the emulators (App Check off) and holds the rules, account and callable tests.
+- `staging/`: staging client config, deny-all rollback rules, empty indexes. `app-check-debug.json` is a local secret and ignored.
 - `scripts/`: `local.mjs` (emulator launcher), `check-environments.mjs` (config preflight), PowerShell launchers.
-- `firebase.json` (production Functions), `firebase.emulators.json` (baseline emulators), `firebase.phase1.emulators.json` (candidate emulators), `firebase.staging.json` (staging Firestore/Auth).
+- `firebase.json` (production Functions), `firebase.emulators.json` (baseline emulators), `firebase.phase1.emulators.json` (room emulators), `firebase.staging.json` (staging Firestore rules/TTL, Auth, rooms Functions).
 - `android/app`: flavors `local`, `staging`, `production`; one is always required.
 - `test/`: Flutter tests.
 - `.github/workflows/deploy.yml`: builds and publishes web to GitHub Pages on every push to `main`.
@@ -52,6 +53,7 @@ local scripts by default. The bypass applies only to that process.
 | Flutter tests | `flutter test --no-pub` |
 | Functions/emulator tests | `npm run test:unit`, `npm run test:local`, `npm run test:tooling` |
 | Firestore rules + callable tests | `npm run test:policy` |
+| Deploy rooms to staging (needs approval) | `npm run deploy:staging -- --confirm whatdoyouwant-staging` (add `--dry-run` first) |
 | Start emulators | `npm run local:preview` (candidate rules) or `npm run local` (baseline) |
 | Run account preview (web) | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-local-app.ps1 -Accounts` (serves on `localhost:5080` and opens it in the default browser; `-WebPort` to change) |
 | Run account preview (Android) | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-local-app.ps1 -Accounts -Android -Device <device-id>` |
