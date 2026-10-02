@@ -193,7 +193,8 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
         if (!authorize('start', actor, state, true)) deny();
         const expiresAt = snapshot.data().expiresAt;
         candidates.forEach((candidate, order) =>
-          tx.create(room.collection('candidates').doc(candidate.id), { title: candidate.title, order, expiresAt }));
+          tx.create(room.collection('candidates').doc(candidate.id), { title: candidate.title,
+            address: candidate.address, distanceMiles: candidate.distanceMiles, order, expiresAt }));
         tx.update(room, { status: 'voting', candidateCount: candidates.length, joinCode: FieldValue.delete(),
           startedAt: FieldValue.serverTimestamp(), votingEndsAt: expiry(VOTING_WINDOW_MS) });
         if (state.joinCode) tx.delete(codeRef(state.joinCode));
