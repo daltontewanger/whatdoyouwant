@@ -66,7 +66,7 @@ emulator session using ports 4000, 4400, 4500, 5001, 8080 or 9099.
 ## Environments
 
 - **Local / emulator** (`demo-whatdoyouwant`): default for all development and testing. Free to use.
-- **Staging** (`whatdoyouwant-staging`): locked down. Deploying here needs scoped deploy identities that don't exist yet; ask first.
+- **Staging** (`whatdoyouwant-staging`): deploy only with `npm run deploy:staging`, and only after the owner approves that deploy. Functions run as `rooms-runtime`. No automated or CI deploys until a scoped deployer identity exists.
 - **Production** (`what-do-you-want-8a404`): never deploy, change config, or modify data without explicit approval.
 
 `.firebaserc` has no default project on purpose. Pass `--project` (and
