@@ -48,7 +48,7 @@ for (const value of [local.project_info.project_id, local.project_info.project_n
 // Android's Firebase Installations (used by callable Functions) rejects keys outside this format
 // before any request is sent, even against the emulator.
 check(/^A[\w-]{38}$/.test(localClient.api_key[0].current_key), 'local Android API key format');
-const localLaunch = json('.vscode/launch.json').configurations.find(c => c.name === 'Local preview - Android emulator');
+const localLaunch = json('.vscode/launch.json').configurations.find(c => c.name === 'Local app - Android emulator');
 check(localLaunch?.program === 'lib/main_local.dart' && localLaunch.toolArgs[localLaunch.toolArgs.indexOf('--flavor') + 1] === 'local', 'local VS Code launch');
 check(!Object.hasOwn(json('firebase.json'), 'emulators'), 'emulators use dedicated local configurations');
 check(!/FIREBASE_APPCHECK_DEBUG_TOKEN\s*=/.test(readFileSync(resolve(root, 'web/index.html'), 'utf8')), 'web entry does not enable App Check debug');

@@ -2,29 +2,30 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Local preview - Android emulator",
+      "name": "Local app - Android emulator",
       "request": "launch",
       "type": "dart",
       "program": "lib/main_local.dart",
       "flutterMode": "debug",
       "toolArgs": [
-        "--flavor", "local",
-        "--dart-define=EMULATOR_HOST=10.0.2.2",
-        "--dart-define=ACCOUNT_FLOW_PREVIEW=true"
+        "--flavor",
+        "local",
+        "--dart-define=EMULATOR_HOST=10.0.2.2"
       ]
     },
     {
-      "name": "Local preview - Web (open localhost:5080/whatdoyouwant/)",
+      "name": "Local app - Web (open localhost:5080/whatdoyouwant/)",
       "request": "launch",
       "type": "dart",
       "program": "lib/main_local.dart",
       "deviceId": "web-server",
       "flutterMode": "debug",
       "toolArgs": [
-        "--web-hostname", "localhost",
-        "--web-port", "5080",
-        "--dart-define=EMULATOR_HOST=127.0.0.1",
-        "--dart-define=ACCOUNT_FLOW_PREVIEW=true"
+        "--web-hostname",
+        "localhost",
+        "--web-port",
+        "5080",
+        "--dart-define=EMULATOR_HOST=127.0.0.1"
       ]
     }
   ]
