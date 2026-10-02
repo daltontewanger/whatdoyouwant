@@ -19,6 +19,7 @@ class AccountPreviewScreen extends StatefulWidget {
   State<AccountPreviewScreen> createState() => _AccountPreviewScreenState();
 }
 
+const _googleCancelled = 'Google sign-in was cancelled.';
 const _enterPassword =
     'Type your current password in the Password field, then try again.';
 
@@ -71,7 +72,13 @@ class _AccountPreviewScreenState extends State<AccountPreviewScreen> {
         'email-already-in-use':
             'This email cannot be linked. Your guest session is unchanged. Sign in explicitly if this is your account.',
         'credential-already-in-use':
-            'This credential belongs to another account. Your guest session is unchanged.',
+            'This credential belongs to another account. Your guest session is unchanged. Use "Sign in with an existing Google account" to switch to it.',
+        'popup-closed-by-user': _googleCancelled,
+        'cancelled-popup-request': _googleCancelled,
+        'web-context-canceled': _googleCancelled,
+        'canceled': _googleCancelled,
+        'operation-not-allowed':
+            'This sign-in method is not enabled for this environment.',
         'weak-password': 'Use a password with at least 6 characters.',
         'invalid-email': 'Enter a valid email address.',
         'too-many-requests': 'Too many attempts. Please wait and try again.',
@@ -114,6 +121,8 @@ class _AccountPreviewScreenState extends State<AccountPreviewScreen> {
       builder: (context, snapshot) {
         final user = snapshot.data;
         final registered = user != null && !user.isAnonymous;
+        // A Google-only account has no password to type, reset or confirm.
+        final passwordForm = !registered || AccountService.usesPassword(user);
         return Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
@@ -136,24 +145,26 @@ class _AccountPreviewScreenState extends State<AccountPreviewScreen> {
                       : 'Email verification needed',
                 ),
                 if (registered) Text(user.email ?? ''),
-                TextField(
-                  controller: email,
-                  enabled: !busy,
-                  keyboardType: TextInputType.emailAddress,
-                  autocorrect: false,
-                  decoration: const InputDecoration(labelText: 'Email'),
-                ),
-                TextField(
-                  controller: password,
-                  enabled: !busy,
-                  obscureText: true,
-                  autocorrect: false,
-                  enableSuggestions: false,
-                  decoration: const InputDecoration(
-                    labelText: 'Password',
-                    helperText: 'New accounts require at least 6 characters.',
+                if (passwordForm) ...[
+                  TextField(
+                    controller: email,
+                    enabled: !busy,
+                    keyboardType: TextInputType.emailAddress,
+                    autocorrect: false,
+                    decoration: const InputDecoration(labelText: 'Email'),
                   ),
-                ),
+                  TextField(
+                    controller: password,
+                    enabled: !busy,
+                    obscureText: true,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    decoration: const InputDecoration(
+                      labelText: 'Password',
+                      helperText: 'New accounts require at least 6 characters.',
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 if (!registered) ...[
                   ElevatedButton(
@@ -192,6 +203,41 @@ class _AccountPreviewScreenState extends State<AccountPreviewScreen> {
                             },
                     child: const Text('Sign in'),
                   ),
+                  if (widget.accounts.googleEnabled) ...[
+                    const SizedBox(height: 16),
+                    OutlinedButton(
+                      onPressed:
+                          busy
+                              ? null
+                              : () => perform(
+                                widget.accounts.continueWithGoogle,
+                                'Signed in with Google.',
+                              ),
+                      child: const Text('Continue with Google'),
+                    ),
+                    TextButton(
+                      onPressed:
+                          busy
+                              ? null
+                              : () async {
+                                if (user?.isAnonymous == true &&
+                                    !await confirm(
+                                      'Switch to an existing account?',
+                                      'Your guest activity will not be merged. Continue with Google instead to keep your guest identity.',
+                                    )) {
+                                  return;
+                                }
+                                if (!mounted) return;
+                                await perform(
+                                  widget.accounts.signInWithGoogle,
+                                  'Signed in with Google.',
+                                );
+                              },
+                      child: const Text(
+                        'Sign in with an existing Google account',
+                      ),
+                    ),
+                  ],
                 ],
                 if (registered && !user.emailVerified) ...[
                   TextButton(
@@ -217,18 +263,19 @@ class _AccountPreviewScreenState extends State<AccountPreviewScreen> {
                     child: const Text('I verified my email'),
                   ),
                 ],
-                TextButton(
-                  onPressed:
-                      busy
-                          ? null
-                          : () => perform(
-                            () => widget.accounts.resetPassword(email.text),
-                            local
-                                ? 'If an account exists, password reset instructions are available in the local Auth emulator.'
-                                : 'If an account exists, a password reset email is on its way.',
-                          ),
-                  child: const Text('Reset password'),
-                ),
+                if (passwordForm)
+                  TextButton(
+                    onPressed:
+                        busy
+                            ? null
+                            : () => perform(
+                              () => widget.accounts.resetPassword(email.text),
+                              local
+                                  ? 'If an account exists, password reset instructions are available in the local Auth emulator.'
+                                  : 'If an account exists, a password reset email is on its way.',
+                            ),
+                    child: const Text('Reset password'),
+                  ),
                 if (user == null)
                   TextButton(
                     onPressed:
@@ -281,7 +328,7 @@ class _AccountPreviewScreenState extends State<AccountPreviewScreen> {
                             : () async {
                               if (!await confirm(
                                 'Delete this account?',
-                                'This deletes the account, its room memberships and votes, and closes rooms it hosts. For a registered account, type your password in the Password field first.',
+                                'This deletes the account, its room memberships and votes, and closes rooms it hosts. For an email account, type your password in the Password field first; a Google account asks you to sign in with Google again.',
                               )) {
                                 return;
                               }

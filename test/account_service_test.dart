@@ -11,7 +11,35 @@ class FakeUser extends Fake implements User {
   bool failReauth = false;
   String? reloadError;
   String? reloadMessage;
+  List<String> providers = ['password'];
   final calls = <String>[];
+  @override
+  List<UserInfo> get providerData => [for (final id in providers) FakeInfo(id)];
+  @override
+  Future<UserCredential> linkWithProvider(AuthProvider provider) async {
+    calls.add('link:${provider.providerId}');
+    if (failLink) {
+      throw FirebaseAuthException(code: 'credential-already-in-use');
+    }
+    anonymous = false;
+    return FakeCredential();
+  }
+
+  @override
+  Future<UserCredential> linkWithPopup(AuthProvider provider) async {
+    calls.add('popup:${provider.providerId}');
+    anonymous = false;
+    return FakeCredential();
+  }
+
+  @override
+  Future<UserCredential> reauthenticateWithProvider(
+    AuthProvider provider,
+  ) async {
+    calls.add('reauth:${provider.providerId}');
+    return FakeCredential();
+  }
+
   @override
   bool get isAnonymous => anonymous;
   @override
@@ -64,11 +92,18 @@ class FakeUser extends Fake implements User {
 
 class FakeCredential extends Fake implements UserCredential {}
 
+class FakeInfo extends Fake implements UserInfo {
+  FakeInfo(this.providerId);
+  @override
+  final String providerId;
+}
+
 class FakeAuth extends Fake implements FirebaseAuth {
   User? user;
   int creates = 0;
   int guests = 0;
   int signOuts = 0;
+  int providerSignIns = 0;
   String? resetError;
   FakeAuth(this.user);
   @override
@@ -88,6 +123,13 @@ class FakeAuth extends Fake implements FirebaseAuth {
 
   @override
   Stream<User?> userChanges() => Stream.value(user);
+  @override
+  Future<UserCredential> signInWithProvider(AuthProvider provider) async {
+    providerSignIns++;
+    user = FakeUser()..anonymous = false;
+    return FakeCredential();
+  }
+
   @override
   Future<UserCredential> createUserWithEmailAndPassword({
     required String email,
@@ -364,4 +406,114 @@ void main() {
       expect(user.calls, ['reauth', 'reauth', 'delete']);
     },
   );
+  group('Google sign-in', () {
+    testWidgets('the buttons appear only where Google is enabled', (
+      tester,
+    ) async {
+      final user = FakeUser();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AccountPreviewScreen(accounts: AccountService(FakeAuth(user))),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Continue with Google'), findsNothing);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AccountPreviewScreen(
+            accounts: AccountService(
+              FakeAuth(user),
+              googleEnabled: true,
+              web: false,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Continue with Google'));
+      await tester.tap(find.text('Continue with Google'));
+      await tester.pumpAndSettle();
+      expect(user.calls, ['link:google.com']);
+    });
+
+    test('links a guest without replacing or signing out the guest', () async {
+      final user = FakeUser();
+      final auth = FakeAuth(user);
+      await AccountService(auth, web: false).continueWithGoogle();
+      expect(user.calls, ['link:google.com']);
+      expect(user.isAnonymous, isFalse);
+      expect(auth.currentUser, same(user));
+      expect((auth.signOuts, auth.guests, auth.providerSignIns), (0, 0, 0));
+    });
+
+    testWidgets('a Google-only account sees no password form', (tester) async {
+      final user =
+          FakeUser()
+            ..anonymous = false
+            ..verified = true
+            ..providers = ['google.com'];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AccountPreviewScreen(accounts: AccountService(FakeAuth(user))),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(TextField), findsNothing);
+      expect(find.text('Reset password'), findsNothing);
+      expect(find.text('Delete account'), findsOneWidget);
+    });
+
+    test('uses a popup on the web', () async {
+      final user = FakeUser();
+      await AccountService(FakeAuth(user), web: true).continueWithGoogle();
+      expect(user.calls, ['popup:google.com']);
+    });
+
+    test('an existing Google account is not merged into the guest', () async {
+      final user = FakeUser()..failLink = true;
+      final auth = FakeAuth(user);
+      await expectLater(
+        AccountService(auth, web: false).continueWithGoogle(),
+        throwsA(
+          isA<FirebaseAuthException>().having(
+            (error) => error.code,
+            'code',
+            'credential-already-in-use',
+          ),
+        ),
+      );
+      expect(auth.currentUser, same(user));
+      expect(user.isAnonymous, isTrue);
+      expect((auth.signOuts, auth.providerSignIns), (0, 0));
+    });
+
+    test('a registered account must sign out first', () async {
+      final auth = FakeAuth(FakeUser()..anonymous = false);
+      await expectLater(
+        AccountService(auth, web: false).continueWithGoogle(),
+        throwsA(isA<StateError>()),
+      );
+      expect(auth.providerSignIns, 0);
+    });
+
+    test('deleting a Google account reauthenticates with Google', () async {
+      final user =
+          FakeUser()
+            ..anonymous = false
+            ..providers = ['google.com'];
+      final auth = FakeAuth(user);
+      var serverCalls = 0;
+      await AccountService(
+        auth,
+        web: false,
+        deleteOnServer: () async {
+          serverCalls++;
+          expect(user.calls, ['reauth:google.com']);
+        },
+      ).deleteAccount('');
+      expect(serverCalls, 1);
+      expect(auth.signOuts, 1);
+    });
+  });
 }

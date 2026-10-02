@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 class AccountService {
   final FirebaseAuth auth;
@@ -6,10 +7,53 @@ class AccountService {
   /// True when Auth is the local emulator, where no real email is ever sent.
   final bool usesEmulator;
 
+  /// Shows Google sign-in. Off where the Google provider is not configured.
+  final bool googleEnabled;
+
+  /// Web uses popups; Android and iOS use the platform provider flow.
+  final bool web;
+
   /// Removes the account's app data and Auth user on the server. Without it,
   /// deletion only removes the Auth user.
   final Future<void> Function()? deleteOnServer;
-  AccountService(this.auth, {this.deleteOnServer, this.usesEmulator = false});
+  AccountService(
+    this.auth, {
+    this.deleteOnServer,
+    this.usesEmulator = false,
+    this.googleEnabled = false,
+    bool? web,
+  }) : web = web ?? kIsWeb;
+
+  /// Links a guest to Google, keeping the guest's identity, or signs in when
+  /// there is no session. A Google account that already exists is never merged;
+  /// the error propagates and the guest session is unchanged.
+  Future<void> continueWithGoogle() async {
+    final user = auth.currentUser;
+    if (user != null && !user.isAnonymous) {
+      throw StateError('Sign out before using another account.');
+    }
+    final provider = GoogleAuthProvider();
+    if (user == null) {
+      await signInWithGoogle();
+    } else if (web) {
+      await user.linkWithPopup(provider);
+    } else {
+      await user.linkWithProvider(provider);
+    }
+  }
+
+  /// Switches to an existing Google account, leaving any guest session behind.
+  Future<void> signInWithGoogle() async {
+    final provider = GoogleAuthProvider();
+    if (web) {
+      await auth.signInWithPopup(provider);
+    } else {
+      await auth.signInWithProvider(provider);
+    }
+  }
+
+  static bool usesPassword(User user) =>
+      user.providerData.any((info) => info.providerId == 'password');
 
   Future<void> register(String email, String password) async {
     final user = auth.currentUser;
@@ -97,13 +141,21 @@ class AccountService {
   Future<void> deleteAccount(String password) async {
     final user = auth.currentUser;
     if (user == null) throw StateError('No account to delete.');
-    if (!user.isAnonymous) {
+    if (!user.isAnonymous && usesPassword(user)) {
       if (password.isEmpty) {
         throw FirebaseAuthException(code: 'missing-password');
       }
       await user.reauthenticateWithCredential(
         EmailAuthProvider.credential(email: user.email!, password: password),
       );
+    } else if (!user.isAnonymous) {
+      // The server only deletes accounts that signed in moments ago.
+      final provider = GoogleAuthProvider();
+      if (web) {
+        await user.reauthenticateWithPopup(provider);
+      } else {
+        await user.reauthenticateWithProvider(provider);
+      }
     }
     final server = deleteOnServer;
     if (server == null) {
