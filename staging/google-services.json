@@ -12,7 +12,20 @@
           "package_name": "com.daltontewanger.whatdoyouwant.staging"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "443362448287-coeks6o3psshfbs50p4aac5g6u517ehv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.daltontewanger.whatdoyouwant.staging",
+            "certificate_hash": "5dbba272fac08af8250c9fb080705680b9b3012b"
+          }
+        },
+        {
+          "client_id": "443362448287-uocj3rjuace1pcnmkn0dooc2s6n52hq6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDiC4wtEnnHA7Wy3H7CCHMEQILiOhuWdsQ"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "443362448287-uocj3rjuace1pcnmkn0dooc2s6n52hq6.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
