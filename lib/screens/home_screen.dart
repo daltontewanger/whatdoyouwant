@@ -17,7 +17,15 @@ class HomeScreen extends StatefulWidget {
 
 class HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
-  late AppUser _currentUser;
+  // Read on use: signing in, out or deleting an account changes the user.
+  AppUser get _currentUser {
+    final user = FirebaseAuth.instance.currentUser;
+    return AppUser(
+      id: user != null && user.uid.isNotEmpty ? user.uid : 'guest',
+      name: 'Guest',
+    );
+  }
+
   bool _isLoading = false;
 
   late final AnimationController _animationController;
@@ -26,12 +34,6 @@ class HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
-    final user = FirebaseAuth.instance.currentUser;
-    _currentUser = AppUser(
-      id: user != null && user.uid.isNotEmpty ? user.uid : 'guest',
-      name: 'Guest',
-    );
-
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1650),
@@ -65,6 +67,64 @@ class HomeScreenState extends State<HomeScreen>
               showRoomPreview: false,
             ),
       ),
+    );
+  }
+
+  Widget _accountStatus(ThemeData theme) {
+    final accounts = RoomBackendScope.of(context).accounts!;
+    return StreamBuilder<User?>(
+      stream: accounts.auth.userChanges(),
+      initialData: accounts.auth.currentUser,
+      builder: (context, snapshot) {
+        final user = snapshot.data;
+        final registered = user != null && !user.isAnonymous;
+        return Column(
+          children: [
+            Text(
+              registered
+                  ? 'Signed in as ${user.email ?? user.displayName ?? 'your account'}'
+                  : 'Playing as a guest',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall,
+            ),
+            Wrap(
+              alignment: WrapAlignment.center,
+              children: [
+                TextButton(
+                  onPressed: _isLoading ? null : _openAccount,
+                  child: Text(registered ? 'Account' : 'Sign in'),
+                ),
+                if (registered)
+                  TextButton(
+                    onPressed:
+                        _isLoading
+                            ? null
+                            : () async {
+                              final messenger = ScaffoldMessenger.of(context);
+                              try {
+                                await accounts.signOut();
+                                messenger.showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Signed out. You are playing as a guest.',
+                                    ),
+                                  ),
+                                );
+                              } catch (_) {
+                                messenger.showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Could not sign out.'),
+                                  ),
+                                );
+                              }
+                            },
+                    child: const Text('Sign out'),
+                  ),
+              ],
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -340,10 +400,7 @@ class HomeScreenState extends State<HomeScreen>
                           if (RoomBackendScope.of(context).accounts !=
                               null) ...[
                             const SizedBox(height: 12),
-                            TextButton(
-                              onPressed: _isLoading ? null : _openAccount,
-                              child: const Text('Account'),
-                            ),
+                            _accountStatus(theme),
                           ],
                           const SizedBox(height: 32),
                           TextButton(

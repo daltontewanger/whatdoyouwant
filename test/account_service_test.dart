@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:whatdoyouwant/services/account_service.dart';
 import 'package:whatdoyouwant/screens/account_preview_screen.dart';
+import 'package:whatdoyouwant/screens/create_account_screen.dart';
 
 class FakeUser extends Fake implements User {
   bool anonymous = true;
@@ -104,29 +107,52 @@ class FakeAuth extends Fake implements FirebaseAuth {
   int guests = 0;
   int signOuts = 0;
   int providerSignIns = 0;
+  int emailSignIns = 0;
   String? resetError;
+  String? signInError;
+  final _changes = StreamController<User?>.broadcast();
   FakeAuth(this.user);
+  void _set(User? next) {
+    user = next;
+    _changes.add(next);
+  }
+
   @override
   User? get currentUser => user;
   @override
   Future<void> signOut() async {
     signOuts++;
-    user = null;
+    _set(null);
   }
 
   @override
   Future<UserCredential> signInAnonymously() async {
     guests++;
-    user = FakeUser();
+    _set(FakeUser());
     return FakeCredential();
   }
 
   @override
-  Stream<User?> userChanges() => Stream.value(user);
+  Stream<User?> userChanges() async* {
+    yield user;
+    yield* _changes.stream;
+  }
+
   @override
   Future<UserCredential> signInWithProvider(AuthProvider provider) async {
     providerSignIns++;
-    user = FakeUser()..anonymous = false;
+    _set(FakeUser()..anonymous = false);
+    return FakeCredential();
+  }
+
+  @override
+  Future<UserCredential> signInWithEmailAndPassword({
+    required String email,
+    required String password,
+  }) async {
+    emailSignIns++;
+    if (signInError != null) throw FirebaseAuthException(code: signInError!);
+    _set(FakeUser()..anonymous = false);
     return FakeCredential();
   }
 
@@ -149,37 +175,171 @@ class FakeAuth extends Fake implements FirebaseAuth {
 }
 
 void main() {
-  testWidgets(
-    'short registration password shows guidance without contacting Auth',
-    (tester) async {
-      final user = FakeUser();
-      final auth = FakeAuth(user);
+  group('create account screen', () {
+    Future<FakeUser> open(WidgetTester tester, FakeAuth auth) async {
       await tester.pumpWidget(
-        MaterialApp(home: AccountPreviewScreen(accounts: AccountService(auth))),
+        MaterialApp(home: CreateAccountScreen(accounts: AccountService(auth))),
       );
       await tester.pumpAndSettle();
-      expect(
-        find.text('New accounts require at least 6 characters.'),
-        findsOneWidget,
-      );
+      return auth.user as FakeUser;
+    }
+
+    Future<void> fill(
+      WidgetTester tester,
+      String password,
+      String repeat,
+    ) async {
       await tester.enterText(
         find.byType(TextField).at(0),
         'fixture@example.test',
       );
-      await tester.enterText(find.byType(TextField).at(1), '1234');
-      await tester.ensureVisible(find.text('Create account'));
-      await tester.tap(find.text('Create account'));
+      await tester.enterText(find.byType(TextField).at(1), password);
+      await tester.enterText(find.byType(TextField).at(2), repeat);
+    }
+
+    testWidgets('short passwords get guidance without contacting Auth', (
+      tester,
+    ) async {
+      final auth = FakeAuth(FakeUser());
+      final user = await open(tester, auth);
+      await fill(tester, '1234', '1234');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Create account'));
       await tester.pumpAndSettle();
       expect(
         find.text('Use a password with at least 6 characters.'),
         findsOneWidget,
       );
-      expect(find.byType(LinearProgressIndicator), findsNothing);
       expect(user.calls, isEmpty);
-      expect(user.isAnonymous, true);
       expect(auth.creates, 0);
-    },
-  );
+    });
+
+    testWidgets('mismatched passwords are caught before contacting Auth', (
+      tester,
+    ) async {
+      final auth = FakeAuth(FakeUser());
+      final user = await open(tester, auth);
+      await fill(tester, 'secret123', 'secret124');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Create account'));
+      await tester.pumpAndSettle();
+      expect(find.text('The passwords do not match.'), findsOneWidget);
+      expect(user.calls, isEmpty);
+    });
+
+    testWidgets(
+      'submitting the repeated password links the guest and requests verification',
+      (tester) async {
+        final auth = FakeAuth(FakeUser());
+        final user = await open(tester, auth);
+        await fill(tester, 'secret123', 'secret123');
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pumpAndSettle();
+        expect(user.calls, ['link', 'verify']);
+        expect(auth.currentUser, same(user), reason: 'the guest UID is kept');
+        expect(find.byType(CreateAccountScreen), findsNothing);
+      },
+    );
+  });
+
+  group('sign in', () {
+    Future<FakeAuth> openAsGuest(WidgetTester tester) async {
+      final auth = FakeAuth(FakeUser());
+      await tester.pumpWidget(
+        MaterialApp(home: AccountPreviewScreen(accounts: AccountService(auth))),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byType(TextField).at(0),
+        'fixture@example.test',
+      );
+      await tester.enterText(find.byType(TextField).at(1), 'secret123');
+      return auth;
+    }
+
+    testWidgets(
+      'pressing enter in the password field signs in after the guest confirms',
+      (tester) async {
+        final auth = await openAsGuest(tester);
+        await tester.testTextInput.receiveAction(TextInputAction.go);
+        await tester.pumpAndSettle();
+        expect(find.text('Sign in to an existing account?'), findsOneWidget);
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+        expect(auth.emailSignIns, 0);
+
+        await tester.showKeyboard(find.byType(TextField).at(1));
+        await tester.testTextInput.receiveAction(TextInputAction.go);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Continue'));
+        await tester.pumpAndSettle();
+        expect(auth.emailSignIns, 1);
+        expect(find.text('Signed in as'), findsOneWidget);
+        expect(find.byType(TextField), findsNothing);
+      },
+    );
+
+    for (final (code, text) in [
+      (
+        'user-not-found',
+        'No account uses that email. If you are new, create an account below.',
+      ),
+      (
+        'wrong-password',
+        'That password is incorrect. Try again or use Forgot password.',
+      ),
+      (
+        'invalid-credential',
+        'Email or password is incorrect. Check them, or create an account if you are new.',
+      ),
+    ]) {
+      testWidgets('a failed sign-in ($code) explains what to do', (
+        tester,
+      ) async {
+        final auth = await openAsGuest(tester);
+        auth.signInError = code;
+        await tester.tap(find.widgetWithText(ElevatedButton, 'Sign in'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Continue'));
+        await tester.pumpAndSettle();
+        expect(find.text(text), findsOneWidget);
+        expect(auth.currentUser!.isAnonymous, isTrue);
+      });
+    }
+
+    testWidgets('signing out leaves a fresh guest session', (tester) async {
+      final auth = FakeAuth(FakeUser()..anonymous = false);
+      await tester.pumpWidget(
+        MaterialApp(home: AccountPreviewScreen(accounts: AccountService(auth))),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Sign out'));
+      await tester.pumpAndSettle();
+      expect((auth.signOuts, auth.guests), (1, 1));
+      expect(auth.currentUser!.isAnonymous, isTrue);
+      expect(find.text('Signed out. You are playing as a guest.'), findsOne);
+    });
+
+    testWidgets('deleting an email account asks for the password', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final user = FakeUser()..anonymous = false;
+      final auth = FakeAuth(user);
+      await tester.pumpWidget(
+        MaterialApp(home: AccountPreviewScreen(accounts: AccountService(auth))),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete account'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'secret123');
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+      expect(user.calls, ['reauth', 'delete']);
+      expect(find.text('Account deleted.'), findsOneWidget);
+      expect(auth.currentUser!.isAnonymous, isTrue);
+    });
+  });
   test(
     'signed-out registration rejects short passwords and accepts six characters',
     () async {
@@ -199,24 +359,6 @@ void main() {
       expect(auth.creates, 1);
     },
   );
-  testWidgets('existing-account sign-in asks before leaving guest identity', (
-    tester,
-  ) async {
-    final user = FakeUser();
-    final auth = FakeAuth(user);
-    await tester.pumpWidget(
-      MaterialApp(home: AccountPreviewScreen(accounts: AccountService(auth))),
-    );
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Sign in'));
-    await tester.tap(find.text('Sign in'));
-    await tester.pumpAndSettle();
-    expect(find.text('Switch to an existing account?'), findsOneWidget);
-    await tester.tap(find.text('Cancel'));
-    await tester.pumpAndSettle();
-    expect(auth.currentUser, same(user));
-    expect(user.calls, isEmpty);
-  });
   test(
     'registration links guest and never creates a replacement identity',
     () async {
@@ -445,6 +587,39 @@ void main() {
       expect(user.isAnonymous, isFalse);
       expect(auth.currentUser, same(user));
       expect((auth.signOuts, auth.guests, auth.providerSignIns), (0, 0, 0));
+    });
+
+    testWidgets('an existing Google account is offered as a switch', (
+      tester,
+    ) async {
+      final user = FakeUser()..failLink = true;
+      final auth = FakeAuth(user);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AccountPreviewScreen(
+            accounts: AccountService(auth, googleEnabled: true, web: false),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Continue with Google'));
+      await tester.tap(find.text('Continue with Google'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Switch to your existing Google account?'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(auth.providerSignIns, 0);
+      expect(find.text('Your guest session is unchanged.'), findsOneWidget);
+
+      await tester.tap(find.text('Continue with Google'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Switch'));
+      await tester.pumpAndSettle();
+      expect(auth.providerSignIns, 1);
+      expect(find.text('Signed in as'), findsOneWidget);
     });
 
     testWidgets('a Google-only account sees no password form', (tester) async {

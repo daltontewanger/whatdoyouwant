@@ -160,11 +160,19 @@ class AccountService {
     final server = deleteOnServer;
     if (server == null) {
       await user.delete();
-      return;
+    } else {
+      // The server deletes the Auth user after the data, so only the local
+      // session is left to clear.
+      await server();
+      await auth.signOut();
     }
-    // The server deletes the Auth user after the data, so only the local
-    // session is left to clear.
-    await server();
+    await auth.signInAnonymously();
+  }
+
+  /// Leaves a registered account. A fresh guest session follows so joining
+  /// rooms keeps working without a separate step.
+  Future<void> signOut() async {
     await auth.signOut();
+    await auth.signInAnonymously();
   }
 }
