@@ -325,6 +325,10 @@ class SwipeScreenState extends State<SwipeScreen> {
                                       child: CardSwiper(
                                         controller: _cardSwiperController,
                                         cardsCount: _cardWidgets.length,
+                                        // The swiper shows two stacked cards by
+                                        // default and rejects a one-card deck.
+                                        numberOfCardsDisplayed:
+                                            _cardWidgets.length < 2 ? 1 : 2,
                                         cardBuilder: (context, index, h, v) {
                                           if (index >= _cardWidgets.length) {
                                             return null;
