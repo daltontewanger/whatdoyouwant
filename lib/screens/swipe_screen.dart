@@ -186,6 +186,8 @@ class SwipeScreenState extends State<SwipeScreen> {
               Text(
                 restaurant.name,
                 textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.headlineMedium!.copyWith(
                   fontWeight: FontWeight.w900,
                   fontSize: 26,
@@ -196,6 +198,8 @@ class SwipeScreenState extends State<SwipeScreen> {
               Text(
                 restaurant.address,
                 textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
               const SizedBox(height: 14),
@@ -312,7 +316,11 @@ class SwipeScreenState extends State<SwipeScreen> {
                                 Expanded(
                                   flex: 3,
                                   child: Center(
+                                    // The swiper sizes cards from these constraints; with
+                                    // a loose width every card shrinks to its own text
+                                    // and sits at the left edge.
                                     child: SizedBox(
+                                      width: double.infinity,
                                       height: 380,
                                       child: CardSwiper(
                                         controller: _cardSwiperController,

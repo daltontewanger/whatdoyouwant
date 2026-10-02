@@ -111,6 +111,46 @@ void main() {
     expect(find.text('Demo Pizza'), findsWidgets);
   });
 
+  testWidgets('swipe cards share one size and are centered', (tester) async {
+    tester.view.physicalSize = const Size(375, 812);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    // The test font is wide; at full scale every card's text wraps and fills
+    // the space regardless, hiding a card that is not stretched or centered.
+    tester.platformDispatcher.textScaleFactorTestValue = 0.5;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    final names = [
+      Restaurant(id: 'a', name: 'Pho', address: '1', distance: 0.25),
+      Restaurant(
+        id: 'b',
+        name: 'Tacos',
+        address: '2 Example Street',
+        distance: 0.5,
+      ),
+    ];
+    await tester.pumpWidget(
+      app(
+        FakeRoomBackend(),
+        SwipeScreen(
+          roomCode: 'ROOM-ID',
+          currentUser: AppUser(id: 'guest', name: 'Guest'),
+          radius: 1,
+          maxOptions: 2,
+          restaurants: names,
+        ),
+      ),
+    );
+    await tester.pump();
+    final cards = tester.widgetList<Card>(find.byType(Card)).toList();
+    expect(cards, hasLength(2));
+    final sizes = [for (final c in cards) tester.getSize(find.byWidget(c))];
+    expect(sizes[0], sizes[1]);
+    final front = tester.getRect(find.byWidget(cards.last));
+    expect(front.center.dx, closeTo(375 / 2, 1));
+    // Dispose the screen so its countdown and watchdog timers stop.
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('results wait for the server, then show the winner', (
     tester,
   ) async {
