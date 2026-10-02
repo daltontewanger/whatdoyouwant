@@ -1,7 +1,6 @@
 param(
     [string]$Device,
     [switch]$Android,
-    [switch]$Accounts,
     [int]$WebPort = 5080,
     [string]$FlutterSdk
 )
@@ -35,7 +34,7 @@ foreach ($port in @(9099, 8080, 5001)) {
     finally { $client.Dispose() }
 }
 $emulatorHost = if ($Android) { '10.0.2.2' } else { '127.0.0.1' }
-# Both the app and the preview screens use the room callables.
+# The app uses the room callables.
 try {
     $preview = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:5001/demo-whatdoyouwant/us-central1/roomsStatus' -ContentType 'application/json' -Body '{"data":{}}' -TimeoutSec 10
     if ($preview.result.project -ne 'demo-whatdoyouwant' -or $preview.result.policy -ne 'rooms') { throw 'Wrong preview' }
@@ -68,6 +67,6 @@ if ($Device -eq 'web-server') {
 }
 Push-Location $projectRoot
 try {
-    & $dart --disable-analytics "--packages=$toolPackages" $snapshot --suppress-analytics --no-version-check run --debug --no-pub -t lib/main_local.dart -d $Device "--dart-define=EMULATOR_HOST=$emulatorHost" "--dart-define=ACCOUNT_FLOW_PREVIEW=$($Accounts.IsPresent.ToString().ToLowerInvariant())" @flavorArgs @webArgs
+    & $dart --disable-analytics "--packages=$toolPackages" $snapshot --suppress-analytics --no-version-check run --debug --no-pub -t lib/main_local.dart -d $Device "--dart-define=EMULATOR_HOST=$emulatorHost" @flavorArgs @webArgs
     exit $LASTEXITCODE
 } finally { Pop-Location }

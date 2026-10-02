@@ -8,7 +8,6 @@ import 'package:flutter/material.dart';
 import 'main.dart' show MyApp;
 import 'environment_guard.dart';
 import 'firebase_options_local.dart';
-import 'screens/account_preview_screen.dart';
 import 'services/account_service.dart';
 import 'services/callable_room_backend.dart';
 
@@ -51,11 +50,6 @@ Future<void> main() async {
         () => FirebaseFunctions.instance.httpsCallable('deleteAccount').call(),
   );
   await accounts.guest();
-  if (const bool.fromEnvironment('ACCOUNT_FLOW_PREVIEW')) {
-    // The stand-alone account and room preview screens.
-    runApp(MaterialApp(home: AccountPreviewScreen(accounts: accounts)));
-    return;
-  }
   // No App Check activation or registered debug token in this local-only path.
   runApp(
     MyApp(

@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/user.dart';
 import '../services/room_backend.dart';
-import 'account_preview_screen.dart';
+import 'account_screen.dart';
 import 'room_screen.dart';
 import 'join_screen.dart';
 
@@ -60,13 +60,7 @@ class HomeScreenState extends State<HomeScreen>
     if (accounts == null) return;
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder:
-            (_) => AccountPreviewScreen(
-              accounts: accounts,
-              showRoomPreview: false,
-            ),
-      ),
+      MaterialPageRoute(builder: (_) => AccountScreen(accounts: accounts)),
     );
   }
 

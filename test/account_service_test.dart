@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:whatdoyouwant/services/account_service.dart';
-import 'package:whatdoyouwant/screens/account_preview_screen.dart';
+import 'package:whatdoyouwant/screens/account_screen.dart';
 import 'package:whatdoyouwant/screens/create_account_screen.dart';
 
 class FakeUser extends Fake implements User {
@@ -249,7 +249,7 @@ void main() {
     Future<FakeAuth> openAsGuest(WidgetTester tester) async {
       final auth = FakeAuth(FakeUser());
       await tester.pumpWidget(
-        MaterialApp(home: AccountPreviewScreen(accounts: AccountService(auth))),
+        MaterialApp(home: AccountScreen(accounts: AccountService(auth))),
       );
       await tester.pumpAndSettle();
       await tester.enterText(
@@ -328,7 +328,7 @@ void main() {
                               context,
                               MaterialPageRoute(
                                 builder:
-                                    (_) => AccountPreviewScreen(
+                                    (_) => AccountScreen(
                                       accounts: AccountService(auth),
                                     ),
                               ),
@@ -350,10 +350,10 @@ void main() {
           await tester.pumpAndSettle();
           expect(auth.emailSignIns, 1);
           if (verified) {
-            expect(find.byType(AccountPreviewScreen), findsNothing);
+            expect(find.byType(AccountScreen), findsNothing);
             expect(find.text('Signed in as fixture@example.test.'), findsOne);
           } else {
-            expect(find.byType(AccountPreviewScreen), findsOneWidget);
+            expect(find.byType(AccountScreen), findsOneWidget);
             expect(find.text('Email not verified yet'), findsOneWidget);
           }
         },
@@ -363,7 +363,7 @@ void main() {
     testWidgets('signing out leaves a fresh guest session', (tester) async {
       final auth = FakeAuth(FakeUser()..anonymous = false);
       await tester.pumpWidget(
-        MaterialApp(home: AccountPreviewScreen(accounts: AccountService(auth))),
+        MaterialApp(home: AccountScreen(accounts: AccountService(auth))),
       );
       await tester.pumpAndSettle();
       await tester.tap(find.text('Sign out'));
@@ -382,7 +382,7 @@ void main() {
       final user = FakeUser()..anonymous = false;
       final auth = FakeAuth(user);
       await tester.pumpWidget(
-        MaterialApp(home: AccountPreviewScreen(accounts: AccountService(auth))),
+        MaterialApp(home: AccountScreen(accounts: AccountService(auth))),
       );
       await tester.pumpAndSettle();
       await tester.tap(find.text('Delete account'));
@@ -610,7 +610,7 @@ void main() {
       final user = FakeUser();
       await tester.pumpWidget(
         MaterialApp(
-          home: AccountPreviewScreen(accounts: AccountService(FakeAuth(user))),
+          home: AccountScreen(accounts: AccountService(FakeAuth(user))),
         ),
       );
       await tester.pumpAndSettle();
@@ -618,7 +618,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: AccountPreviewScreen(
+          home: AccountScreen(
             accounts: AccountService(
               FakeAuth(user),
               googleEnabled: true,
@@ -651,7 +651,7 @@ void main() {
       final auth = FakeAuth(user);
       await tester.pumpWidget(
         MaterialApp(
-          home: AccountPreviewScreen(
+          home: AccountScreen(
             accounts: AccountService(auth, googleEnabled: true, web: false),
           ),
         ),
@@ -685,7 +685,7 @@ void main() {
             ..providers = ['google.com'];
       await tester.pumpWidget(
         MaterialApp(
-          home: AccountPreviewScreen(accounts: AccountService(FakeAuth(user))),
+          home: AccountScreen(accounts: AccountService(FakeAuth(user))),
         ),
       );
       await tester.pumpAndSettle();

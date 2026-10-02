@@ -1,7 +1,6 @@
 param(
     [string]$Device,
     [switch]$Android,
-    [switch]$Accounts,
     [switch]$ConnectionCheck,
     [switch]$Google,
     [string]$FlutterSdk,
@@ -53,7 +52,6 @@ if ($AppCheckDebugFile) {
     $debugArgs = @('--dart-define-from-file', (Resolve-Path -LiteralPath $AppCheckDebugFile).Path)
 }
 $previewArgs = @()
-if ($Accounts) { $previewArgs += '--dart-define=ACCOUNT_FLOW_PREVIEW=true' }
 if ($ConnectionCheck) { $previewArgs += '--dart-define=STAGING_CONNECTION_CHECK=true' }
 # Needs the Google provider enabled in the staging project.
 if ($Google) { $previewArgs += '--dart-define=GOOGLE_SIGN_IN=true' }

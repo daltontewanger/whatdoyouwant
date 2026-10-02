@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../services/account_service.dart';
-import 'account_preview_screen.dart';
+import 'account_screen.dart';
 
 /// Sign-up on its own screen so it is clear an account is being made. A guest
 /// keeps their identity: the new email account is linked to the guest session.

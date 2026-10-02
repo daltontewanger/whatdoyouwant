@@ -2,7 +2,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../services/account_service.dart';
 import 'create_account_screen.dart';
-import 'room_preview_screen.dart';
 
 /// Turns Auth errors into guidance. Projects with email enumeration protection
 /// report an unknown email and a wrong password the same way, so the specific
@@ -42,23 +41,15 @@ String accountErrorMessage(FirebaseAuthException error) {
       'The account operation failed. Check your details and try again.';
 }
 
-class AccountPreviewScreen extends StatefulWidget {
+class AccountScreen extends StatefulWidget {
   final AccountService accounts;
-
-  /// The preview builds link to the stand-alone room preview; the app uses its
-  /// own room screens instead.
-  final bool showRoomPreview;
-  const AccountPreviewScreen({
-    super.key,
-    required this.accounts,
-    this.showRoomPreview = true,
-  });
+  const AccountScreen({super.key, required this.accounts});
 
   @override
-  State<AccountPreviewScreen> createState() => _AccountPreviewScreenState();
+  State<AccountScreen> createState() => _AccountScreenState();
 }
 
-class _AccountPreviewScreenState extends State<AccountPreviewScreen> {
+class _AccountScreenState extends State<AccountScreen> {
   AccountService get accounts => widget.accounts;
   bool get local => accounts.usesEmulator;
   final email = TextEditingController();
@@ -237,9 +228,7 @@ class _AccountPreviewScreenState extends State<AccountPreviewScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: Text(widget.showRoomPreview ? 'Local account preview' : 'Account'),
-    ),
+    appBar: AppBar(title: const Text('Account')),
     body: StreamBuilder<User?>(
       stream: accounts.auth.userChanges(),
       initialData: accounts.auth.currentUser,
@@ -368,19 +357,6 @@ class _AccountPreviewScreenState extends State<AccountPreviewScreen> {
         ),
       ],
       const SizedBox(height: 16),
-      if (widget.showRoomPreview)
-        ElevatedButton(
-          onPressed:
-              busy
-                  ? null
-                  : () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const RoomPreviewScreen(),
-                    ),
-                  ),
-          child: const Text('Open test rooms'),
-        ),
       OutlinedButton(
         onPressed:
             busy

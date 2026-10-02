@@ -44,10 +44,10 @@ jobs:
       - name: Build production web
         run: flutter build web --release --no-pub
 
-      - name: Build local preview web
+      - name: Build local web
         run: >-
           flutter build web --debug --no-pub -t lib/main_local.dart
-          --dart-define=ACCOUNT_FLOW_PREVIEW=true --output=build/local-web
+          --output=build/local-web
 
   android:
     name: Android debug builds
