@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -7,6 +8,8 @@ import 'package:flutter/foundation.dart';
 
 import 'firebase_options_staging.dart';
 import 'environment_guard.dart';
+import 'screens/account_preview_screen.dart';
+import 'services/account_service.dart';
 
 class _StagingDebugTokens {
   const _StagingDebugTokens(this.android, this.web)
@@ -19,8 +22,8 @@ class _StagingDebugTokens {
   final String web;
 }
 
-// Foundation smoke check only. The live room UI requires reviewed permissions
-// and a staging backend before it can be connected here.
+// Connection check by default; ACCOUNT_FLOW_PREVIEW=true opens the account and
+// room preview against the deployed staging room backend.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final options = StagingFirebaseOptions.currentPlatform;
@@ -48,6 +51,17 @@ Future<void> main() async {
   FirebaseFirestore.instance.settings = const Settings(
     persistenceEnabled: false,
   );
+  if (const bool.fromEnvironment('ACCOUNT_FLOW_PREVIEW')) {
+    final accounts = AccountService(
+      FirebaseAuth.instance,
+      deleteOnServer:
+          () =>
+              FirebaseFunctions.instance.httpsCallable('deleteAccount').call(),
+    );
+    await accounts.guest();
+    runApp(MaterialApp(home: AccountPreviewScreen(accounts: accounts)));
+    return;
+  }
   runApp(const MaterialApp(home: StagingCheck()));
 }
 
