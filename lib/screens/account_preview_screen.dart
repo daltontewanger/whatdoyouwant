@@ -77,6 +77,8 @@ class _AccountPreviewScreenState extends State<AccountPreviewScreen> {
         'cancelled-popup-request': _googleCancelled,
         'web-context-canceled': _googleCancelled,
         'canceled': _googleCancelled,
+        'unauthorized-domain':
+            'This site is not authorized for Google sign-in in this environment.',
         'operation-not-allowed':
             'This sign-in method is not enabled for this environment.',
         'weak-password': 'Use a password with at least 6 characters.',
