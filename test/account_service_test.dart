@@ -110,6 +110,7 @@ class FakeAuth extends Fake implements FirebaseAuth {
   int emailSignIns = 0;
   String? resetError;
   String? signInError;
+  bool signInVerified = false;
   final _changes = StreamController<User?>.broadcast();
   FakeAuth(this.user);
   void _set(User? next) {
@@ -152,7 +153,11 @@ class FakeAuth extends Fake implements FirebaseAuth {
   }) async {
     emailSignIns++;
     if (signInError != null) throw FirebaseAuthException(code: signInError!);
-    _set(FakeUser()..anonymous = false);
+    _set(
+      FakeUser()
+        ..anonymous = false
+        ..verified = signInVerified,
+    );
     return FakeCredential();
   }
 
@@ -303,6 +308,56 @@ void main() {
         expect(find.text(text), findsOneWidget);
         expect(auth.currentUser!.isAnonymous, isTrue);
       });
+    }
+
+    for (final verified in [true, false]) {
+      testWidgets(
+        verified
+            ? 'a verified sign-in returns to the screen that opened Account'
+            : 'an unverified sign-in stays to finish verifying',
+        (tester) async {
+          final auth = FakeAuth(null)..signInVerified = verified;
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Builder(
+                builder:
+                    (context) => Scaffold(
+                      body: TextButton(
+                        onPressed:
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder:
+                                    (_) => AccountPreviewScreen(
+                                      accounts: AccountService(auth),
+                                    ),
+                              ),
+                            ),
+                        child: const Text('Open account'),
+                      ),
+                    ),
+              ),
+            ),
+          );
+          await tester.tap(find.text('Open account'));
+          await tester.pumpAndSettle();
+          await tester.enterText(
+            find.byType(TextField).at(0),
+            'fixture@example.test',
+          );
+          await tester.enterText(find.byType(TextField).at(1), 'secret123');
+          await tester.testTextInput.receiveAction(TextInputAction.go);
+          await tester.pumpAndSettle();
+          expect(auth.emailSignIns, 1);
+          if (verified) {
+            expect(find.byType(AccountPreviewScreen), findsNothing);
+            expect(find.text('Signed in as fixture@example.test.'), findsOne);
+          } else {
+            expect(find.byType(AccountPreviewScreen), findsOneWidget);
+            expect(find.text('Email not verified yet'), findsOneWidget);
+          }
+        },
+      );
     }
 
     testWidgets('signing out leaves a fresh guest session', (tester) async {

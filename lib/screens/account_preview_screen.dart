@@ -139,7 +139,27 @@ class _AccountPreviewScreenState extends State<AccountPreviewScreen> {
       () => accounts.signIn(email.text, password.text),
       'Signed in.',
     );
-    if (signedIn) password.clear();
+    if (signedIn) {
+      password.clear();
+      returnIfReady();
+    }
+  }
+
+  /// Goes back once the account can host, so whatever sent the user here (such
+  /// as Create Room) carries on. Unverified accounts stay to finish verifying.
+  void returnIfReady() {
+    final user = accounts.auth.currentUser;
+    if (!mounted ||
+        user == null ||
+        user.isAnonymous ||
+        !user.emailVerified ||
+        !Navigator.canPop(context)) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Signed in as ${user.email ?? 'your account'}.')),
+    );
+    Navigator.pop(context);
   }
 
   Future<void> continueWithGoogle() async {
@@ -150,6 +170,7 @@ class _AccountPreviewScreenState extends State<AccountPreviewScreen> {
     try {
       await accounts.continueWithGoogle();
       if (mounted) setState(() => message = 'Signed in with Google.');
+      returnIfReady();
     } on FirebaseAuthException catch (error) {
       if (!mounted) return;
       setState(() => busy = false);
@@ -164,7 +185,12 @@ class _AccountPreviewScreenState extends State<AccountPreviewScreen> {
         action: 'Switch',
       )) {
         if (!mounted) return;
-        await perform(accounts.signInWithGoogle, 'Signed in with Google.');
+        if (await perform(
+          accounts.signInWithGoogle,
+          'Signed in with Google.',
+        )) {
+          returnIfReady();
+        }
       } else if (mounted) {
         setState(() => message = 'Your guest session is unchanged.');
       }
@@ -330,10 +356,14 @@ class _AccountPreviewScreenState extends State<AccountPreviewScreen> {
           onPressed:
               busy
                   ? null
-                  : () => perform(
-                    accounts.refreshVerification,
-                    'Verification status refreshed.',
-                  ),
+                  : () async {
+                    if (await perform(
+                      accounts.refreshVerification,
+                      'Verification status refreshed.',
+                    )) {
+                      returnIfReady();
+                    }
+                  },
           child: const Text('I have verified my email'),
         ),
       ],
