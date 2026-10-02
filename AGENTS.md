@@ -57,6 +57,7 @@ local scripts by default. The bypass applies only to that process.
 | Start emulators | `npm run local:preview` (candidate rules) or `npm run local` (baseline) |
 | Run account preview (web) | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-local-app.ps1 -Accounts` (serves on `localhost:5080` and opens it in the default browser; `-WebPort` to change) |
 | Run account preview (Android) | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-local-app.ps1 -Accounts -Android -Device <device-id>` |
+| Run account preview against staging | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-staging.ps1 -Accounts -AppCheckDebugFile ./staging/app-check-debug.json` (`-Android -Device <id>` for Android; web uses `localhost:7357`) |
 | Web build | `flutter build web --release --no-pub` |
 | Android debug build | `flutter build apk --debug --no-pub --flavor production -t lib/main.dart` (staging: `--flavor staging -t lib/main_staging.dart`) |
 
