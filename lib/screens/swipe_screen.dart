@@ -1,11 +1,9 @@
 import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../models/restaurant.dart';
 import '../models/user.dart';
-import '../services/room_service.dart';
+import '../services/room_backend.dart';
 import 'results_screen.dart';
 
 const Color cardSwipeBackground = Color(0xFFE7F8F3);
@@ -43,25 +41,27 @@ class SwipeScreenState extends State<SwipeScreen> {
   bool _navigated = false;
   bool _isLeaving = false;
 
-  StreamSubscription<DocumentSnapshot>? _roomSub;
+  StreamSubscription<RoomState>? _roomSub;
   Timer? _watchdogTimer;
-
-  String get _uid {
-    final u = FirebaseAuth.instance.currentUser;
-    return u?.uid ?? widget.currentUser.id;
-  }
+  late RoomBackend _backend;
 
   @override
   void initState() {
     super.initState();
     swipeOptions = widget.restaurants;
+  }
 
-    _roomSub = RoomService().roomStream(widget.roomCode).listen(_onRoomUpdate);
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_roomSub != null) return;
+    _backend = RoomBackendScope.of(context).backend;
+    _roomSub = _backend
+        .watch(widget.roomCode)
+        .listen(_onRoomUpdate, onError: (_) {});
 
     _watchdogTimer = Timer.periodic(_watchdogInterval, (_) {
-      RoomService()
-          .timeoutStaleByVote(roomCode: widget.roomCode)
-          .catchError((_) {});
+      _backend.nudge(widget.roomCode).catchError((_) {});
     });
   }
 
@@ -74,48 +74,25 @@ class SwipeScreenState extends State<SwipeScreen> {
     super.dispose();
   }
 
-  // Helpers for room state
-  int _restaurantsLenFromRoom(Map<String, dynamic> data) {
-    final restaurantsDoc = List<Map<String, dynamic>>.from(
-      data['restaurants'] ?? const [],
-    );
-    return restaurantsDoc.isNotEmpty
-        ? restaurantsDoc.length
-        : swipeOptions.length;
-  }
-
   // Room stream - navigate when this user is done and close when all are done
-  void _onRoomUpdate(DocumentSnapshot snap) {
-    if (_isLeaving || !mounted || !snap.exists) return;
+  void _onRoomUpdate(RoomState room) {
+    if (_isLeaving || !mounted) return;
 
-    final data = snap.data() as Map<String, dynamic>;
-    final status = (data['status'] ?? 'closed') as String;
-
-    final int restaurantsLen = _restaurantsLenFromRoom(data);
-    final participants = Map<String, dynamic>.from(data['participants'] ?? {});
-    final votes = Map<String, dynamic>.from(data['votes'] ?? {});
-
-    // Checks being done with server
-    final Map<String, dynamic> myVotes = Map<String, dynamic>.from(
-      votes[_uid] ?? {},
-    );
-    final bool iAmDone = restaurantsLen > 0 && myVotes.length >= restaurantsLen;
+    final int restaurantsLen =
+        room.restaurants.isNotEmpty
+            ? room.restaurants.length
+            : swipeOptions.length;
+    final bool iAmDone =
+        restaurantsLen > 0 && room.myVoteCount >= restaurantsLen;
     if (iAmDone && !_navigated) {
       _goToResults();
     }
 
     // If everyone's done proactively close
-    bool allComplete = false;
-    if (participants.isNotEmpty && restaurantsLen > 0) {
-      allComplete = participants.keys.every((uid) {
-        final Map<String, dynamic> uVotes = Map<String, dynamic>.from(
-          votes[uid] ?? {},
-        );
-        return uVotes.length >= restaurantsLen;
-      });
-    }
-    if (status == 'voting' && allComplete) {
-      RoomService().closeRoom(widget.roomCode).catchError((_) {});
+    if (_backend.clientClosesRooms &&
+        room.status == 'voting' &&
+        room.everyoneDone) {
+      _backend.close(widget.roomCode).catchError((_) {});
     }
   }
 
@@ -161,27 +138,27 @@ class SwipeScreenState extends State<SwipeScreen> {
     if (_localVotes.length > previousIndex) return true; // de-dupe
 
     final bool liked = (direction == CardSwiperDirection.right);
-    final String restaurantId = swipeOptions[previousIndex].id;
+    final Restaurant restaurant = swipeOptions[previousIndex];
 
     _localVotes.add(liked);
     _currentIndex = previousIndex + 1;
 
     final bool finishedDeck = _currentIndex >= swipeOptions.length;
 
-    RoomService()
-        .submitIncrementalVote(
-          roomCode: widget.roomCode,
-          userId: _uid,
-          restaurantId: restaurantId,
+    _backend
+        .vote(
+          widget.roomCode,
+          restaurant,
           liked: liked,
-          currentIndex: previousIndex,
-          totalCount: swipeOptions.length,
+          index: previousIndex,
+          total: swipeOptions.length,
         )
         .then((_) async {
           if (finishedDeck && !_navigated) {
             _goToResults();
           }
-          await RoomService().timeoutStaleByVote(roomCode: widget.roomCode);
+          // A failed nudge is not a failed vote; the next one retries.
+          await _backend.nudge(widget.roomCode).catchError((_) {});
         })
         .catchError((e) {
           if (!mounted || _isLeaving) return;
@@ -352,10 +329,8 @@ class SwipeScreenState extends State<SwipeScreen> {
                                           // Finished locally — navigate now (waiting screen if others not done)
                                           if (!_navigated) _goToResults();
                                           // Also nudge watchdog
-                                          await RoomService()
-                                              .timeoutStaleByVote(
-                                                roomCode: widget.roomCode,
-                                              )
+                                          await _backend
+                                              .nudge(widget.roomCode)
                                               .catchError((_) {});
                                         },
                                       ),

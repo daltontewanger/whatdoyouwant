@@ -6,6 +6,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/foundation.dart';
+import 'services/account_service.dart';
+import 'services/legacy_room_backend.dart';
+import 'services/room_backend.dart';
 import 'themes/main_theme.dart';
 
 Future<void> main() async {
@@ -27,20 +30,32 @@ Future<void> main() async {
 
   // Sign in anonymously
   final cred = await FirebaseAuth.instance.signInAnonymously();
-  runApp(MyApp(currentUid: cred.user!.uid));
+  // Production keeps the original client-managed rooms until its migration.
+  runApp(MyApp(currentUid: cred.user!.uid, backend: LegacyRoomBackend()));
 }
 
 class MyApp extends StatelessWidget {
   final String currentUid;
-  const MyApp({super.key, required this.currentUid});
+  final RoomBackend backend;
+  final AccountService? accounts;
+  const MyApp({
+    super.key,
+    required this.currentUid,
+    required this.backend,
+    this.accounts,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'What Do You Want?!',
-      debugShowCheckedModeBanner: false,
-      theme: appTheme,
-      home: HomeScreen(currentUid: currentUid),
+    return RoomBackendScope(
+      backend: backend,
+      accounts: accounts,
+      child: MaterialApp(
+        title: 'What Do You Want?!',
+        debugShowCheckedModeBanner: false,
+        theme: appTheme,
+        home: HomeScreen(currentUid: currentUid),
+      ),
     );
   }
 }

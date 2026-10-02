@@ -2,6 +2,7 @@ param(
     [string]$Device,
     [switch]$Android,
     [switch]$Accounts,
+    [switch]$ConnectionCheck,
     [string]$FlutterSdk,
     [string]$AppCheckDebugFile
 )
@@ -50,7 +51,9 @@ if ($AppCheckDebugFile) {
     if (-not (Test-Path -LiteralPath $AppCheckDebugFile -PathType Leaf)) { throw 'App Check debug file not found.' }
     $debugArgs = @('--dart-define-from-file', (Resolve-Path -LiteralPath $AppCheckDebugFile).Path)
 }
-$previewArgs = if ($Accounts) { @('--dart-define=ACCOUNT_FLOW_PREVIEW=true') } else { @() }
+$previewArgs = @()
+if ($Accounts) { $previewArgs += '--dart-define=ACCOUNT_FLOW_PREVIEW=true' }
+if ($ConnectionCheck) { $previewArgs += '--dart-define=STAGING_CONNECTION_CHECK=true' }
 Push-Location $projectRoot
 try {
     & $flutter --suppress-analytics --no-version-check run --debug --no-pub -t lib/main_staging.dart -d $Device @flavorArgs @webArgs @debugArgs @previewArgs

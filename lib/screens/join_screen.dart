@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
 import '../models/user.dart';
-import '../models/restaurant.dart';
-import '../services/room_service.dart';
+import '../services/room_backend.dart';
 import 'swipe_screen.dart';
 
 class JoinRoomScreen extends StatefulWidget {
@@ -34,24 +32,24 @@ class JoinRoomScreenState extends State<JoinRoomScreen> {
       return;
     }
     // Go to waiting screen while generating options
+    final backend = RoomBackendScope.of(context).backend;
+    final messenger = ScaffoldMessenger.of(context);
     setState(() => _isLoading = true);
     try {
-      await RoomService().joinRoom(code, widget.currentUser.id);
+      final roomId = await backend.joinRoom(code);
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
           builder:
               (_) => WaitingForOptionsScreen(
-                roomCode: code,
+                roomCode: roomId,
                 currentUser: widget.currentUser,
               ),
         ),
       );
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error joining room: $e')));
+      messenger.showSnackBar(SnackBar(content: Text('Error joining room: $e')));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -161,7 +159,7 @@ class UpperCaseTextFormatter extends TextInputFormatter {
   }
 }
 
-class WaitingForOptionsScreen extends StatelessWidget {
+class WaitingForOptionsScreen extends StatefulWidget {
   final String roomCode;
   final AppUser currentUser;
 
@@ -170,6 +168,21 @@ class WaitingForOptionsScreen extends StatelessWidget {
     required this.roomCode,
     required this.currentUser,
   });
+
+  @override
+  State<WaitingForOptionsScreen> createState() =>
+      _WaitingForOptionsScreenState();
+}
+
+class _WaitingForOptionsScreenState extends State<WaitingForOptionsScreen> {
+  Stream<RoomState>? _room;
+  bool _navigated = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _room ??= RoomBackendScope.of(context).backend.watch(widget.roomCode);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -222,50 +235,32 @@ class WaitingForOptionsScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 18),
-                StreamBuilder<DocumentSnapshot>(
-                  stream: RoomService().roomStream(roomCode),
+                StreamBuilder<RoomState>(
+                  stream: _room,
                   builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    if (snapshot.hasError ||
-                        !snapshot.hasData ||
-                        !snapshot.data!.exists) {
+                    if (snapshot.hasError) {
                       return const Center(child: Text('Error joining room.'));
                     }
-                    final data = snapshot.data!.data() as Map<String, dynamic>;
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final room = snapshot.data!;
 
-                    final restaurantsData =
-                        data['restaurants'] as List<dynamic>?;
-                    final settings = data['settings'] as Map<String, dynamic>?;
-
-                    if (restaurantsData != null &&
-                        settings != null &&
-                        restaurantsData.isNotEmpty) {
-                      final List<Restaurant> restaurants =
-                          restaurantsData
-                              .map(
-                                (r) => Restaurant.fromJson(
-                                  Map<String, dynamic>.from(r),
-                                ),
-                              )
-                              .toList();
-                      final double radius =
-                          (settings['radius'] as num?)?.toDouble() ?? 5.0;
-                      final int maxOptions =
-                          (settings['maxOptions'] as num?)?.toInt() ?? 5;
-
+                    if (room.status != 'lobby' && room.restaurants.isNotEmpty) {
+                      final restaurants = room.restaurants;
                       // Navigate to Swipe Screen automatically
                       WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (_navigated || !mounted) return;
+                        _navigated = true;
                         Navigator.pushReplacement(
                           context,
                           MaterialPageRoute(
                             builder:
                                 (_) => SwipeScreen(
-                                  roomCode: roomCode,
-                                  currentUser: currentUser,
-                                  radius: radius,
-                                  maxOptions: maxOptions,
+                                  roomCode: widget.roomCode,
+                                  currentUser: widget.currentUser,
+                                  radius: 5.0,
+                                  maxOptions: restaurants.length,
                                   restaurants: restaurants,
                                 ),
                           ),

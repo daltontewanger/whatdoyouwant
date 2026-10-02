@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../services/room_service.dart';
-import '../services/location_services.dart';
+import '../services/room_backend.dart';
 import 'swipe_screen.dart';
 import '../models/user.dart';
 
 class RoomScreen extends StatefulWidget {
   final bool isCreator;
+
+  /// The room's identifier for the backend.
   final String? roomCode;
+
+  /// What guests type to join, when it differs from [roomCode].
+  final String? joinCode;
   final AppUser currentUser;
 
   const RoomScreen({
@@ -16,6 +19,7 @@ class RoomScreen extends StatefulWidget {
     required this.currentUser,
     this.isCreator = true,
     this.roomCode,
+    this.joinCode,
   });
 
   @override
@@ -24,17 +28,29 @@ class RoomScreen extends StatefulWidget {
 
 class _RoomScreenState extends State<RoomScreen> {
   String? _roomCode;
+  String? _joinCode;
+  Stream<RoomState>? _roomStream;
   double _selectedRadius = 5.0;
   int _selectedMaxOptions = 5;
   final List<int> radiusOptions = [1, 3, 5, 10, 15];
   final List<int> optionCounts = [5, 10, 15, 25];
   bool _isLoading = false;
 
+  RoomBackend get _backend => RoomBackendScope.of(context).backend;
+
   @override
   void initState() {
     super.initState();
     _roomCode = widget.roomCode;
-    if (widget.isCreator && widget.roomCode == null) {
+    _joinCode = widget.joinCode;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_roomCode != null) {
+      _roomStream ??= _backend.watch(_roomCode!);
+    } else if (widget.isCreator && !_isLoading) {
       _createRoom();
     }
   }
@@ -42,10 +58,12 @@ class _RoomScreenState extends State<RoomScreen> {
   Future<void> _createRoom() async {
     setState(() => _isLoading = true);
     try {
-      final code = await RoomService().createRoom(widget.currentUser.id);
+      final room = await _backend.createRoom();
       if (!mounted) return;
       setState(() {
-        _roomCode = code;
+        _roomCode = room.id;
+        _joinCode = room.joinCode;
+        _roomStream = _backend.watch(room.id);
         _isLoading = false;
       });
     } catch (e) {
@@ -57,75 +75,70 @@ class _RoomScreenState extends State<RoomScreen> {
     }
   }
 
+  /// Location permission for backends that search around the device.
+  Future<bool> _locationReady() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      setState(() => _isLoading = false);
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Location services are disabled. Please enable them in settings.',
+          ),
+        ),
+      );
+      return false;
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        setState(() => _isLoading = false);
+        if (!mounted) return false;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Location permission is required to use this feature.',
+            ),
+          ),
+        );
+        return false;
+      }
+    }
+    if (permission == LocationPermission.deniedForever) {
+      setState(() => _isLoading = false);
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Location permissions are permanently denied. Please enable them in your device settings.',
+          ),
+          action: SnackBarAction(
+            label: 'Open Settings',
+            onPressed: () async {
+              await Geolocator.openAppSettings();
+            },
+          ),
+          duration: const Duration(seconds: 6),
+        ),
+      );
+      return false;
+    }
+    return true;
+  }
+
   Future<void> _startSwiping() async {
     if (_roomCode == null) return;
     setState(() => _isLoading = true);
 
     try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        setState(() => _isLoading = false);
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Location services are disabled. Please enable them in settings.',
-            ),
-          ),
-        );
-        return;
-      }
-
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          setState(() => _isLoading = false);
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Location permission is required to use this feature.',
-              ),
-            ),
-          );
-          return;
-        }
-      }
-      if (permission == LocationPermission.deniedForever) {
-        setState(() => _isLoading = false);
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-              'Location permissions are permanently denied. Please enable them in your device settings.',
-            ),
-            action: SnackBarAction(
-              label: 'Open Settings',
-              onPressed: () async {
-                await Geolocator.openAppSettings();
-              },
-            ),
-            duration: const Duration(seconds: 6),
-          ),
-        );
-        return;
-      }
-
-      final fetched = await LocationService.fetchNearbyRestaurantsTiled(
-        radiusMiles: _selectedRadius,
-      );
-      final finalRestaurants = LocationService.filterAndRandomizeRestaurants(
-        allRestaurants: fetched,
+      if (_backend.usesDeviceLocation && !await _locationReady()) return;
+      final finalRestaurants = await _backend.start(
+        _roomCode!,
         radiusMiles: _selectedRadius,
         maxOptions: _selectedMaxOptions,
-      );
-
-      await RoomService().setRoomOptionsAndStart(
-        roomCode: _roomCode!,
-        radius: _selectedRadius,
-        maxOptions: _selectedMaxOptions,
-        options: finalRestaurants,
       );
 
       if (!mounted) return;
@@ -188,29 +201,13 @@ class _RoomScreenState extends State<RoomScreen> {
                       ),
                     ],
                   ),
-                  child: StreamBuilder<DocumentSnapshot>(
-                    stream:
-                        _roomCode == null
-                            ? null
-                            : FirebaseFirestore.instance
-                                .collection('rooms')
-                                .doc(_roomCode)
-                                .snapshots(),
+                  child: StreamBuilder<RoomState>(
+                    stream: _roomStream,
                     builder: (context, snapshot) {
-                      int participantCount = 1;
-                      if (snapshot.hasData && snapshot.data!.exists) {
-                        final data =
-                            snapshot.data!.data() as Map<String, dynamic>;
-                        if (data['participants'] != null) {
-                          if (data['participants'] is List) {
-                            participantCount =
-                                (data['participants'] as List).length;
-                          } else if (data['participants'] is Map) {
-                            participantCount =
-                                (data['participants'] as Map).length;
-                          }
-                        }
-                      }
+                      final int participantCount =
+                          snapshot.data?.memberCount ?? 1;
+                      final String? shownCode =
+                          snapshot.data?.joinCode ?? _joinCode ?? _roomCode;
 
                       return LayoutBuilder(
                         builder: (context, innerConstraints) {
@@ -237,14 +234,14 @@ class _RoomScreenState extends State<RoomScreen> {
                                         ),
                                       ],
                                     ),
-                                    if (_roomCode != null) ...[
+                                    if (shownCode != null) ...[
                                       Text(
                                         'Room Code',
                                         style: theme.textTheme.titleLarge,
                                       ),
                                       const SizedBox(height: 6),
                                       SelectableText(
-                                        _roomCode!,
+                                        shownCode,
                                         style: const TextStyle(
                                           fontSize: 30,
                                           color: Colors.black,
@@ -264,7 +261,8 @@ class _RoomScreenState extends State<RoomScreen> {
                                             horizontal: 10.0,
                                           ),
                                           child: Text(
-                                            "Provide this code to those intending to join in on the fun. Once they are all confirmed to be in your lobby, you can start swiping!",
+                                            "Provide this code to those intending to join in on the fun. Once they are all confirmed to be in your lobby, you can start swiping!"
+                                            "${_backend.usesDeviceLocation ? '' : '\n\nThis build uses fictional test restaurants.'}",
                                             style: TextStyle(
                                               fontSize: 15,
                                               color: Colors.grey[800],

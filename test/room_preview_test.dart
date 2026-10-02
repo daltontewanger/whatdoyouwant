@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:whatdoyouwant/screens/room_preview_screen.dart';
+import 'package:whatdoyouwant/services/callable_room_backend.dart';
 
 void main() {
   test(

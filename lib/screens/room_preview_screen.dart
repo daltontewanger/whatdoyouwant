@@ -4,22 +4,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
+import '../services/callable_room_backend.dart';
+
 // Opt-in emulator preview only; intentionally separate from legacy room flows.
 class RoomPreviewScreen extends StatefulWidget {
   const RoomPreviewScreen({super.key});
   @override
   State<RoomPreviewScreen> createState() => _RoomPreviewScreenState();
-}
-
-/// Turns what someone typed into a join request: a six-character join code for
-/// new members, or the longer room ID that existing members reconnect with.
-Map<String, String>? joinRequestFor(String typed) {
-  final cleaned = typed.toUpperCase().replaceAll(RegExp(r'[\s-]'), '');
-  if (RegExp(r'^[A-HJKMNP-Z2-9]{6}$').hasMatch(cleaned)) {
-    return {'joinCode': cleaned};
-  }
-  if (RegExp(r'^[A-F0-9]{24}$').hasMatch(cleaned)) return {'roomId': cleaned};
-  return null;
 }
 
 class _RoomPreviewScreenState extends State<RoomPreviewScreen> {

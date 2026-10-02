@@ -5,7 +5,15 @@ import 'room_preview_screen.dart';
 
 class AccountPreviewScreen extends StatefulWidget {
   final AccountService accounts;
-  const AccountPreviewScreen({super.key, required this.accounts});
+
+  /// The preview builds link to the stand-alone room preview; the app uses its
+  /// own room screens instead.
+  final bool showRoomPreview;
+  const AccountPreviewScreen({
+    super.key,
+    required this.accounts,
+    this.showRoomPreview = true,
+  });
 
   @override
   State<AccountPreviewScreen> createState() => _AccountPreviewScreenState();
@@ -89,7 +97,9 @@ class _AccountPreviewScreenState extends State<AccountPreviewScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Local account preview')),
+    appBar: AppBar(
+      title: Text(widget.showRoomPreview ? 'Local account preview' : 'Account'),
+    ),
     body: StreamBuilder<User?>(
       stream: widget.accounts.auth.userChanges(),
       initialData: widget.accounts.auth.currentUser,
@@ -217,18 +227,19 @@ class _AccountPreviewScreenState extends State<AccountPreviewScreen> {
                     child: const Text('Continue as guest'),
                   ),
                 if (user != null) ...[
-                  ElevatedButton(
-                    onPressed:
-                        busy
-                            ? null
-                            : () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const RoomPreviewScreen(),
+                  if (widget.showRoomPreview)
+                    ElevatedButton(
+                      onPressed:
+                          busy
+                              ? null
+                              : () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const RoomPreviewScreen(),
+                                ),
                               ),
-                            ),
-                    child: const Text('Open test rooms'),
-                  ),
+                      child: const Text('Open test rooms'),
+                    ),
                   TextButton(
                     onPressed:
                         busy

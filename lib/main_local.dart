@@ -10,6 +10,7 @@ import 'environment_guard.dart';
 import 'firebase_options_local.dart';
 import 'screens/account_preview_screen.dart';
 import 'services/account_service.dart';
+import 'services/callable_room_backend.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,19 +43,23 @@ Future<void> main() async {
   FirebaseFirestore.instance.useFirestoreEmulator(host, 8080);
   await FirebaseAuth.instance.useAuthEmulator(host, 9099);
   FirebaseFunctions.instance.useFunctionsEmulator(host, 5001);
+  final accounts = AccountService(
+    FirebaseAuth.instance,
+    deleteOnServer:
+        () => FirebaseFunctions.instance.httpsCallable('deleteAccount').call(),
+  );
+  await accounts.guest();
   if (const bool.fromEnvironment('ACCOUNT_FLOW_PREVIEW')) {
-    // Only this emulator-wired entry point exposes the account preview.
-    final accounts = AccountService(
-      FirebaseAuth.instance,
-      deleteOnServer:
-          () =>
-              FirebaseFunctions.instance.httpsCallable('deleteAccount').call(),
-    );
-    await accounts.guest();
+    // The stand-alone account and room preview screens.
     runApp(MaterialApp(home: AccountPreviewScreen(accounts: accounts)));
     return;
   }
   // No App Check activation or registered debug token in this local-only path.
-  final credential = await FirebaseAuth.instance.signInAnonymously();
-  runApp(MyApp(currentUid: credential.user!.uid));
+  runApp(
+    MyApp(
+      currentUid: FirebaseAuth.instance.currentUser!.uid,
+      backend: CallableRoomBackend(),
+      accounts: accounts,
+    ),
+  );
 }

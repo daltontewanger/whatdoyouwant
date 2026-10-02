@@ -8,8 +8,10 @@ import 'package:flutter/foundation.dart';
 
 import 'firebase_options_staging.dart';
 import 'environment_guard.dart';
+import 'main.dart' show MyApp;
 import 'screens/account_preview_screen.dart';
 import 'services/account_service.dart';
+import 'services/callable_room_backend.dart';
 
 class _StagingDebugTokens {
   const _StagingDebugTokens(this.android, this.web)
@@ -22,8 +24,9 @@ class _StagingDebugTokens {
   final String web;
 }
 
-// Connection check by default; ACCOUNT_FLOW_PREVIEW=true opens the account and
-// room preview against the deployed staging room backend.
+// The app on the deployed staging room backend. STAGING_CONNECTION_CHECK=true
+// shows the connection check instead; ACCOUNT_FLOW_PREVIEW=true the stand-alone
+// account and room preview.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final options = StagingFirebaseOptions.currentPlatform;
@@ -51,18 +54,27 @@ Future<void> main() async {
   FirebaseFirestore.instance.settings = const Settings(
     persistenceEnabled: false,
   );
+  if (const bool.fromEnvironment('STAGING_CONNECTION_CHECK')) {
+    runApp(const MaterialApp(home: StagingCheck()));
+    return;
+  }
+  final accounts = AccountService(
+    FirebaseAuth.instance,
+    deleteOnServer:
+        () => FirebaseFunctions.instance.httpsCallable('deleteAccount').call(),
+  );
+  await accounts.guest();
   if (const bool.fromEnvironment('ACCOUNT_FLOW_PREVIEW')) {
-    final accounts = AccountService(
-      FirebaseAuth.instance,
-      deleteOnServer:
-          () =>
-              FirebaseFunctions.instance.httpsCallable('deleteAccount').call(),
-    );
-    await accounts.guest();
     runApp(MaterialApp(home: AccountPreviewScreen(accounts: accounts)));
     return;
   }
-  runApp(const MaterialApp(home: StagingCheck()));
+  runApp(
+    MyApp(
+      currentUid: FirebaseAuth.instance.currentUser!.uid,
+      backend: CallableRoomBackend(),
+      accounts: accounts,
+    ),
+  );
 }
 
 class StagingCheck extends StatefulWidget {

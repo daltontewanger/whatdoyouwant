@@ -30,18 +30,16 @@ foreach ($port in @(9099, 8080, 5001)) {
         $connection = $client.ConnectAsync('127.0.0.1', $port)
         if (-not $connection.Wait(1500) -or -not $client.Connected) { throw 'Not listening' }
     } catch {
-        $startMode = if ($Accounts) { 'preview' } else { 'start' }
-        throw "Local emulator port $port is unavailable. Run: node scripts/local.mjs $startMode"
+        throw "Local emulator port $port is unavailable. Run: node scripts/local.mjs preview"
     }
     finally { $client.Dispose() }
 }
 $emulatorHost = if ($Android) { '10.0.2.2' } else { '127.0.0.1' }
-if ($Accounts) {
-    try {
-        $preview = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:5001/demo-whatdoyouwant/us-central1/roomsStatus' -ContentType 'application/json' -Body '{"data":{}}' -TimeoutSec 10
-        if ($preview.result.project -ne 'demo-whatdoyouwant' -or $preview.result.policy -ne 'rooms') { throw 'Wrong preview' }
-    } catch { throw 'Account/room preview requires: node scripts/local.mjs preview. Stop the baseline emulators first.' }
-}
+# Both the app and the preview screens use the room callables.
+try {
+    $preview = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:5001/demo-whatdoyouwant/us-central1/roomsStatus' -ContentType 'application/json' -Body '{"data":{}}' -TimeoutSec 10
+    if ($preview.result.project -ne 'demo-whatdoyouwant' -or $preview.result.policy -ne 'rooms') { throw 'Wrong preview' }
+} catch { throw 'The local app needs the room emulators: node scripts/local.mjs preview. Stop the baseline emulators first.' }
 if (-not $Device) {
     if ($Android) { throw 'Pass -Device with the emulator or device ID shown by adb devices.' }
     $Device = 'web-server'

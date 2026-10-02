@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/user.dart';
-import '../services/room_service.dart';
+import '../services/room_backend.dart';
+import 'account_preview_screen.dart';
 import 'room_screen.dart';
 import 'join_screen.dart';
 
@@ -47,10 +48,47 @@ class HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
+  bool get _verifiedHost {
+    final user = FirebaseAuth.instance.currentUser;
+    return user != null && !user.isAnonymous && user.emailVerified;
+  }
+
+  Future<void> _openAccount() async {
+    final accounts = RoomBackendScope.of(context).accounts;
+    if (accounts == null) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (_) => AccountPreviewScreen(
+              accounts: accounts,
+              showRoomPreview: false,
+            ),
+      ),
+    );
+  }
+
   Future<void> _createRoom() async {
+    final scope = RoomBackendScope.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    if (scope.backend.requiresVerifiedHost && !_verifiedHost) {
+      // Hosts need a verified account; guests can still join without one.
+      await _openAccount();
+      if (!mounted) return;
+      if (!_verifiedHost) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Sign in with a verified email to create a room. Guests can join without an account.',
+            ),
+          ),
+        );
+        return;
+      }
+    }
     setState(() => _isLoading = true);
     try {
-      final String code = await RoomService().createRoom(_currentUser.id);
+      final room = await scope.backend.createRoom();
       if (!mounted) return;
       Navigator.push(
         context,
@@ -59,14 +97,15 @@ class HomeScreenState extends State<HomeScreen>
               (_) => RoomScreen(
                 currentUser: _currentUser,
                 isCreator: true,
-                roomCode: code,
+                roomCode: room.id,
+                joinCode: room.joinCode,
               ),
         ),
       );
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error creating room: $e')));
+      messenger.showSnackBar(
+        SnackBar(content: Text('Error creating room: $e')),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -298,6 +337,14 @@ class HomeScreenState extends State<HomeScreen>
                               ),
                             ),
                           ),
+                          if (RoomBackendScope.of(context).accounts !=
+                              null) ...[
+                            const SizedBox(height: 12),
+                            TextButton(
+                              onPressed: _isLoading ? null : _openAccount,
+                              child: const Text('Account'),
+                            ),
+                          ],
                           const SizedBox(height: 32),
                           TextButton(
                             onPressed: () async {
