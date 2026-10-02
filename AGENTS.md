@@ -21,10 +21,10 @@ Repository files and verified console evidence describe actual state. The playbo
 ## Repository map
 
 - `lib/main.dart`: production entry (anonymous Auth, App Check).
-- `lib/main_staging.dart`: staging connection-check entry.
-- `lib/main_local.dart`: emulator-only entry. `--dart-define=ACCOUNT_FLOW_PREVIEW=true` enables the account/room preview.
+- `lib/main_staging.dart`: staging entry (app on the deployed room backend; `STAGING_CONNECTION_CHECK=true` for the connection check).
+- `lib/main_local.dart`: emulator-only entry (app on the room emulators). `--dart-define=ACCOUNT_FLOW_PREVIEW=true` opens the stand-alone account/room preview instead.
 - `lib/environment_guard.dart`, `lib/firebase_options.dart`, `lib/firebase_options_staging.dart`, `lib/firebase_options_local.dart`: per-environment config and guards.
-- `lib/screens/`, `lib/services/`, `lib/models/`, `lib/themes/`: app UI and services (`setState` + `Navigator`; `provider`/`flutter_riverpod` are declared but unused).
+- `lib/screens/`, `lib/services/`, `lib/models/`, `lib/themes/`: app UI and services (`setState` + `Navigator`; `provider`/`flutter_riverpod` are declared but unused). Screens use `RoomBackend` (`services/room_backend.dart`): `LegacyRoomBackend` in production, `CallableRoomBackend` in local/staging.
 - `functions/`: `fetchNearbyRestaurants` callable (`index.js`) and its handler (`search.js`). The manifest declares Node 22; production currently runs Node 20.
 - `rooms/`: room callables (create/join/start/close/results/revoke/rotate code/delete account). `handlers.js` holds the logic; `index.js` is the staging-only deployed entry (runs as `rooms-runtime`, App Check enforced); `firestore.rules` and `firestore.indexes.json` (TTL) serve both the emulators and staging. Separate from production `functions/`.
 - `local-testing/`: emulator harness and Node tests. `firestore.rules` is the open baseline copy; `phase1/` wires `rooms/` into the emulators (App Check off) and holds the rules, account and callable tests.
@@ -54,10 +54,10 @@ local scripts by default. The bypass applies only to that process.
 | Functions/emulator tests | `npm run test:unit`, `npm run test:local`, `npm run test:tooling` |
 | Firestore rules + callable tests | `npm run test:policy` |
 | Deploy rooms to staging (needs approval) | `npm run deploy:staging -- --confirm whatdoyouwant-staging` (add `--dry-run` first) |
-| Start emulators | `npm run local:preview` (candidate rules) or `npm run local` (baseline) |
-| Run account preview (web) | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-local-app.ps1 -Accounts` (serves on `localhost:5080` and opens it in the default browser; `-WebPort` to change) |
-| Run account preview (Android) | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-local-app.ps1 -Accounts -Android -Device <device-id>` |
-| Run account preview against staging | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-staging.ps1 -Accounts -AppCheckDebugFile ./staging/app-check-debug.json` (`-Android -Device <id>` for Android; web uses `localhost:7357`) |
+| Start emulators | `npm run local:preview` (room rules and callables; used by the app) or `npm run local` (legacy open-rules baseline, tests only) |
+| Run the app locally (web) | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-local-app.ps1` (needs `npm run local:preview`; serves on `localhost:5080` and opens the browser; `-WebPort` to change; `-Accounts` for the preview screens) |
+| Run the app locally (Android) | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-local-app.ps1 -Android -Device <device-id>` |
+| Run the app against staging | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-staging.ps1 -AppCheckDebugFile ./staging/app-check-debug.json` (`-Android -Device <id>`; web uses `localhost:7357`; `-Accounts` for the preview screens) |
 | Web build | `flutter build web --release --no-pub` |
 | Android debug build | `flutter build apk --debug --no-pub --flavor production -t lib/main.dart` (staging: `--flavor staging -t lib/main_staging.dart`) |
 
