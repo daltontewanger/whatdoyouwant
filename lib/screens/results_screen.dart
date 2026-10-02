@@ -125,6 +125,8 @@ class ResultsScreenState extends State<ResultsScreen> {
 
                           // Stop the kicker.
                           _kickTimer?.cancel();
+                          // Finished rooms are no longer offered on Home.
+                          RoomBackendScope.of(context).activeRooms?.forget();
 
                           final results = room.results;
                           final Map<String, Restaurant> byId = {

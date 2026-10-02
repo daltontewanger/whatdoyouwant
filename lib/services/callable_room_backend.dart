@@ -104,7 +104,7 @@ class CallableRoomBackend implements RoomBackend {
     final subscriptions = <StreamSubscription<Object?>>[];
     Map<String, dynamic>? roomData;
     var deck = <Restaurant>[];
-    var myVotes = 0;
+    var myVotes = <String>{};
     var deckRequested = false;
 
     void emit() {
@@ -120,7 +120,8 @@ class CallableRoomBackend implements RoomBackend {
           status: status,
           memberCount: members,
           restaurants: deck,
-          myVoteCount: myVotes,
+          myVoteCount: myVotes.length,
+          votedIds: myVotes,
           resultsReady: status == 'closed',
           results: callableResults(data['results'], members),
         ),
@@ -157,7 +158,7 @@ class CallableRoomBackend implements RoomBackend {
         );
         subscriptions.add(
           room.collection('votes/$_uid/ballot').snapshots().listen((snapshot) {
-            myVotes = snapshot.size;
+            myVotes = {for (final doc in snapshot.docs) doc.id};
             emit();
           }, onError: controller.addError),
         );

@@ -9,6 +9,7 @@ import 'main.dart' show MyApp;
 import 'environment_guard.dart';
 import 'firebase_options_local.dart';
 import 'services/account_service.dart';
+import 'services/active_room_store.dart';
 import 'services/callable_room_backend.dart';
 
 Future<void> main() async {
@@ -56,6 +57,7 @@ Future<void> main() async {
       currentUid: FirebaseAuth.instance.currentUser!.uid,
       backend: CallableRoomBackend(),
       accounts: accounts,
+      activeRooms: PreferencesActiveRoomStore(),
     ),
   );
 }

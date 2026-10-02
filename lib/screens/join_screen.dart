@@ -1,8 +1,30 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/user.dart';
+import '../services/active_room_store.dart';
+import '../services/callable_room_backend.dart';
 import '../services/room_backend.dart';
+import 'results_screen.dart';
 import 'swipe_screen.dart';
+
+/// What to tell someone whose join failed. The server answers a wrong code,
+/// a started room and a closed room the same way, so codes cannot be probed.
+String joinErrorMessage(Object error) {
+  if (error is InvalidJoinCode) return error.toString();
+  if (error is FirebaseFunctionsException) {
+    switch (error.code) {
+      case 'permission-denied':
+      case 'not-found':
+        return 'No open room uses that code. Check it with the host; rooms stop taking new people once voting starts.';
+      case 'resource-exhausted':
+        return 'Too many attempts. Wait a minute and try again.';
+      case 'unauthenticated':
+        return 'This device could not be verified. Restart the app and try again.';
+    }
+  }
+  return 'Could not join the room. Check your connection and try again.';
+}
 
 class JoinRoomScreen extends StatefulWidget {
   final AppUser currentUser;
@@ -32,11 +54,12 @@ class JoinRoomScreenState extends State<JoinRoomScreen> {
       return;
     }
     // Go to waiting screen while generating options
-    final backend = RoomBackendScope.of(context).backend;
+    final scope = RoomBackendScope.of(context);
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _isLoading = true);
     try {
-      final roomId = await backend.joinRoom(code);
+      final roomId = await scope.backend.joinRoom(code);
+      await scope.activeRooms?.remember(ActiveRoom(roomId, host: false));
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
@@ -49,7 +72,7 @@ class JoinRoomScreenState extends State<JoinRoomScreen> {
         ),
       );
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Error joining room: $e')));
+      messenger.showSnackBar(SnackBar(content: Text(joinErrorMessage(e))));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -238,8 +261,17 @@ class _WaitingForOptionsScreenState extends State<WaitingForOptionsScreen> {
                 StreamBuilder<RoomState>(
                   stream: _room,
                   builder: (context, snapshot) {
-                    if (snapshot.hasError) {
-                      return const Center(child: Text('Error joining room.'));
+                    // A room the host closed or deleted can no longer be read.
+                    if (snapshot.hasError ||
+                        (snapshot.data?.status == 'closed' &&
+                            snapshot.data!.restaurants.isEmpty)) {
+                      RoomBackendScope.of(context).activeRooms?.forget();
+                      return _RoomEnded(
+                        message:
+                            snapshot.hasError
+                                ? 'This room is no longer available.'
+                                : 'The host closed this room.',
+                      );
                     }
                     if (!snapshot.hasData) {
                       return const Center(child: CircularProgressIndicator());
@@ -247,8 +279,11 @@ class _WaitingForOptionsScreenState extends State<WaitingForOptionsScreen> {
                     final room = snapshot.data!;
 
                     if (room.status != 'lobby' && room.restaurants.isNotEmpty) {
-                      final restaurants = room.restaurants;
-                      // Navigate to Swipe Screen automatically
+                      // Someone returning mid-vote continues where they left off.
+                      final remaining = [
+                        for (final r in room.restaurants)
+                          if (!room.votedIds.contains(r.id)) r,
+                      ];
                       WidgetsBinding.instance.addPostFrameCallback((_) {
                         if (_navigated || !mounted) return;
                         _navigated = true;
@@ -256,13 +291,19 @@ class _WaitingForOptionsScreenState extends State<WaitingForOptionsScreen> {
                           context,
                           MaterialPageRoute(
                             builder:
-                                (_) => SwipeScreen(
-                                  roomCode: widget.roomCode,
-                                  currentUser: widget.currentUser,
-                                  radius: 5.0,
-                                  maxOptions: restaurants.length,
-                                  restaurants: restaurants,
-                                ),
+                                (_) =>
+                                    remaining.isEmpty || room.status == 'closed'
+                                        ? ResultsScreen(
+                                          roomCode: widget.roomCode,
+                                          restaurants: room.restaurants,
+                                        )
+                                        : SwipeScreen(
+                                          roomCode: widget.roomCode,
+                                          currentUser: widget.currentUser,
+                                          radius: 5.0,
+                                          maxOptions: remaining.length,
+                                          restaurants: remaining,
+                                        ),
                           ),
                         );
                       });
@@ -292,4 +333,25 @@ class _WaitingForOptionsScreenState extends State<WaitingForOptionsScreen> {
       ),
     );
   }
+}
+
+class _RoomEnded extends StatelessWidget {
+  const _RoomEnded({required this.message});
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      Text(
+        message,
+        textAlign: TextAlign.center,
+        style: Theme.of(context).textTheme.bodyLarge,
+      ),
+      const SizedBox(height: 16),
+      ElevatedButton(
+        onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
+        child: const Text('Back to Home'),
+      ),
+    ],
+  );
 }

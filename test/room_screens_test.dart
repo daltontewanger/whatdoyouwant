@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:whatdoyouwant/models/restaurant.dart';
@@ -7,6 +8,8 @@ import 'package:whatdoyouwant/models/user.dart';
 import 'package:whatdoyouwant/screens/join_screen.dart';
 import 'package:whatdoyouwant/screens/results_screen.dart';
 import 'package:whatdoyouwant/screens/swipe_screen.dart';
+import 'package:whatdoyouwant/services/active_room_store.dart';
+import 'package:whatdoyouwant/services/callable_room_backend.dart';
 import 'package:whatdoyouwant/services/room_backend.dart';
 
 class FakeRoomBackend implements RoomBackend {
@@ -63,21 +66,37 @@ RoomState state({
   bool ready = false,
   int? remaining,
   RoomResults? results,
+  Set<String> voted = const {},
+  List<Restaurant>? restaurants,
 }) => RoomState(
   id: 'ROOM-ID',
   joinCode: null,
   creatorId: 'host',
   status: status,
   memberCount: 3,
-  restaurants: deck,
-  myVoteCount: 2,
+  restaurants: restaurants ?? deck,
+  myVoteCount: voted.length,
+  votedIds: voted,
   resultsReady: ready,
   remainingVoters: remaining,
   results: results,
 );
 
-Widget app(FakeRoomBackend backend, Widget home) =>
-    RoomBackendScope(backend: backend, child: MaterialApp(home: home));
+Widget app(FakeRoomBackend backend, Widget home, {ActiveRoomStore? rooms}) =>
+    RoomBackendScope(
+      backend: backend,
+      activeRooms: rooms,
+      child: MaterialApp(home: home),
+    );
+
+Widget waiting(FakeRoomBackend backend, {ActiveRoomStore? rooms}) => app(
+  backend,
+  WaitingForOptionsScreen(
+    roomCode: 'ROOM-ID',
+    currentUser: AppUser(id: 'guest', name: 'Guest'),
+  ),
+  rooms: rooms,
+);
 
 void main() {
   testWidgets('a guest joins by code, waits, then reaches the deck', (
@@ -109,6 +128,100 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.byType(SwipeScreen), findsOneWidget);
     expect(find.text('Demo Pizza'), findsWidgets);
+  });
+
+  testWidgets('a returning voter continues with the cards not yet voted on', (
+    tester,
+  ) async {
+    final backend = FakeRoomBackend();
+    await tester.pumpWidget(waiting(backend));
+    backend.room.add(state(voted: {'a'}));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(SwipeScreen), findsOneWidget);
+    expect(find.text('Demo Tacos'), findsWidgets);
+    expect(find.text('Demo Pizza'), findsNothing);
+    expect(find.text('Option 1 of 1'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('someone who already voted on everything goes to results', (
+    tester,
+  ) async {
+    final backend = FakeRoomBackend();
+    await tester.pumpWidget(waiting(backend));
+    backend.room.add(state(voted: {'a', 'b'}));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(ResultsScreen), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('a guest waiting in a room the host closed is told so', (
+    tester,
+  ) async {
+    final backend = FakeRoomBackend();
+    final rooms =
+        MemoryActiveRoomStore()
+          ..room = const ActiveRoom('ROOM-ID', host: false);
+    await tester.pumpWidget(waiting(backend, rooms: rooms));
+    backend.room.add(state(status: 'closed', restaurants: const []));
+    await tester.pump();
+    expect(find.text('The host closed this room.'), findsOneWidget);
+    expect(find.text('Back to Home'), findsOneWidget);
+    expect(rooms.room, isNull);
+  });
+
+  testWidgets('a room that can no longer be read is reported as unavailable', (
+    tester,
+  ) async {
+    final backend = FakeRoomBackend();
+    await tester.pumpWidget(waiting(backend));
+    backend.room.addError(Exception('permission-denied'));
+    await tester.pump();
+    expect(find.text('This room is no longer available.'), findsOneWidget);
+  });
+
+  test('join failures read as guidance, not errors', () {
+    expect(
+      joinErrorMessage(
+        FirebaseFunctionsException(code: 'permission-denied', message: ''),
+      ),
+      startsWith('No open room uses that code.'),
+    );
+    expect(
+      joinErrorMessage(
+        FirebaseFunctionsException(code: 'resource-exhausted', message: ''),
+      ),
+      'Too many attempts. Wait a minute and try again.',
+    );
+    expect(joinErrorMessage(InvalidJoinCode()), contains('6-character code'));
+    expect(
+      joinErrorMessage(Exception('offline')),
+      startsWith('Could not join'),
+    );
+  });
+
+  testWidgets('a joined room is remembered for returning after a restart', (
+    tester,
+  ) async {
+    final backend = FakeRoomBackend();
+    final rooms = MemoryActiveRoomStore();
+    await tester.pumpWidget(
+      app(
+        backend,
+        JoinRoomScreen(currentUser: AppUser(id: 'guest', name: 'Guest')),
+        rooms: rooms,
+      ),
+    );
+    await tester.enterText(find.byType(TextField), 'ab3k7x');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Join'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(rooms.room?.id, 'ROOM-ID');
+    expect(rooms.room?.host, isFalse);
   });
 
   testWidgets('swipe cards share one size and are centered', (tester) async {

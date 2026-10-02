@@ -10,6 +10,7 @@ import 'firebase_options_staging.dart';
 import 'environment_guard.dart';
 import 'main.dart' show MyApp;
 import 'services/account_service.dart';
+import 'services/active_room_store.dart';
 import 'services/callable_room_backend.dart';
 
 class _StagingDebugTokens {
@@ -69,6 +70,7 @@ Future<void> main() async {
       currentUid: FirebaseAuth.instance.currentUser!.uid,
       backend: CallableRoomBackend(),
       accounts: accounts,
+      activeRooms: PreferencesActiveRoomStore(),
     ),
   );
 }

@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import '../models/restaurant.dart';
 import 'account_service.dart';
+import 'active_room_store.dart';
 
 /// A room as the screens need to see it, whichever backend stores it.
 class RoomState {
@@ -17,6 +18,7 @@ class RoomState {
     this.everyoneDone = false,
     this.remainingVoters,
     this.results,
+    this.votedIds = const {},
   });
 
   /// Identifier used for every later call; also how members reconnect.
@@ -33,6 +35,10 @@ class RoomState {
   /// The deck, empty until voting starts.
   final List<Restaurant> restaurants;
   final int myVoteCount;
+
+  /// Restaurants this person already voted on, where the backend reports them;
+  /// votes cannot be changed, so a returning voter skips these.
+  final Set<String> votedIds;
   final bool everyoneDone;
   final bool resultsReady;
   final int? remainingVoters;
@@ -109,11 +115,15 @@ class RoomBackendScope extends InheritedWidget {
     super.key,
     required this.backend,
     this.accounts,
+    this.activeRooms,
     required super.child,
   });
 
   final RoomBackend backend;
   final AccountService? accounts;
+
+  /// Remembers the room in progress where the backend lets members return.
+  final ActiveRoomStore? activeRooms;
 
   static RoomBackendScope of(BuildContext context) {
     final scope =
@@ -124,5 +134,7 @@ class RoomBackendScope extends InheritedWidget {
 
   @override
   bool updateShouldNotify(RoomBackendScope oldWidget) =>
-      backend != oldWidget.backend || accounts != oldWidget.accounts;
+      backend != oldWidget.backend ||
+      accounts != oldWidget.accounts ||
+      activeRooms != oldWidget.activeRooms;
 }

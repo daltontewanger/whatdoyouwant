@@ -7,6 +7,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/foundation.dart';
 import 'services/account_service.dart';
+import 'services/active_room_store.dart';
 import 'services/legacy_room_backend.dart';
 import 'services/room_backend.dart';
 import 'themes/main_theme.dart';
@@ -38,11 +39,13 @@ class MyApp extends StatelessWidget {
   final String currentUid;
   final RoomBackend backend;
   final AccountService? accounts;
+  final ActiveRoomStore? activeRooms;
   const MyApp({
     super.key,
     required this.currentUid,
     required this.backend,
     this.accounts,
+    this.activeRooms,
   });
 
   @override
@@ -50,6 +53,7 @@ class MyApp extends StatelessWidget {
     return RoomBackendScope(
       backend: backend,
       accounts: accounts,
+      activeRooms: activeRooms,
       child: MaterialApp(
         title: 'What Do You Want?!',
         debugShowCheckedModeBanner: false,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/user.dart';
+import '../services/active_room_store.dart';
 import '../services/room_backend.dart';
 import 'account_screen.dart';
 import 'room_screen.dart';
@@ -27,6 +28,8 @@ class HomeScreenState extends State<HomeScreen>
   }
 
   bool _isLoading = false;
+  ActiveRoom? _activeRoom;
+  ActiveRoomStore? _activeRooms;
 
   late final AnimationController _animationController;
   late final Animation<double> _scaleAnimation;
@@ -47,6 +50,7 @@ class HomeScreenState extends State<HomeScreen>
   @override
   void dispose() {
     _animationController.dispose();
+    _activeRooms?.removeListener(_loadActiveRoom);
     super.dispose();
   }
 
@@ -63,6 +67,103 @@ class HomeScreenState extends State<HomeScreen>
       MaterialPageRoute(builder: (_) => AccountScreen(accounts: accounts)),
     );
   }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final store = RoomBackendScope.of(context).activeRooms;
+    if (store == _activeRooms) return;
+    _activeRooms?.removeListener(_loadActiveRoom);
+    _activeRooms = store?..addListener(_loadActiveRoom);
+    _loadActiveRoom();
+  }
+
+  Future<void> _loadActiveRoom() async {
+    final room = await _activeRooms?.load();
+    if (mounted) setState(() => _activeRoom = room);
+  }
+
+  /// Takes someone back into the room they were in before the app closed.
+  Future<void> _returnToRoom() async {
+    final scope = RoomBackendScope.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final active = _activeRoom;
+    if (active == null) return;
+    setState(() => _isLoading = true);
+    try {
+      final room = await scope.backend
+          .watch(active.id)
+          .first
+          .timeout(const Duration(seconds: 15));
+      if (!mounted) return;
+      if (room.status == 'closed' && room.restaurants.isEmpty) {
+        throw StateError('Room closed');
+      }
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder:
+              (_) =>
+                  active.host && room.status == 'lobby'
+                      ? RoomScreen(
+                        currentUser: _currentUser,
+                        isCreator: true,
+                        roomCode: active.id,
+                        joinCode: room.joinCode,
+                      )
+                      : WaitingForOptionsScreen(
+                        roomCode: active.id,
+                        currentUser: _currentUser,
+                      ),
+        ),
+      );
+    } catch (_) {
+      await scope.activeRooms?.forget();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('That room is no longer available.')),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+      await _loadActiveRoom();
+    }
+  }
+
+  Widget _activeRoomBanner(ThemeData theme) => Card(
+    margin: const EdgeInsets.only(bottom: 16),
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'You have a room in progress.',
+            style: theme.textTheme.bodyLarge,
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed:
+                    _isLoading
+                        ? null
+                        : () async {
+                          await RoomBackendScope.of(
+                            context,
+                          ).activeRooms?.forget();
+                          await _loadActiveRoom();
+                        },
+                child: const Text('Dismiss'),
+              ),
+              ElevatedButton(
+                onPressed: _isLoading ? null : _returnToRoom,
+                child: const Text('Return to room'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
 
   Widget _accountStatus(ThemeData theme) {
     final accounts = RoomBackendScope.of(context).accounts!;
@@ -143,6 +244,7 @@ class HomeScreenState extends State<HomeScreen>
     setState(() => _isLoading = true);
     try {
       final room = await scope.backend.createRoom();
+      await scope.activeRooms?.remember(ActiveRoom(room.id, host: true));
       if (!mounted) return;
       Navigator.push(
         context,
@@ -155,10 +257,14 @@ class HomeScreenState extends State<HomeScreen>
                 joinCode: room.joinCode,
               ),
         ),
-      );
+      ).then((_) => _loadActiveRoom());
     } catch (e) {
       messenger.showSnackBar(
-        SnackBar(content: Text('Error creating room: $e')),
+        const SnackBar(
+          content: Text(
+            'Could not create a room. Check your connection and try again.',
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -171,7 +277,7 @@ class HomeScreenState extends State<HomeScreen>
       MaterialPageRoute(
         builder: (_) => JoinRoomScreen(currentUser: _currentUser),
       ),
-    );
+    ).then((_) => _loadActiveRoom());
   }
 
   @override
@@ -361,6 +467,7 @@ class HomeScreenState extends State<HomeScreen>
                       // Bottom - Buttons and Privacy
                       Column(
                         children: [
+                          if (_activeRoom != null) _activeRoomBanner(theme),
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
