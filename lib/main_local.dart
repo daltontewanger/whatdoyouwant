@@ -45,6 +45,7 @@ Future<void> main() async {
   FirebaseFunctions.instance.useFunctionsEmulator(host, 5001);
   final accounts = AccountService(
     FirebaseAuth.instance,
+    usesEmulator: true,
     deleteOnServer:
         () => FirebaseFunctions.instance.httpsCallable('deleteAccount').call(),
   );

@@ -19,7 +19,11 @@ class AccountPreviewScreen extends StatefulWidget {
   State<AccountPreviewScreen> createState() => _AccountPreviewScreenState();
 }
 
+const _enterPassword =
+    'Type your current password in the Password field, then try again.';
+
 class _AccountPreviewScreenState extends State<AccountPreviewScreen> {
+  bool get local => widget.accounts.usesEmulator;
   final email = TextEditingController();
   final password = TextEditingController();
   bool busy = false;
@@ -72,6 +76,10 @@ class _AccountPreviewScreenState extends State<AccountPreviewScreen> {
         'invalid-email': 'Enter a valid email address.',
         'too-many-requests': 'Too many attempts. Please wait and try again.',
         'network-request-failed': 'Connection failed. Please try again.',
+        'missing-password': _enterPassword,
+        'wrong-password': _enterPassword,
+        'invalid-credential': _enterPassword,
+        'requires-recent-login': _enterPassword,
       };
       if (mounted) {
         setState(
@@ -112,8 +120,10 @@ class _AccountPreviewScreenState extends State<AccountPreviewScreen> {
             child: ListView(
               padding: const EdgeInsets.all(24),
               children: [
-                const Text(
-                  'Local test accounts and fictional restaurants only.',
+                Text(
+                  local
+                      ? 'Local test accounts (Auth emulator) and fictional restaurants only.'
+                      : 'Test accounts in the staging project and fictional restaurants only.',
                 ),
                 const SizedBox(height: 16),
                 Text(
@@ -190,7 +200,9 @@ class _AccountPreviewScreenState extends State<AccountPreviewScreen> {
                             ? null
                             : () => perform(
                               widget.accounts.sendVerification,
-                              'Verification requested. Open the local Auth emulator verification link.',
+                              local
+                                  ? 'Verification requested. Open the local Auth emulator verification link.'
+                                  : 'Verification email sent. Open the link in it, then press I verified my email.',
                             ),
                     child: const Text('Send verification'),
                   ),
@@ -211,7 +223,9 @@ class _AccountPreviewScreenState extends State<AccountPreviewScreen> {
                           ? null
                           : () => perform(
                             () => widget.accounts.resetPassword(email.text),
-                            'If an account exists, password reset instructions are available in the local Auth emulator.',
+                            local
+                                ? 'If an account exists, password reset instructions are available in the local Auth emulator.'
+                                : 'If an account exists, a password reset email is on its way.',
                           ),
                   child: const Text('Reset password'),
                 ),
@@ -266,20 +280,20 @@ class _AccountPreviewScreenState extends State<AccountPreviewScreen> {
                             ? null
                             : () async {
                               if (!await confirm(
-                                'Delete this local test account?',
-                                'This deletes the account, its room memberships and votes, and closes rooms it hosts. Enter your password first for a registered account.',
+                                'Delete this account?',
+                                'This deletes the account, its room memberships and votes, and closes rooms it hosts. For a registered account, type your password in the Password field first.',
                               )) {
                                 return;
                               }
                               if (!mounted) return;
                               await perform(
-                                () => widget.accounts.deleteLocalAccount(
+                                () => widget.accounts.deleteAccount(
                                   password.text,
                                 ),
-                                'Local test account deleted.',
+                                'Account deleted.',
                               );
                             },
-                    child: const Text('Delete local test account'),
+                    child: const Text('Delete account'),
                   ),
                 ],
                 if (busy) const LinearProgressIndicator(),

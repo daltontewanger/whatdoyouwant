@@ -230,7 +230,7 @@ void main() {
           expect(user.calls, ['reauth']);
         },
       );
-      await accounts.deleteLocalAccount('local-fixture-only');
+      await accounts.deleteAccount('local-fixture-only');
       expect(serverCalls, 1);
       expect(user.calls, [
         'reauth',
@@ -245,7 +245,7 @@ void main() {
         AccountService(
           FakeAuth(wrong),
           deleteOnServer: () async => serverCalls++,
-        ).deleteLocalAccount('wrong'),
+        ).deleteAccount('wrong'),
         throwsA(isA<FirebaseAuthException>()),
       );
       expect(serverCalls, 1, reason: 'no server call without reauthentication');
@@ -328,6 +328,25 @@ void main() {
       );
     },
   );
+  test('an empty password stops deletion before contacting Auth', () async {
+    final user = FakeUser()..anonymous = false;
+    var serverCalls = 0;
+    await expectLater(
+      AccountService(
+        FakeAuth(user),
+        deleteOnServer: () async => serverCalls++,
+      ).deleteAccount(''),
+      throwsA(
+        isA<FirebaseAuthException>().having(
+          (error) => error.code,
+          'code',
+          'missing-password',
+        ),
+      ),
+    );
+    expect(user.calls, isEmpty);
+    expect(serverCalls, 0);
+  });
   test(
     'registered account deletion requires successful reauthentication',
     () async {
@@ -336,14 +355,12 @@ void main() {
             ..anonymous = false
             ..failReauth = true;
       await expectLater(
-        AccountService(FakeAuth(user)).deleteLocalAccount('wrong'),
+        AccountService(FakeAuth(user)).deleteAccount('wrong'),
         throwsA(isA<FirebaseAuthException>()),
       );
       expect(user.calls, ['reauth']);
       user.failReauth = false;
-      await AccountService(
-        FakeAuth(user),
-      ).deleteLocalAccount('local-fixture-only');
+      await AccountService(FakeAuth(user)).deleteAccount('local-fixture-only');
       expect(user.calls, ['reauth', 'reauth', 'delete']);
     },
   );

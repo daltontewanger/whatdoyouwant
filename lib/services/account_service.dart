@@ -1,13 +1,15 @@
 import 'package:firebase_auth/firebase_auth.dart';
 
-// Used only by the opt-in local account preview until integration is reviewed.
 class AccountService {
   final FirebaseAuth auth;
+
+  /// True when Auth is the local emulator, where no real email is ever sent.
+  final bool usesEmulator;
 
   /// Removes the account's app data and Auth user on the server. Without it,
   /// deletion only removes the Auth user.
   final Future<void> Function()? deleteOnServer;
-  AccountService(this.auth, {this.deleteOnServer});
+  AccountService(this.auth, {this.deleteOnServer, this.usesEmulator = false});
 
   Future<void> register(String email, String password) async {
     final user = auth.currentUser;
@@ -92,10 +94,13 @@ class AccountService {
             message.contains('USER_NOT_FOUND'));
   }
 
-  Future<void> deleteLocalAccount(String password) async {
+  Future<void> deleteAccount(String password) async {
     final user = auth.currentUser;
     if (user == null) throw StateError('No account to delete.');
     if (!user.isAnonymous) {
+      if (password.isEmpty) {
+        throw FirebaseAuthException(code: 'missing-password');
+      }
       await user.reauthenticateWithCredential(
         EmailAuthProvider.credential(email: user.email!, password: password),
       );
