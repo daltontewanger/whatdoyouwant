@@ -34,6 +34,7 @@ Repository files and verified console evidence describe actual state. The playbo
 - `android/app`: flavors `local`, `staging`, `production`; one is always required.
 - `test/`: Flutter tests.
 - `.github/workflows/deploy.yml`: builds and publishes web to GitHub Pages on every push to `main`.
+- `.github/workflows/deploy-staging.yml`: manual rooms deploy to staging (dry run by default; owner approves each run).
 - `docs/`: local-only, ignored.
 
 ## Commands
@@ -67,7 +68,7 @@ emulator session using ports 4000, 4400, 4500, 5001, 8080 or 9099.
 ## Environments
 
 - **Local / emulator** (`demo-whatdoyouwant`): default for all development and testing. Free to use.
-- **Staging** (`whatdoyouwant-staging`): deploy only with `npm run deploy:staging`, and only after the owner approves that deploy. Functions run as `rooms-runtime`. No automated or CI deploys until a scoped deployer identity exists.
+- **Staging** (`whatdoyouwant-staging`): deploy only with `npm run deploy:staging` or the manual "Deploy rooms to staging" workflow (`ci-staging-deployer`, keyless, gated by the `staging` environment's required reviewer), and only after the owner approves that deploy. Functions run as `rooms-runtime`. No automatic deploys on push.
 - **Production** (`what-do-you-want-8a404`): never deploy, change config, or modify data without explicit approval.
 
 `.firebaserc` has no default project on purpose. Pass `--project` (and
