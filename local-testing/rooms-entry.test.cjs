@@ -25,7 +25,11 @@ test('every staging callable runs as the scoped identity and requires App Check'
   delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
   const rooms = require(entry);
   const { CALLABLES } = require('../rooms/handlers.js');
-  assert.deepEqual(Object.keys(rooms).sort(), [...CALLABLES].sort());
+  assert.deepEqual(Object.keys(rooms).sort(), [...CALLABLES, 'cleanUpIdleGuests'].sort());
+  const cleanup = rooms.cleanUpIdleGuests.__endpoint;
+  assert.equal(cleanup.serviceAccountEmail, 'rooms-runtime@whatdoyouwant-staging.iam.gserviceaccount.com');
+  assert.equal(cleanup.scheduleTrigger.schedule, 'every day 04:00');
+  assert.equal(cleanup.maxInstances, 1);
   for (const name of CALLABLES) {
     const endpoint = rooms[name].__endpoint;
     assert.equal(endpoint.serviceAccountEmail, 'rooms-runtime@whatdoyouwant-staging.iam.gserviceaccount.com', name);
@@ -53,3 +57,33 @@ test('every staging callable runs as the scoped identity and requires App Check'
     await new Promise(resolve => server.close(resolve));
   }
 });
+
+test('idle guests are removed; registered and recently active accounts are kept', async () => {
+  const { createGuestCleanup } = require('../rooms/cleanup.js');
+  const day = 24 * 60 * 60 * 1000;
+  const now = Date.parse('2026-10-03T00:00:00Z');
+  const at = days => new Date(now - days * day).toUTCString();
+  const users = [
+    { uid: 'old-guest', providerData: [], metadata: { creationTime: at(90), lastRefreshTime: at(45) } },
+    { uid: 'fresh-guest', providerData: [], metadata: { creationTime: at(90), lastRefreshTime: at(2) } },
+    { uid: 'new-guest', providerData: [], metadata: { creationTime: at(1) } },
+    { uid: 'old-email', providerData: [{ providerId: 'password' }], metadata: { lastRefreshTime: at(400) } },
+    { uid: 'old-google', providerData: [{ providerId: 'google.com' }], metadata: { lastSignInTime: at(400) } },
+    { uid: 'never-refreshed-guest', providerData: [], metadata: { creationTime: at(31) } },
+  ];
+  const deleted = [];
+  const logs = [];
+  const auth = {
+    // Two pages, to cover pagination.
+    listUsers: async (max, token) => token
+      ? { users: users.slice(3) }
+      : { users: users.slice(0, 3), pageToken: 'next' },
+    deleteUsers: async uids => { deleted.push(...uids); return { successCount: uids.length, failureCount: 0 }; },
+  };
+  const result = await createGuestCleanup({ auth, now: () => now, log: entry => logs.push(entry) })();
+  assert.deepEqual(deleted, ['old-guest', 'never-refreshed-guest']);
+  assert.deepEqual(result, { scanned: 6, deleted: 2, failed: 0 });
+  assert.deepEqual(logs, [{ event: 'idle_guests_removed', scanned: 6, deleted: 2, failed: 0, idleDays: 30 }]);
+  assert.ok(!JSON.stringify(logs).includes('guest"'), 'no UIDs are logged');
+});
+

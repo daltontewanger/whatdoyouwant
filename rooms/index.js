@@ -4,8 +4,10 @@ const { initializeApp } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onSchedule } = require('firebase-functions/v2/scheduler');
 const logger = require('firebase-functions/logger');
 const { createRoomHandlers, CALLABLES } = require('./handlers');
+const { createGuestCleanup } = require('./cleanup');
 
 const STAGING = 'whatdoyouwant-staging';
 const project = process.env.GCLOUD_PROJECT || JSON.parse(process.env.FIREBASE_CONFIG || '{}').projectId;
@@ -36,3 +38,15 @@ const options = {
 };
 
 for (const name of CALLABLES) exports[name] = onCall(options, handlers[name]);
+
+// Daily removal of idle guest accounts. The schedule needs no App Check or CORS;
+// it runs as the same scoped identity, which can manage Auth users.
+exports.cleanUpIdleGuests = onSchedule({
+  schedule: 'every day 04:00',
+  timeZone: 'Etc/UTC',
+  region: options.region,
+  serviceAccount: options.serviceAccount,
+  maxInstances: 1,
+  timeoutSeconds: 540,
+  retryCount: 0,
+}, createGuestCleanup({ auth, log: entry => logger.info(entry) }));
