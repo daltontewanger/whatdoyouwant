@@ -2,7 +2,6 @@ param(
     [string]$Device,
     [switch]$Android,
     [switch]$ConnectionCheck,
-    [switch]$Google,
     [string]$FlutterSdk,
     [string]$AppCheckDebugFile
 )
@@ -53,8 +52,6 @@ if ($AppCheckDebugFile) {
 }
 $previewArgs = @()
 if ($ConnectionCheck) { $previewArgs += '--dart-define=STAGING_CONNECTION_CHECK=true' }
-# Needs the Google provider enabled in the staging project.
-if ($Google) { $previewArgs += '--dart-define=GOOGLE_SIGN_IN=true' }
 Push-Location $projectRoot
 try {
     & $flutter --suppress-analytics --no-version-check run --debug --no-pub -t lib/main_staging.dart -d $Device @flavorArgs @webArgs @debugArgs @previewArgs

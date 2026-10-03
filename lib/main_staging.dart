@@ -59,8 +59,7 @@ Future<void> main() async {
   }
   final accounts = AccountService(
     FirebaseAuth.instance,
-    // Off until the Google provider is configured in the staging project.
-    googleEnabled: const bool.fromEnvironment('GOOGLE_SIGN_IN'),
+    googleEnabled: true,
     deleteOnServer:
         () => FirebaseFunctions.instance.httpsCallable('deleteAccount').call(),
   );
