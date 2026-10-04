@@ -28,7 +28,7 @@ test('every staging callable runs as the scoped identity and requires App Check'
   assert.deepEqual(Object.keys(rooms).sort(), [...CALLABLES, 'cleanUpIdleGuests'].sort());
   const cleanup = rooms.cleanUpIdleGuests.__endpoint;
   assert.equal(cleanup.serviceAccountEmail, 'rooms-runtime@whatdoyouwant-staging.iam.gserviceaccount.com');
-  assert.equal(cleanup.scheduleTrigger.schedule, 'every day 04:00');
+  assert.equal(cleanup.scheduleTrigger.schedule, 'every monday 04:00');
   assert.equal(cleanup.maxInstances, 1);
   for (const name of CALLABLES) {
     const endpoint = rooms[name].__endpoint;

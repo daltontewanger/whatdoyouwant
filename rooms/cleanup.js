@@ -3,7 +3,7 @@
 // time it is removed; only the Auth record would otherwise accumulate.
 const IDLE_DAYS = 30;
 const PAGE = 1000;
-// Bounds one run so a large backlog is worked through over several days.
+// Bounds one run so a large backlog is worked through over several runs.
 const MAX_PER_RUN = 10000;
 
 function lastActive(user) {

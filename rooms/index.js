@@ -39,10 +39,11 @@ const options = {
 
 for (const name of CALLABLES) exports[name] = onCall(options, handlers[name]);
 
-// Daily removal of idle guest accounts. The schedule needs no App Check or CORS;
-// it runs as the same scoped identity, which can manage Auth users.
+// Weekly removal of idle guest accounts; staging gains few guests, so weekly is
+// plenty. No App Check or CORS: it runs as the scoped identity, which can manage
+// Auth users.
 exports.cleanUpIdleGuests = onSchedule({
-  schedule: 'every day 04:00',
+  schedule: 'every monday 04:00',
   timeZone: 'Etc/UTC',
   region: options.region,
   serviceAccount: options.serviceAccount,
