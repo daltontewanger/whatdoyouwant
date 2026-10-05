@@ -35,6 +35,7 @@ jobs:
           cache: npm
           cache-dependency-path: |
             package-lock.json
+            functions/package-lock.json
             rooms/package-lock.json
 
       # The deploy script runs the room emulator tests first; Firestore needs a JDK.

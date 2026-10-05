@@ -37,6 +37,8 @@ function step(title, command, commandArgs) {
 step('Configuration preflight', process.execPath, ['scripts/check-environments.mjs']);
 step('Restore rooms dependencies from the lockfile', 'npm', ['ci', '--prefix', 'rooms', '--no-audit', '--no-fund']);
 if (!skipTests) {
+  // The unit suite also covers the production search function, which needs its own dependencies.
+  step('Restore functions dependencies from the lockfile', 'npm', ['ci', '--prefix', 'functions', '--no-audit', '--no-fund']);
   step('Unit tests', 'npm', ['run', 'test:unit']);
   step('Room rules and callable tests (local emulators)', 'npm', ['run', 'test:policy']);
 }
