@@ -14,8 +14,8 @@ Repository files and verified console evidence describe actual state. The playbo
 
 ## Current focus
 
-- Phase: 1 (Account and environment boundaries)
-- Status doc: `docs/phase1-status.md`
+- Phase: 2 (Provider abstraction and search benchmark)
+- Status doc: `docs/phase2-status.md`
 - Update this section when the phase changes.
 
 ## Repository map
