@@ -34,12 +34,17 @@ if (-not $Android) {
         $url = 'http://localhost:7357/whatdoyouwant/'
         Start-Job -ArgumentList $url -ScriptBlock {
             param($target)
-            for ($i = 0; $i -lt 180; $i++) {
+            # The page is served before the app finishes compiling; until then the app's
+            # entrypoint script comes back as the HTML page, and opening early shows a blank tab.
+            for ($i = 0; $i -lt 300; $i++) {
                 try {
-                    Invoke-WebRequest -Uri $target -UseBasicParsing -TimeoutSec 2 | Out-Null
-                    Start-Process $target
-                    return
-                } catch { Start-Sleep -Seconds 1 }
+                    $entry = Invoke-WebRequest -Uri ($target + 'web_entrypoint.dart.js') -UseBasicParsing -TimeoutSec 2
+                    if ($entry.Headers['Content-Type'] -match 'javascript') {
+                        Start-Process $target
+                        return
+                    }
+                } catch { }
+                Start-Sleep -Seconds 1
             }
         } | Out-Null
         Write-Output "Opening $url once it is ready. Use a private window for a second, separate user."
