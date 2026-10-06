@@ -67,6 +67,6 @@ if ($Device -eq 'web-server') {
 }
 Push-Location $projectRoot
 try {
-    & $dart --disable-analytics "--packages=$toolPackages" $snapshot --suppress-analytics --no-version-check run --debug --no-pub -t lib/main_local.dart -d $Device "--dart-define=EMULATOR_HOST=$emulatorHost" @flavorArgs @webArgs
+    & $dart "--packages=$toolPackages" $snapshot --suppress-analytics --no-version-check run --debug --no-pub -t lib/main_local.dart -d $Device "--dart-define=EMULATOR_HOST=$emulatorHost" @flavorArgs @webArgs
     exit $LASTEXITCODE
 } finally { Pop-Location }
