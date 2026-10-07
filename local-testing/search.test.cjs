@@ -11,7 +11,8 @@ const { assertProvider, normalizedRestaurant, ProviderUnavailable } = require('.
 const { createHereProvider, createHereTransport, normalizeHereItem, ENDPOINTS } = require('../rooms/search/here-provider');
 
 const ORIGIN = { lat: 38.5, lng: -98.5 };
-const request = (fields = {}) => parseSearchRequest({ origin: ORIGIN, radiusMeters: 5000, ...fields });
+const KM5 = { value: 5, unit: 'km' };
+const request = (fields = {}) => parseSearchRequest({ origin: ORIGIN, radius: KM5, ...fields });
 const fixture = name => require(`./search/here-fixtures/${name}.json`);
 
 // Plays a fixture's responses back in order for matching endpoints and keeps a
@@ -37,34 +38,40 @@ async function fakeDeck(fields = {}, seed = 'seed-1') {
 }
 
 test('request contract: accepts the documented shape and fills defaults', () => {
-  assert.deepEqual(request(), { origin: ORIGIN, radiusMeters: 5000, includedCuisineIds: [], excludedCuisineIds: [],
-    openNowPreferred: false, deckSize: 15 });
+  assert.deepEqual(request(), { origin: ORIGIN, radius: KM5, radiusMeters: 5000, includedCuisineIds: [],
+    excludedCuisineIds: [], openNowPreferred: false, deckSize: 15 });
+  assert.equal(request({ radius: { value: 15, unit: 'mi' } }).radiusMeters, 24140);
+  assert.equal(request({ radius: { value: 1, unit: 'mi' } }).radiusMeters, 1609);
   const full = request({ includedCuisineIds: ['thai', 'pizza'], excludedCuisineIds: ['fast_food'],
-    openNowPreferred: true, deckSize: 20 });
+    openNowPreferred: true, deckSize: 25 });
   assert.deepEqual(full.includedCuisineIds, ['pizza', 'thai'], 'sorted so retries compare equal');
   assert.equal(filterSummary(full).origin, undefined, 'the stored summary never carries the origin');
 });
 
 test('request contract: rejects anything outside the whitelist instead of trimming it', () => {
   const bad = [
-    null, [], {}, { origin: ORIGIN }, { radiusMeters: 5000 },
-    { origin: ORIGIN, radiusMeters: 5000, query: 'sushi' },
-    { origin: ORIGIN, radiusMeters: 5000, uid: 'someone-else' },
-    { origin: { lat: 91, lng: 0 }, radiusMeters: 5000 },
-    { origin: { lat: 0, lng: -181 }, radiusMeters: 5000 },
-    { origin: { lat: '38.5', lng: -98.5 }, radiusMeters: 5000 },
-    { origin: { lat: NaN, lng: 0 }, radiusMeters: 5000 },
-    { origin: { ...ORIGIN, accuracy: 5 }, radiusMeters: 5000 },
-    { origin: ORIGIN, radiusMeters: 399 },
-    { origin: ORIGIN, radiusMeters: 25001 },
-    { origin: ORIGIN, radiusMeters: 5000.5 },
-    { origin: ORIGIN, radiusMeters: 5000, includedCuisineIds: ['101-000'] },
-    { origin: ORIGIN, radiusMeters: 5000, includedCuisineIds: ['thai', 'thai'] },
-    { origin: ORIGIN, radiusMeters: 5000, includedCuisineIds: CUISINE_IDS.slice(0, 9) },
-    { origin: ORIGIN, radiusMeters: 5000, includedCuisineIds: 'thai' },
-    { origin: ORIGIN, radiusMeters: 5000, includedCuisineIds: ['thai'], excludedCuisineIds: ['thai'] },
-    { origin: ORIGIN, radiusMeters: 5000, openNowPreferred: 'yes' },
-    { origin: ORIGIN, radiusMeters: 5000, deckSize: 100 },
+    null, [], {}, { origin: ORIGIN }, { radius: KM5 },
+    { origin: ORIGIN, radiusMeters: 5000 },
+    { origin: ORIGIN, radius: KM5, radiusMeters: 99999 },
+    { origin: ORIGIN, radius: KM5, query: 'sushi' },
+    { origin: ORIGIN, radius: KM5, uid: 'someone-else' },
+    { origin: { lat: 91, lng: 0 }, radius: KM5 },
+    { origin: { lat: 0, lng: -181 }, radius: KM5 },
+    { origin: { lat: '38.5', lng: -98.5 }, radius: KM5 },
+    { origin: { lat: NaN, lng: 0 }, radius: KM5 },
+    { origin: { ...ORIGIN, accuracy: 5 }, radius: KM5 },
+    { origin: ORIGIN, radius: { value: 4, unit: 'mi' } },
+    { origin: ORIGIN, radius: { value: 5, unit: 'm' } },
+    { origin: ORIGIN, radius: { value: '5', unit: 'mi' } },
+    { origin: ORIGIN, radius: { value: 5, unit: 'mi', meters: 99999 } },
+    { origin: ORIGIN, radius: 5 },
+    { origin: ORIGIN, radius: KM5, includedCuisineIds: ['101-000'] },
+    { origin: ORIGIN, radius: KM5, includedCuisineIds: ['thai', 'thai'] },
+    { origin: ORIGIN, radius: KM5, includedCuisineIds: CUISINE_IDS.slice(0, 9) },
+    { origin: ORIGIN, radius: KM5, includedCuisineIds: 'thai' },
+    { origin: ORIGIN, radius: KM5, includedCuisineIds: ['thai'], excludedCuisineIds: ['thai'] },
+    { origin: ORIGIN, radius: KM5, openNowPreferred: 'yes' },
+    { origin: ORIGIN, radius: KM5, deckSize: 20 },
   ];
   for (const data of bad) assert.throws(() => parseSearchRequest(data), InvalidSearchRequest, JSON.stringify(data));
 });
@@ -124,19 +131,18 @@ test('deck: the seed only decides exact ties', () => {
 });
 
 test('deck: distance comes from the origin; out-of-radius and positively excluded places are removed', async () => {
-  const { candidates, pool } = await fakeDeck({ excludedCuisineIds: ['mexican'], deckSize: 20 });
+  const { candidates, pool } = await fakeDeck({ excludedCuisineIds: ['mexican'], deckSize: 25 });
   assert.ok(candidates.every(c => c.distanceMetersFromOrigin <= 5000 && Number.isInteger(c.distanceMetersFromOrigin)));
   assert.ok(!candidates.some(c => c.name === 'Demo Faraway Grill'));
   assert.ok(!candidates.some(c => c.cuisineIds.includes('mexican')));
   assert.ok(candidates.some(c => c.cuisineIds.length === 0), 'unknown cuisine stays under exclusions (flexible)');
-  assert.deepEqual({ ...pool, eligible: undefined, selected: undefined },
-    { received: 26, invalid: 0, outOfRadius: 1, excluded: 2, duplicates: 0, eligible: undefined, selected: undefined,
-      minimum: 8, sufficient: true });
-  assert.equal(pool.selected, 20);
+  assert.deepEqual(pool, { received: 26, invalid: 0, outOfRadius: 1, excluded: 2, duplicates: 0, eligible: 23,
+    selected: 23, minimum: 8, sufficient: true });
+  assert.equal((await fakeDeck({ deckSize: 5 })).pool.minimum, 5, 'a short deck needs only its own size');
 });
 
 test('deck: included cuisines lead, unknown cuisines next, other cuisines last', async () => {
-  const { candidates } = await fakeDeck({ includedCuisineIds: ['chinese', 'thai'], deckSize: 20 });
+  const { candidates } = await fakeDeck({ includedCuisineIds: ['chinese', 'thai'], deckSize: 25 });
   const tier = c => c.cuisineIds.some(id => ['chinese', 'thai'].includes(id)) ? 0 : c.cuisineIds.length ? 2 : 1;
   const tiers = candidates.map(tier);
   assert.deepEqual(tiers, [...tiers].sort(), tiers.join());
@@ -229,17 +235,17 @@ test('HERE one-circle: one browse call when the pool is healthy, with no key or 
 
 test('HERE one-circle: a thin first answer triggers one discover fallback, and overlaps collapse', async () => {
   const { transport, calls } = replay('suburb');
-  const result = await createHereProvider({ transport, fallbackBelow: 25 }).searchNearby(request({ deckSize: 20 }));
+  const result = await createHereProvider({ transport, fallbackBelow: 25 }).searchNearby(request({ deckSize: 25 }));
   assert.deepEqual(calls.map(call => call.kind), ['browse', 'discover']);
   assert.deepEqual(calls[1].params, { in: 'circle:38.5,-98.5;r=5000', q: 'restaurant', limit: 100 });
   assert.equal(result.providerCalls, 2);
-  const { pool } = buildDeck(result.restaurants, request({ deckSize: 20 }), { seed: 'here-1' });
+  const { pool } = buildDeck(result.restaurants, request({ deckSize: 25 }), { seed: 'here-1' });
   assert.equal(pool.duplicates, 2, 'the repeated ID and the twin listing');
 });
 
 test('HERE one-circle: a rural area falls back and still reports an insufficient pool', async () => {
   const { transport } = replay('sparse');
-  const parsed = request({ radiusMeters: 8000 });
+  const parsed = request({ radius: { value: 5, unit: 'mi' } });
   const result = await createHereProvider({ transport }).searchNearby(parsed);
   assert.equal(result.providerCalls, 2);
   const { pool } = buildDeck(result.restaurants, parsed, { seed: 'rural' });

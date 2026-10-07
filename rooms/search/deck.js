@@ -115,7 +115,7 @@ function selectVaried(ranked, deckSize) {
  * @param {{seed: string, minimumPool?: number}} options The stored seed decides exact ties.
  * @returns {{candidates: object[], pool: object}} Candidates in deck order and a pool report.
  */
-function buildDeck(records, request, { seed, minimumPool = MINIMUM_POOL }) {
+function buildDeck(records, request, { seed, minimumPool = Math.min(MINIMUM_POOL, request.deckSize) }) {
   if (typeof seed !== 'string' || !seed.length) throw new Error('A deck needs a stored seed.');
   const usable = records.filter(isUsable).map(record => ({
     ...record,
