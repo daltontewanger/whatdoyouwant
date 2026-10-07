@@ -77,14 +77,6 @@ class RoomService {
     return false;
   }
 
-  Future<bool> isRoomJoinable(String roomCode) async {
-    final snap = await _firestore.collection('rooms').doc(roomCode).get();
-    if (!snap.exists) return false;
-    final data = snap.data()!;
-    if (_isExpired(data)) return false;
-    return (data['status'] ?? 'closed') == 'lobby';
-  }
-
   Future<void> joinRoom(String roomCode, String userId) async {
     final ref = _firestore.collection('rooms').doc(roomCode);
     await _firestore.runTransaction((tx) async {
@@ -342,9 +334,5 @@ class RoomService {
   // Streams and fetch
   Stream<DocumentSnapshot> roomStream(String roomCode) {
     return _firestore.collection('rooms').doc(roomCode).snapshots();
-  }
-
-  Future<DocumentSnapshot> getRoomSnapshot(String roomCode) {
-    return _firestore.collection('rooms').doc(roomCode).get();
   }
 }
