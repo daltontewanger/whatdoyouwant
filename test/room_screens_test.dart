@@ -31,6 +31,8 @@ class FakeRoomBackend implements RoomBackend {
   bool get requiresVerifiedHost => true;
   @override
   bool get usesDeviceLocation => false;
+  @override
+  bool get usesFictionalRestaurants => true;
 
   @override
   Future<String> joinRoom(String typedCode) async {
@@ -325,6 +327,14 @@ void main() {
     expect(
       startRoomErrorMessage(callable('resource-exhausted')),
       startsWith('Restaurant search is busy'),
+    );
+    expect(
+      startRoomErrorMessage(callable('failed-precondition')),
+      'Not enough restaurants nearby match. Try a wider distance.',
+    );
+    expect(
+      startRoomErrorMessage(callable('unavailable')),
+      startsWith('Restaurant search is unavailable'),
     );
     expect(
       startRoomErrorMessage(Exception('Failed to load restaurants: x')),

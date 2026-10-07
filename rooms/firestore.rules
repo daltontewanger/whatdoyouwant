@@ -1,12 +1,14 @@
 // Room data rules, used by the local emulators and the staging deployment.
-// Rooms, memberships, candidates, join codes, receipts and limits are written only
+// Rooms, memberships, decks, join codes, receipts and limits are written only
 // by the room callables. Clients write nothing but their own immutable ballots.
 //
 // rooms/{id}: creator, status (lobby | voting | closed), memberCount, joinCode
-//   (lobby only), votingEndsAt (from start), expiresAt, results (after close)
+//   (lobby only), deckId, candidateCount, votingEndsAt (from start), expiresAt,
+//   results (after close)
 // rooms/{id}/members/{uid}: uid, active, expiresAt
-// rooms/{id}/candidates/{candidateId}: title, order, expiresAt
 // rooms/{id}/votes/{uid}/ballot/{candidateId}: liked, at, expiresAt
+// restaurantDecks/{id}: ownerUid, targetType (room), targetId, candidateIds,
+//   candidates, filter summary and pool report, expiresAt. Immutable.
 // Every document carries expiresAt for TTL cleanup; reads check it as well
 // because TTL deletion can lag.
 rules_version = '2';
@@ -21,6 +23,9 @@ service cloud.firestore {
     }
     function live(room) {
       return roomDoc(room).data.expiresAt > request.time;
+    }
+    function deckOf(room) {
+      return get(/databases/$(database)/documents/restaurantDecks/$(roomDoc(room).data.deckId));
     }
     // The room stays 'voting' until someone asks for results, so the deadline
     // has to be checked here as well.
@@ -41,19 +46,21 @@ service cloud.firestore {
         allow get: if member(room) && live(room) && request.auth.uid == uid;
         allow list, write: if false;
       }
-      match /candidates/{candidateId} {
-        allow read: if member(room) && live(room);
-        allow write: if false;
-      }
       match /votes/{uid}/ballot/{candidateId} {
         allow read: if member(room) && live(room) && request.auth.uid == uid;
         allow create: if member(room) && live(room) && request.auth.uid == uid &&
           votingOpen(room) &&
-          exists(/databases/$(database)/documents/rooms/$(room)/candidates/$(candidateId)) &&
+          candidateId in deckOf(room).data.candidateIds &&
           validBallot(room, request.resource.data);
         // Votes are immutable; tallying and closing are server-owned.
         allow update, delete: if false;
       }
+    }
+    // Members of the room a deck was made for can read it while the room lives.
+    match /restaurantDecks/{deck} {
+      allow get: if resource.data.targetType == 'room' && member(resource.data.targetId) &&
+        live(resource.data.targetId) && resource.data.expiresAt > request.time;
+      allow list, write: if false;
     }
     match /{document=**} { allow read, write: if false; }
   }

@@ -34,6 +34,10 @@ const PLACES = [
   ['Demo Faraway Grill', ['american'], 1.15, 30],
 ];
 
+// Searches at 0,0 (open ocean) find nothing, so tests can reach the
+// too-few-results path through the real callables.
+const EMPTY_ORIGIN = Object.freeze({ lat: 0, lng: 0 });
+
 function offset(origin, meters, bearingDegrees) {
   const bearing = (bearingDegrees * Math.PI) / 180;
   const dLat = (meters * Math.cos(bearing)) / 111320;
@@ -51,6 +55,9 @@ function createFakeProvider({ simulatedCalls = 1 } = {}) {
     version: '1',
     maxCallsPerSearch: simulatedCalls,
     async searchNearby(request) {
+      if (request.origin.lat === EMPTY_ORIGIN.lat && request.origin.lng === EMPTY_ORIGIN.lng) {
+        return { restaurants: [], providerCalls: simulatedCalls, failedCalls: 0, attribution: null };
+      }
       const restaurants = PLACES.map(([name, cuisineIds, share, bearing, extras = {}], index) => {
         const at = offset(request.origin, share * request.radiusMeters, bearing);
         return normalizedRestaurant({
@@ -70,4 +77,4 @@ function createFakeProvider({ simulatedCalls = 1 } = {}) {
   };
 }
 
-module.exports = { createFakeProvider };
+module.exports = { createFakeProvider, EMPTY_ORIGIN };

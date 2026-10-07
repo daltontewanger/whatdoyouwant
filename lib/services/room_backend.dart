@@ -85,6 +85,9 @@ abstract class RoomBackend {
   /// Starting a room uses the device location to search nearby.
   bool get usesDeviceLocation;
 
+  /// Decks come from made-up test restaurants rather than a real provider.
+  bool get usesFictionalRestaurants;
+
   /// Clients close finished rooms themselves rather than the server.
   bool get clientClosesRooms;
 

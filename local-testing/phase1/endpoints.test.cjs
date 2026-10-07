@@ -64,7 +64,13 @@ const readBallot = (roomId, uid, candidate, reader) =>
   request(`${documents}/rooms/${roomId}/votes/${uid}/ballot/${candidate}`, undefined, reader.token, 'GET');
 const listBallots = (roomId, uid, reader) =>
   request(`${documents}/rooms/${roomId}/votes/${uid}/ballot`, undefined, reader.token, 'GET');
-const DECK = ['fixture-pizza', 'fixture-tacos', 'fixture-noodles', 'fixture-salad', 'fixture-cafe'];
+// A fictional spot; the fake provider places its demo restaurants around it.
+const SEARCH = Object.freeze({ origin: { lat: 38.5, lng: -98.5 }, radius: { value: 5, unit: 'mi' }, deckSize: 5 });
+const start = (roomId, host, search = SEARCH) => call('startRoom', { roomId, search }, host);
+const deckOf = async roomId => {
+  const { deckId } = (await db.doc(`rooms/${roomId}`).get()).data();
+  return (await db.doc(`restaurantDecks/${deckId}`).get()).data();
+};
 beforeEach(async () => {
   const response = await fetch(`http://127.0.0.1:8080/emulator/v1/projects/${PROJECT}/databases/(default)/documents`, { method: 'DELETE' });
   assert.equal(response.status, 200);
@@ -83,15 +89,17 @@ test('rooms: verified host creates with a short code; guest joins, reads and vot
   const typed = `${joinCode.slice(0, 3).toLowerCase()}-${joinCode.slice(3)}`;
   assert.equal((await join(typed, guest)).data.result.roomId, roomId);
   assert.equal((await readRoom(roomId, guest)).status, 200);
-  assert.equal((await call('startRoom', { roomId }, guest)).status, 403);
-  const started = await call('startRoom', { roomId }, host);
+  assert.equal((await start(roomId, guest)).status, 403);
+  const started = await start(roomId, host);
   assert.equal(started.status, 200); assert.equal(started.data.result.candidateCount, 5);
+  const D = (await deckOf(roomId)).candidateIds;
+  assert.equal(started.data.result.deckId, (await db.doc(`rooms/${roomId}`).get()).data().deckId);
   // The code stops working once voting starts; members reconnect with the room ID.
   assert.equal((await db.doc(`roomCodes/${joinCode}`).get()).exists, false);
   assert.equal((await join(joinCode, outsider)).status, 403);
   assert.equal((await reconnect(roomId, guest)).status, 200);
-  assert.equal((await vote(roomId, guest, 'fixture-pizza')).status, 200);
-  assert.equal((await vote(roomId, outsider, 'fixture-pizza')).status, 403);
+  assert.equal((await vote(roomId, guest, D[0])).status, 200);
+  assert.equal((await vote(roomId, outsider, D[0])).status, 403);
   assert.equal((await db.collection('hereUsage').get()).size, 0);
 });
 
@@ -106,17 +114,18 @@ test('rooms: other members, the host and a switched-in account cannot read priva
   const host = await user(true, true); const first = await user(); const second = await user();
   const { roomId, joinCode } = await room(host);
   for (const guest of [first, second]) assert.equal((await join(joinCode, guest)).status, 200);
-  assert.equal((await call('startRoom', { roomId }, host)).status, 200);
-  assert.equal((await vote(roomId, first, 'fixture-pizza')).status, 200);
-  assert.equal((await readBallot(roomId, first.uid, 'fixture-pizza', first)).status, 200);
+  assert.equal((await start(roomId, host)).status, 200);
+  const D = (await deckOf(roomId)).candidateIds;
+  assert.equal((await vote(roomId, first, D[0])).status, 200);
+  assert.equal((await readBallot(roomId, first.uid, D[0], first)).status, 200);
   for (const reader of [second, host]) {
-    assert.equal((await readBallot(roomId, first.uid, 'fixture-pizza', reader)).status, 403);
+    assert.equal((await readBallot(roomId, first.uid, D[0], reader)).status, 403);
     assert.equal((await listBallots(roomId, first.uid, reader)).status, 403);
-    assert.equal((await vote(roomId, { uid: first.uid, token: reader.token }, 'fixture-tacos')).status, 403);
+    assert.equal((await vote(roomId, { uid: first.uid, token: reader.token }, D[1])).status, 403);
   }
   const switched = await user();
   assert.equal((await readRoom(roomId, switched)).status, 403);
-  assert.equal((await readBallot(roomId, first.uid, 'fixture-pizza', switched)).status, 403);
+  assert.equal((await readBallot(roomId, first.uid, D[0], switched)).status, 403);
   assert.equal((await reconnect(roomId, switched)).status, 403);
 });
 
@@ -124,21 +133,22 @@ test('rooms: a restarted or linked session keeps membership, its ballots and the
   const host = await user(true, true); const guest = await user();
   const { roomId, joinCode } = await room(host);
   assert.equal((await join(joinCode, guest)).status, 200);
-  assert.equal((await call('startRoom', { roomId }, host)).status, 200);
-  assert.equal((await vote(roomId, guest, 'fixture-pizza')).status, 200);
+  assert.equal((await start(roomId, host)).status, 200);
+  const D = (await deckOf(roomId)).candidateIds;
+  assert.equal((await vote(roomId, guest, D[0])).status, 200);
   const restarted = await resume(guest);
   assert.equal(restarted.uid, guest.uid);
   assert.equal((await reconnect(roomId, restarted)).status, 200);
-  assert.equal((await readBallot(roomId, guest.uid, 'fixture-pizza', restarted)).status, 200);
-  assert.equal((await vote(roomId, restarted, 'fixture-pizza', false)).status, 403);
-  assert.equal((await vote(roomId, restarted, 'fixture-tacos', false)).status, 200);
-  assert.equal((await call('startRoom', { roomId }, await resume(host))).status, 200);
+  assert.equal((await readBallot(roomId, guest.uid, D[0], restarted)).status, 200);
+  assert.equal((await vote(roomId, restarted, D[0], false)).status, 403);
+  assert.equal((await vote(roomId, restarted, D[1], false)).status, 200);
+  assert.equal((await start(roomId, await resume(host))).status, 200);
   const email = `${randomUUID()}@example.test`;
   const link = await auth('update', { idToken: restarted.token, email, password: 'fictional-link-password', returnSecureToken: true });
   assert.equal(link.status, 200);
   const linked = await resume({ refreshToken: link.data.refreshToken });
   assert.equal(linked.uid, guest.uid);
-  assert.equal((await vote(roomId, linked, 'fixture-noodles')).status, 200);
+  assert.equal((await vote(roomId, linked, D[2])).status, 200);
   assert.equal((await db.doc(`rooms/${roomId}`).get()).data().memberCount, 2);
   assert.equal((await call('createRoom', { requestId: randomUUID() }, linked)).status, 403);
 });
@@ -151,7 +161,40 @@ test('rooms: anonymous, unverified and missing identities cannot create; supplie
   const host = await user(true, true);
   assert.equal((await call('createRoom', { requestId: randomUUID(), uid: 'victim', emailVerified: true }, host)).status, 400);
   const { roomId } = await room(host);
-  assert.equal((await call('startRoom', { roomId }, await user(true, true))).status, 403);
+  assert.equal((await start(roomId, await user(true, true))).status, 403);
+});
+
+test('decks: start accepts only the search contract; thin pools store nothing; decks keep no origin', async () => {
+  const host = await user(true, true); const guest = await user(); const outsider = await user();
+  const { roomId, joinCode } = await room(host);
+  assert.equal((await join(joinCode, guest)).status, 200);
+  for (const data of [{ roomId }, { roomId, search: { ...SEARCH, radiusMeters: 99999 } },
+    { roomId, search: { ...SEARCH, radius: { value: 4, unit: 'mi' } } }, { roomId, search: { ...SEARCH, deckSize: 20 } },
+    { roomId, search: { ...SEARCH, origin: { lat: 200, lng: 0 } } }, { roomId, search: SEARCH, uid: guest.uid },
+    { roomId, search: { ...SEARCH, includedCuisineIds: ['101-000'] } }]) {
+    assert.equal((await call('startRoom', data, host)).status, 400, JSON.stringify(data));
+  }
+  const thin = await start(roomId, host, { ...SEARCH, origin: { lat: 0, lng: 0 } });
+  assert.equal(thin.status, 400);
+  assert.equal(thin.data.error.status, 'FAILED_PRECONDITION');
+  assert.deepEqual(thin.data.error.details, { reason: 'too-few-results', eligible: 0, minimum: 5 });
+  assert.equal((await db.doc(`rooms/${roomId}`).get()).data().status, 'lobby', 'the host can try again');
+  assert.equal((await db.collection('restaurantDecks').get()).size, 0);
+
+  assert.equal((await start(roomId, host, { ...SEARCH, excludedCuisineIds: ['pizza'] })).status, 200);
+  const deck = await deckOf(roomId);
+  assert.equal(deck.ownerUid, host.uid);
+  assert.deepEqual([deck.targetType, deck.targetId, deck.provider, deck.source], ['room', roomId, 'fake', 'provider']);
+  assert.deepEqual(deck.filterSummary, { radius: { value: 5, unit: 'mi' }, radiusMeters: 8047, includedCuisineIds: [],
+    excludedCuisineIds: ['pizza'], openNowPreferred: false, deckSize: 5 });
+  assert.ok(!JSON.stringify(deck).includes('"origin"'), 'the search origin is never stored');
+  assert.deepEqual(deck.candidateIds, deck.candidates.map(candidate => candidate.id));
+  assert.ok(deck.candidates.every(c => Number.isInteger(c.distanceMeters) && c.distanceMeters <= 8047 &&
+    !c.cuisineIds.includes('pizza') && c.chainId === undefined));
+  assert.equal(deck.expiresAt.toMillis(), (await expiryOf(roomId)).toMillis());
+  const deckPath = `${documents}/restaurantDecks/${(await db.doc(`rooms/${roomId}`).get()).data().deckId}`;
+  assert.equal((await request(deckPath, undefined, guest.token, 'GET')).status, 200);
+  assert.equal((await request(deckPath, undefined, outsider.token, 'GET')).status, 403);
 });
 
 test('rooms: concurrent retries preserve one room, one code, one membership and one deck', async () => {
@@ -166,9 +209,10 @@ test('rooms: concurrent retries preserve one room, one code, one membership and 
   const joins = await Promise.all([1, 2].map(() => join(joinCode, guest)));
   assert.deepEqual(joins.map(r => r.status), [200, 200]);
   assert.equal((await db.doc(`rooms/${roomId}`).get()).data().memberCount, 2);
-  const starts = await Promise.all([1, 2].map(() => call('startRoom', { roomId }, host)));
+  const starts = await Promise.all([1, 2].map(() => start(roomId, host)));
   assert.deepEqual(starts.map(r => r.status), [200, 200]);
-  assert.equal((await db.collection(`rooms/${roomId}/candidates`).get()).size, 5);
+  assert.deepEqual(starts[1].data.result, starts[0].data.result, 'both answers name the one stored deck');
+  assert.equal((await db.collection('restaurantDecks').get()).size, 1);
 });
 
 test('rooms: join attempts are bounded; revoked and expired memberships cannot reconnect', async () => {
@@ -179,7 +223,7 @@ test('rooms: join attempts are bounded; revoked and expired memberships cannot r
   assert.equal((await join(joinCode, guest)).status, 403);
   await db.doc(`rooms/${roomId}`).update({ expiresAt: Timestamp.fromMillis(0) });
   assert.equal((await reconnect(roomId, host)).status, 403);
-  assert.equal((await call('startRoom', { roomId }, host)).status, 403);
+  assert.equal((await start(roomId, host)).status, 403);
   const attacker = await user();
   for (let i = 0; i < 10; i++) assert.equal((await join('ZZZZZZ', attacker)).status, 403);
   assert.equal((await join('ZZZZZZ', attacker)).status, 429);
@@ -200,40 +244,42 @@ test('results: the room closes once every member has voted; only totals are shar
   const { roomId, joinCode } = await room(host);
   assert.equal((await join(joinCode, guest)).status, 200);
   assert.equal((await call('roomResults', { roomId }, guest)).data.result.status, 'lobby');
-  assert.equal((await call('startRoom', { roomId }, host)).status, 200);
-  // Host likes tacos and noodles; guest likes noodles and salad. Noodles wins,
-  // and tacos beats salad for backup because it is earlier in the deck.
-  const likes = { [host.uid]: ['fixture-tacos', 'fixture-noodles'], [guest.uid]: ['fixture-noodles', 'fixture-salad'] };
-  for (const candidate of DECK) assert.equal((await vote(roomId, host, candidate, likes[host.uid].includes(candidate))).status, 200);
+  assert.equal((await start(roomId, host)).status, 200);
+  const D = (await deckOf(roomId)).candidateIds;
+  // Host likes the 2nd and 3rd cards; guest likes the 3rd and 4th. The 3rd wins,
+  // and the 2nd beats the 4th for backup because it is earlier in the deck.
+  const likes = { [host.uid]: [D[1], D[2]], [guest.uid]: [D[2], D[3]] };
+  for (const candidate of D) assert.equal((await vote(roomId, host, candidate, likes[host.uid].includes(candidate))).status, 200);
   const pending = await call('roomResults', { roomId }, guest);
   assert.equal(pending.data.result.status, 'voting');
   assert.equal(pending.data.result.results, null);
   assert.equal(pending.data.result.voters, 1);
-  for (const candidate of DECK) assert.equal((await vote(roomId, guest, candidate, likes[guest.uid].includes(candidate))).status, 200);
+  for (const candidate of D) assert.equal((await vote(roomId, guest, candidate, likes[guest.uid].includes(candidate))).status, 200);
   assert.equal((await call('roomResults', { roomId }, outsider)).status, 403);
   const final = await call('roomResults', { roomId }, guest);
   assert.equal(final.data.result.status, 'closed');
   assert.deepEqual(final.data.result.results, {
-    likes: { 'fixture-pizza': 0, 'fixture-tacos': 1, 'fixture-noodles': 2, 'fixture-salad': 1, 'fixture-cafe': 0 },
-    winner: 'fixture-noodles', backup: 'fixture-tacos', voters: 2,
+    likes: { [D[0]]: 0, [D[1]]: 1, [D[2]]: 2, [D[3]]: 1, [D[4]]: 0 },
+    winner: D[2], backup: D[1], voters: 2,
   });
   const stored = (await readRoom(roomId, host)).data.fields;
   assert.equal(stored.status.stringValue, 'closed');
   assert.ok(!JSON.stringify(stored).includes(guest.uid), 'results never name voters');
-  assert.equal((await readBallot(roomId, guest.uid, 'fixture-noodles', host)).status, 403);
+  assert.equal((await readBallot(roomId, guest.uid, D[2], host)).status, 403);
 });
 
 test('results: the voting window closes an incomplete room; the host can close early', async () => {
   const host = await user(true, true); const guest = await user();
   const first = await room(host);
   assert.equal((await join(first.joinCode, guest)).status, 200);
-  assert.equal((await call('startRoom', { roomId: first.roomId }, host)).status, 200);
-  assert.equal((await vote(first.roomId, guest, 'fixture-cafe')).status, 200);
+  assert.equal((await start(first.roomId, host)).status, 200);
+  const D = (await deckOf(first.roomId)).candidateIds;
+  assert.equal((await vote(first.roomId, guest, D[4])).status, 200);
   await db.doc(`rooms/${first.roomId}`).update({ votingEndsAt: Timestamp.fromMillis(Date.now() - 1000) });
   const timedOut = await call('roomResults', { roomId: first.roomId }, guest);
   assert.equal(timedOut.data.result.status, 'closed');
-  assert.equal(timedOut.data.result.results.winner, 'fixture-cafe');
-  assert.equal((await vote(first.roomId, guest, 'fixture-pizza')).status, 403, 'closed rooms take no ballots');
+  assert.equal(timedOut.data.result.results.winner, D[4]);
+  assert.equal((await vote(first.roomId, guest, D[0])).status, 403, 'closed rooms take no ballots');
 
   const second = await room(host);
   assert.equal((await join(second.joinCode, guest)).status, 200);
@@ -242,7 +288,7 @@ test('results: the voting window closes an incomplete room; the host can close e
   assert.equal(closed.data.result.status, 'closed');
   assert.equal(closed.data.result.results, null, 'closing before the deck starts has no results');
   assert.equal((await db.doc(`roomCodes/${second.joinCode}`).get()).exists, false);
-  assert.equal((await call('startRoom', { roomId: second.roomId }, host)).data.result.candidateCount, 0);
+  assert.equal((await start(second.roomId, host)).data.result.candidateCount, 0);
 });
 
 test('host controls: revoke removes a member; codes rotate only in the lobby', async () => {
@@ -263,20 +309,21 @@ test('host controls: revoke removes a member; codes rotate only in the lobby', a
   assert.notEqual(fresh, joinCode);
   assert.equal((await join(joinCode, late)).status, 403, 'the old code is dead');
   assert.equal((await join(fresh, late)).status, 200);
-  assert.equal((await call('startRoom', { roomId }, host)).status, 200);
+  assert.equal((await start(roomId, host)).status, 200);
   assert.equal((await call('rotateJoinCode', { roomId }, host)).status, 403);
 });
 
 test('account deletion removes memberships, ballots, hosted rooms, receipts and the Auth user', async () => {
   const host = await user(true, true); const guest = await user(); const other = await user();
   const hosted = await room(host);
-  const { roomId, joinCode } = await room(await user(true, true));
+  const voting = await room(host);
+  assert.equal((await start(voting.roomId, host)).status, 200);
+  const otherHost = await user(true, true);
+  const { roomId, joinCode } = await room(otherHost);
   for (const member of [guest, other]) assert.equal((await join(joinCode, member)).status, 200);
   assert.equal((await join(hosted.joinCode, guest)).status, 200);
-  // Set up the way startRoom leaves a room, without its fixture deck.
-  await db.doc(`rooms/${roomId}`).update({ status: 'voting', votingEndsAt: Timestamp.fromMillis(Date.now() + 600000) });
-  await db.doc(`rooms/${roomId}/candidates/fixture-pizza`).set({ title: 'Demo Pizza', order: 0, expiresAt: await expiryOf(roomId) });
-  assert.equal((await vote(roomId, guest, 'fixture-pizza')).status, 200);
+  assert.equal((await start(roomId, otherHost)).status, 200);
+  assert.equal((await vote(roomId, guest, (await deckOf(roomId)).candidateIds[0])).status, 200);
 
   // Guests can delete without re-entering a password.
   assert.equal((await call('deleteAccount', null, guest)).status, 200);
@@ -291,6 +338,8 @@ test('account deletion removes memberships, ballots, hosted rooms, receipts and 
   assert.equal((await call('deleteAccount', {}, { token: staleToken(host.uid) })).status, 400);
   assert.equal((await db.doc(`rooms/${hosted.roomId}`).get()).data().status, 'lobby');
   assert.equal((await call('deleteAccount', {}, host)).status, 200);
+  const decks = await db.collection('restaurantDecks').get();
+  assert.deepEqual(decks.docs.map(deck => deck.data().ownerUid), [otherHost.uid], 'the host decks are gone');
   const closed = (await db.doc(`rooms/${hosted.roomId}`).get()).data();
   assert.equal(closed.status, 'closed');
   assert.ok(closed.expiresAt.toMillis() <= Date.now(), 'hosted rooms expire immediately');

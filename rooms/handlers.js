@@ -2,7 +2,11 @@
 // Firebase modules are injected so each entry can supply its own copies.
 const { randomBytes, randomInt, createHash } = require('node:crypto');
 const { authorize } = require('./authorization');
-const { fixtureCandidates } = require('./fixtures');
+const { parseSearchRequest, InvalidSearchRequest } = require('./search/request');
+const { buildDeck } = require('./search/deck');
+const { assertProvider } = require('./search/provider');
+const { createFakeProvider } = require('./search/fake-provider');
+const { deckDocument } = require('./decks');
 
 const ROOM_TTL_MS = 24 * 3600000;
 const VOTING_WINDOW_MS = 30 * 60000;
@@ -20,7 +24,9 @@ const digest = value => createHash('sha256').update(value).digest('hex');
 const newJoinCode = () => Array.from({ length: 6 }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('');
 
 function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthUser,
-  now = () => Date.now(), candidates = fixtureCandidates, log = () => {} }) {
+  now = () => Date.now(), provider = createFakeProvider(), newSeed = () => randomBytes(16).toString('hex'),
+  log = () => {} }) {
+  assertProvider(provider);
   const deny = () => { throw new HttpsError('permission-denied', 'Room action unavailable.'); };
   const invalid = () => { throw new HttpsError('invalid-argument', 'Invalid request.'); };
   const expiry = ms => Timestamp.fromMillis(now() + ms);
@@ -75,7 +81,27 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
     }
   }
 
+  // startRoom takes the room and one search request. The search is parsed by
+  // its own strict contract; its origin is used for this call and never kept.
+  function startInput(request) {
+    const value = request.data ?? {};
+    if (typeof value !== 'object' || Array.isArray(value) ||
+      Object.keys(value).sort().join() !== 'roomId,search' || typeof value.roomId !== 'string' ||
+      !ROOM_ID.test(value.roomId)) {
+      invalid();
+    }
+    try {
+      return { roomId: value.roomId, search: parseSearchRequest(value.search) };
+    } catch (error) {
+      if (error instanceof InvalidSearchRequest) invalid();
+      throw error;
+    }
+  }
+
   const roomRef = roomId => db.doc(`rooms/${roomId}`);
+  const deckRef = deckId => db.doc(`restaurantDecks/${deckId}`);
+  const startedView = (roomId, state) => ({ roomId, deckId: state.deckId ?? null,
+    candidateCount: state.candidateCount ?? 0 });
   const codeRef = code => db.doc(`roomCodes/${code}`);
   const stateOf = snapshot => ({ ...snapshot.data(), expiresAt: snapshot.data().expiresAt.toMillis() });
 
@@ -93,21 +119,22 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
   async function tally(tx, room, state) {
     const [members, deck] = await Promise.all([
       tx.get(room.collection('members').where('active', '==', true)),
-      tx.get(room.collection('candidates').orderBy('order')),
+      state.deckId ? tx.get(deckRef(state.deckId)) : null,
     ]);
-    const likes = Object.fromEntries(deck.docs.map(candidate => [candidate.id, 0]));
+    const deckIds = deck?.exists ? deck.data().candidateIds : [];
+    const likes = Object.fromEntries(deckIds.map(id => [id, 0]));
     let voters = 0;
     let complete = true;
     for (const member of members.docs) {
       const ballots = await tx.get(room.collection('votes').doc(member.id).collection('ballot'));
       if (!ballots.empty) voters++;
-      if (ballots.size < (state.candidateCount ?? deck.size)) complete = false;
+      if (ballots.size < (state.candidateCount ?? deckIds.length)) complete = false;
       for (const ballot of ballots.docs) {
         if (ballot.data().liked === true && ballot.id in likes) likes[ballot.id]++;
       }
     }
-    // Most likes wins; deck order (closest first) breaks ties.
-    const ranking = deck.docs.map(candidate => candidate.id).sort((a, b) => likes[b] - likes[a]);
+    // Most likes wins; deck order (best ranked first) breaks ties.
+    const ranking = [...deckIds].sort((a, b) => likes[b] - likes[a]);
     return { complete, results: { likes, winner: ranking[0] ?? null, backup: ranking[1] ?? null, voters } };
   }
 
@@ -184,22 +211,53 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
     async startRoom(request) {
       const actor = identity(request);
       if (!authorize('create', actor)) deny();
-      const { roomId } = input(request, { roomId: ROOM_ID });
+      const { roomId, search } = startInput(request);
       await limit(actor.uid, 'start', 10, 60000);
-      return db.runTransaction(async tx => {
+      // Check first, search outside any transaction, then commit only if the
+      // room is still waiting; a start that loses a race discards its deck.
+      const already = await db.runTransaction(async tx => {
+        const { state } = await memberView(tx, roomId, actor.uid);
+        if (state.creator !== actor.uid) deny();
+        if (state.status !== 'lobby') return startedView(roomId, state);
+        if (!authorize('start', actor, state, true)) deny();
+        return null;
+      }, { readOnly: true });
+      if (already) return already;
+
+      let result;
+      try {
+        result = await provider.searchNearby(search);
+      } catch (error) {
+        log({ event: 'search_failed', provider: provider.id, providerCalls: error?.providerCalls ?? null });
+        throw new HttpsError('unavailable', 'Restaurant search is unavailable.');
+      }
+      const seed = newSeed();
+      const built = buildDeck(result.restaurants, search, { seed });
+      // Nothing is stored for a pool too thin to vote on; the host is asked to
+      // widen the search instead.
+      if (!built.pool.sufficient) {
+        throw new HttpsError('failed-precondition', 'Too few restaurants match.',
+          { reason: 'too-few-results', eligible: built.pool.eligible, minimum: built.pool.minimum });
+      }
+      const deck = deckRef(randomBytes(12).toString('hex'));
+      const started = await db.runTransaction(async tx => {
         const { room, snapshot, state } = await memberView(tx, roomId, actor.uid);
         if (state.creator !== actor.uid) deny();
-        if (state.status !== 'lobby') return { roomId, candidateCount: state.candidateCount ?? 0 };
+        if (state.status !== 'lobby') return startedView(roomId, state);
         if (!authorize('start', actor, state, true)) deny();
         const expiresAt = snapshot.data().expiresAt;
-        candidates.forEach((candidate, order) =>
-          tx.create(room.collection('candidates').doc(candidate.id), { title: candidate.title,
-            address: candidate.address, distanceMiles: candidate.distanceMiles, order, expiresAt }));
-        tx.update(room, { status: 'voting', candidateCount: candidates.length, joinCode: FieldValue.delete(),
-          startedAt: FieldValue.serverTimestamp(), votingEndsAt: expiry(VOTING_WINDOW_MS) });
+        tx.create(deck, deckDocument({ ownerUid: actor.uid, targetType: 'room', targetId: roomId, provider, result,
+          request: search, built, seed, expiresAt, generatedAt: FieldValue.serverTimestamp() }));
+        tx.update(room, { status: 'voting', deckId: deck.id, candidateCount: built.candidates.length,
+          joinCode: FieldValue.delete(), startedAt: FieldValue.serverTimestamp(),
+          votingEndsAt: expiry(VOTING_WINDOW_MS) });
         if (state.joinCode) tx.delete(codeRef(state.joinCode));
-        return { roomId, candidateCount: candidates.length };
+        return { roomId, deckId: deck.id, candidateCount: built.candidates.length };
       });
+      // Counts only: no UID, location or restaurant names.
+      log({ event: 'deck_created', provider: provider.id, providerCalls: result.providerCalls,
+        eligible: built.pool.eligible, selected: built.pool.selected, kept: started.deckId === deck.id });
+      return started;
     },
 
     async closeRoom(request) {
@@ -311,6 +369,14 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
           }
         }));
       }
+      const decks = await db.collection('restaurantDecks').where('ownerUid', '==', actor.uid).get();
+      if (!decks.empty) {
+        await retryTransient(async () => {
+          const batch = db.batch();
+          decks.forEach(deck => batch.delete(deck.ref));
+          await batch.commit();
+        });
+      }
       const receipts = await db.collection('_requests').where('uidHash', '==', digest(actor.uid)).get();
       if (!receipts.empty) {
         await retryTransient(async () => {
@@ -325,7 +391,7 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
         if (error?.code !== 'auth/user-not-found') throw error;
       }
       // No UID, email or ballot content in the record.
-      log({ event: 'account_deleted', hostedRooms: hosted.size, memberships: memberships.size });
+      log({ event: 'account_deleted', hostedRooms: hosted.size, memberships: memberships.size, decks: decks.size });
       return { deleted: true };
     },
   };

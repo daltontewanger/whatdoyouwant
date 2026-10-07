@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/restaurant.dart';
@@ -26,13 +27,44 @@ class InvalidJoinCode implements Exception {
       'Enter the 6-character code shown on the host\'s screen.';
 }
 
-Restaurant candidateRestaurant(String id, Map<String, dynamic> data) =>
+const _metersPerMile = 1609.344;
+
+typedef SearchOrigin = ({double lat, double lng});
+
+/// The search the server's startRoom expects. The location is rounded to
+/// about 100 m first: plenty for a search measured in miles, and less
+/// precise than where the person actually is.
+Map<String, Object?> startSearchFor(
+  SearchOrigin origin, {
+  required double radiusMiles,
+  required int deckSize,
+}) => {
+  'origin': {
+    'lat': double.parse(origin.lat.toStringAsFixed(3)),
+    'lng': double.parse(origin.lng.toStringAsFixed(3)),
+  },
+  'radius': {'value': radiusMiles.round(), 'unit': 'mi'},
+  'deckSize': deckSize,
+};
+
+/// The cards of a stored deck, in deck order. Decks keep meters; the app
+/// still shows miles.
+List<Restaurant> deckRestaurants(Map<String, dynamic> deck) => [
+  for (final raw in deck['candidates'] as List)
     Restaurant(
-      id: id,
-      name: data['title'] as String,
-      address: (data['address'] as String?) ?? '',
-      distance: (data['distanceMiles'] as num?)?.toDouble() ?? 0,
-    );
+      id: (raw as Map)['id'] as String,
+      name: raw['name'] as String,
+      address: (raw['address'] as String?) ?? '',
+      distance: ((raw['distanceMeters'] as num?) ?? 0) / _metersPerMile,
+    ),
+];
+
+Future<SearchOrigin> _deviceLocation() async {
+  final position = await Geolocator.getCurrentPosition(
+    locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
+  );
+  return (lat: position.latitude, lng: position.longitude);
+}
 
 RoomResults? callableResults(Object? raw, int members) {
   if (raw is! Map) return null;
@@ -55,13 +87,16 @@ class CallableRoomBackend implements RoomBackend {
     FirebaseFirestore? firestore,
     FirebaseFunctions? functions,
     FirebaseAuth? auth,
+    Future<SearchOrigin> Function()? locate,
   }) : _db = firestore ?? FirebaseFirestore.instance,
        _functions = functions ?? FirebaseFunctions.instance,
-       _auth = auth ?? FirebaseAuth.instance;
+       _auth = auth ?? FirebaseAuth.instance,
+       _locate = locate ?? _deviceLocation;
 
   final FirebaseFirestore _db;
   final FirebaseFunctions _functions;
   final FirebaseAuth _auth;
+  final Future<SearchOrigin> Function() _locate;
   final _expiries = <String, Timestamp>{};
 
   String get _uid => _auth.currentUser!.uid;
@@ -69,13 +104,16 @@ class CallableRoomBackend implements RoomBackend {
   @override
   bool get requiresVerifiedHost => true;
   @override
-  bool get usesDeviceLocation => false;
+  bool get usesDeviceLocation => true;
+  // Local and staging decks come from the server's fake provider for now.
+  @override
+  bool get usesFictionalRestaurants => true;
   @override
   bool get clientClosesRooms => false;
 
   Future<Map<String, dynamic>> _call(
     String name,
-    Map<String, String> data,
+    Map<String, Object?> data,
   ) async {
     final result = await _functions.httpsCallable(name).call(data);
     return Map<String, dynamic>.from(result.data as Map);
@@ -129,20 +167,20 @@ class CallableRoomBackend implements RoomBackend {
       );
     }
 
-    void listenToDeck() {
+    // Decks never change once stored, so one read is enough.
+    void loadDeck(String deckId) {
       if (deckRequested) return;
       deckRequested = true;
-      subscriptions.add(
-        room.collection('candidates').orderBy('order').snapshots().listen((
-          snapshot,
-        ) {
-          deck = [
-            for (final doc in snapshot.docs)
-              candidateRestaurant(doc.id, doc.data()),
-          ];
-          emit();
-        }, onError: controller.addError),
-      );
+      _db
+          .doc('restaurantDecks/$deckId')
+          .get()
+          .then((snapshot) {
+            deck = deckRestaurants(snapshot.data()!);
+            emit();
+          })
+          .catchError((Object error) {
+            if (!controller.isClosed) controller.addError(error);
+          });
     }
 
     controller = StreamController<RoomState>(
@@ -153,7 +191,8 @@ class CallableRoomBackend implements RoomBackend {
             final data = roomData;
             if (data == null) return;
             _expiries[roomId] = data['expiresAt'] as Timestamp;
-            if (data['status'] != 'lobby') listenToDeck();
+            final deckId = data['deckId'] as String?;
+            if (deckId != null) loadDeck(deckId);
             emit();
           }, onError: controller.addError),
         );
@@ -180,14 +219,17 @@ class CallableRoomBackend implements RoomBackend {
     required double radiusMiles,
     required int maxOptions,
   }) async {
-    // Search settings are not sent yet: the deck is fixed fictional data until
-    // a reviewed restaurant provider exists, and no location is ever sent.
-    await _call('startRoom', {'roomId': roomId});
-    final deck =
-        await _db.collection('rooms/$roomId/candidates').orderBy('order').get();
-    return [
-      for (final doc in deck.docs) candidateRestaurant(doc.id, doc.data()),
-    ];
+    final origin = await _locate();
+    final started = await _call('startRoom', {
+      'roomId': roomId,
+      'search': startSearchFor(
+        origin,
+        radiusMiles: radiusMiles,
+        deckSize: maxOptions,
+      ),
+    });
+    final deck = await _db.doc('restaurantDecks/${started['deckId']}').get();
+    return deckRestaurants(deck.data()!);
   }
 
   Future<Timestamp> _expiryOf(String roomId) async {

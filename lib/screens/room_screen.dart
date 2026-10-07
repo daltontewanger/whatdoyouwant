@@ -30,6 +30,10 @@ String startRoomErrorMessage(Object error) {
         return 'This room can no longer be started. It may have expired or been closed.';
       case 'resource-exhausted':
         return 'Restaurant search is busy right now. Wait a minute and try again.';
+      case 'failed-precondition':
+        return 'Not enough restaurants nearby match. Try a wider distance.';
+      case 'unavailable':
+        return 'Restaurant search is unavailable right now. Try again in a minute.';
       case 'unauthenticated':
         return 'This device could not be verified. Restart the app and try again.';
     }
@@ -295,7 +299,7 @@ class _RoomScreenState extends State<RoomScreen> {
                                           ),
                                           child: Text(
                                             "Provide this code to those intending to join in on the fun. Once they are all confirmed to be in your lobby, you can start swiping!"
-                                            "${_backend.usesDeviceLocation ? '' : '\n\nThis build uses fictional test restaurants.'}",
+                                            "${_backend.usesFictionalRestaurants ? '\n\nThis build uses fictional test restaurants.' : ''}",
                                             style: TextStyle(
                                               fontSize: 15,
                                               color: Colors.grey[800],

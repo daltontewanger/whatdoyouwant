@@ -33,10 +33,11 @@ beforeEach(async () => {
   const clear = await fetch(`http://127.0.0.1:8080/emulator/v1/projects/${PROJECT}/databases/(default)/documents`, { method: 'DELETE' });
   assert.equal(clear.status, 200);
   roomExpiry = Timestamp.fromMillis(Date.now()+3600000);
-  await db.doc('rooms/ROOM').set({ creator: 'host', status: 'voting', expiresAt: roomExpiry,
+  await db.doc('rooms/ROOM').set({ creator: 'host', status: 'voting', expiresAt: roomExpiry, deckId: 'DECK',
     votingEndsAt: Timestamp.fromMillis(Date.now()+600000) });
   for (const uid of ['host', 'guest', 'other']) await db.doc(`rooms/ROOM/members/${uid}`).set({ active: true });
-  await db.doc('rooms/ROOM/candidates/pizza').set({ title: 'Fictional Pizza' });
+  await db.doc('restaurantDecks/DECK').set({ ownerUid: 'host', targetType: 'room', targetId: 'ROOM',
+    candidateIds: ['pizza'], candidates: [{ id: 'pizza', name: 'Fictional Pizza' }], expiresAt: roomExpiry });
 });
 after(() => db.terminate());
 
@@ -69,15 +70,16 @@ test('members read their room and deck; outsiders and unauthenticated callers ca
   for (const uid of ['host', 'guest']) assert.equal(await request('/rooms/ROOM', 'GET', undefined, uid), 200);
   for (const uid of [undefined, 'outsider']) {
     assert.equal(await request('/rooms/ROOM', 'GET', undefined, uid), 403);
-    assert.equal(await request('/rooms/ROOM/candidates/pizza', 'GET', undefined, uid), 403);
+    assert.equal(await request('/restaurantDecks/DECK', 'GET', undefined, uid), 403);
   }
-  assert.equal(await request('/rooms/ROOM/candidates', 'GET', undefined, 'guest'), 200);
+  assert.equal(await request('/restaurantDecks/DECK', 'GET', undefined, 'guest'), 200);
+  assert.equal(await request('/restaurantDecks', 'GET', undefined, 'guest'), 403, 'decks cannot be listed');
   assert.equal(await request('/rooms', 'GET', undefined, 'guest'), 403);
   assert.equal(await request('/rooms', 'GET'), 403);
 });
 test('clients cannot create rooms, transfer ownership, close rooms, forge membership or modify ledgers', async () => {
   for (const uid of [undefined, 'host', 'guest', 'outsider']) {
-    for (const path of ['/rooms/NEW', '/rooms/ROOM', '/rooms/ROOM/members/outsider', '/hereUsage/month', '/users/host', '/rooms/ROOM/candidates/injected']) {
+    for (const path of ['/rooms/NEW', '/rooms/ROOM', '/rooms/ROOM/members/outsider', '/hereUsage/month', '/users/host', '/restaurantDecks/DECK', '/restaurantDecks/NEW']) {
       assert.equal(await request(path, 'PATCH', { fields: { creator: { stringValue: 'outsider' } } }, uid), 403);
       assert.equal(await request(path, 'DELETE', undefined, uid), 403);
     }
@@ -113,6 +115,18 @@ test('ballots are refused once the voting window has passed, before anyone close
   assert.equal(await ballot('guest'), 403);
   await db.doc('rooms/ROOM').update({ votingEndsAt: Timestamp.fromMillis(Date.now()+60000) });
   assert.equal(await ballot('guest'), 200);
+});
+test('decks are readable only while the room lives, and only by its active members', async () => {
+  await db.doc('restaurantDecks/OTHER').set({ ownerUid: 'host', targetType: 'room', targetId: 'ELSEWHERE',
+    candidateIds: ['pizza'], candidates: [], expiresAt: roomExpiry });
+  assert.equal(await request('/restaurantDecks/OTHER', 'GET', undefined, 'guest'), 403, 'a deck for another room');
+  await db.doc('restaurantDecks/QUICK').set({ ownerUid: 'guest', targetType: 'quickPick', targetId: 'ROOM',
+    candidateIds: [], candidates: [], expiresAt: roomExpiry });
+  assert.equal(await request('/restaurantDecks/QUICK', 'GET', undefined, 'guest'), 403, 'no Quick Pick reads yet');
+  await db.doc('rooms/ROOM/members/guest').update({ active: false });
+  assert.equal(await request('/restaurantDecks/DECK', 'GET', undefined, 'guest'), 403);
+  await db.doc('rooms/ROOM').update({ expiresAt: Timestamp.fromMillis(0) });
+  assert.equal(await request('/restaurantDecks/DECK', 'GET', undefined, 'host'), 403);
 });
 test('closed, lobby, expired and revoked membership prevent voting', async () => {
   for (const status of ['closed', 'lobby']) {

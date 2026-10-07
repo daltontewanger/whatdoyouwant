@@ -4,6 +4,7 @@
     { "collectionGroup": "rooms", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "members", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "candidates", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "restaurantDecks", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "ballot", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "roomCodes", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "_requests", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },

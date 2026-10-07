@@ -135,16 +135,40 @@ void main() {
       });
     });
 
-    test('candidates become restaurants with their fictional details', () {
-      final r = candidateRestaurant('fixture-pizza', {
-        'title': 'Demo Pizza',
-        'address': '1 Example Street',
-        'distanceMiles': 0.25,
-        'order': 0,
+    test('a stored deck becomes restaurants in deck order, in miles', () {
+      final cards = deckRestaurants({
+        'candidateIds': ['c1', 'c2'],
+        'candidates': [
+          {
+            'id': 'c1',
+            'order': 0,
+            'name': 'Demo Pizza',
+            'address': '1 Example Street',
+            'distanceMeters': 1609,
+          },
+          {'id': 'c2', 'order': 1, 'name': 'Demo Kitchen', 'address': null},
+        ],
       });
       expect(
-        (r.id, r.name, r.address, r.distance),
-        ('fixture-pizza', 'Demo Pizza', '1 Example Street', 0.25),
+        [for (final r in cards) (r.id, r.name, r.address)],
+        [('c1', 'Demo Pizza', '1 Example Street'), ('c2', 'Demo Kitchen', '')],
+      );
+      expect(cards[0].distance, closeTo(1.0, 0.001));
+      expect(cards[1].distance, 0);
+    });
+
+    test('the start search rounds the location and sends offered values', () {
+      expect(
+        startSearchFor(
+          (lat: 38.123456, lng: -98.987654),
+          radiusMiles: 5.0,
+          deckSize: 15,
+        ),
+        {
+          'origin': {'lat': 38.123, 'lng': -98.988},
+          'radius': {'value': 5, 'unit': 'mi'},
+          'deckSize': 15,
+        },
       );
     });
 

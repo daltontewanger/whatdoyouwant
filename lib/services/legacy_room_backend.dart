@@ -22,6 +22,8 @@ class LegacyRoomBackend implements RoomBackend {
   @override
   bool get usesDeviceLocation => true;
   @override
+  bool get usesFictionalRestaurants => false;
+  @override
   bool get clientClosesRooms => true;
 
   @override
