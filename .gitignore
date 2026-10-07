@@ -82,3 +82,6 @@ firebase-export-*/
 
 # Repository-local Node development tools.
 /node_modules/
+
+# Live HERE benchmark recordings stay on the machine that made them.
+local-testing/search/benchmark/recordings/

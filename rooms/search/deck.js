@@ -109,14 +109,11 @@ function selectVaried(ranked, deckSize) {
 }
 
 /**
- * Builds a deck from normalized records.
- * @param {object[]} records NormalizedRestaurant records from any provider.
- * @param {object} request A parsed search request (see request.js).
- * @param {{seed: string, minimumPool?: number}} options The stored seed decides exact ties.
- * @returns {{candidates: object[], pool: object}} Candidates in deck order and a pool report.
+ * The places a deck may be drawn from: usable, inside the radius, not
+ * positively excluded, one listing per place, distances from the origin.
+ * @returns {{kept: object[], counts: object}}
  */
-function buildDeck(records, request, { seed, minimumPool = Math.min(MINIMUM_POOL, request.deckSize) }) {
-  if (typeof seed !== 'string' || !seed.length) throw new Error('A deck needs a stored seed.');
+function eligiblePool(records, request) {
   const usable = records.filter(isUsable).map(record => ({
     ...record,
     cuisineIds: [...(record.cuisineIds ?? [])],
@@ -128,6 +125,29 @@ function buildDeck(records, request, { seed, minimumPool = Math.min(MINIMUM_POOL
   const inRadius = usable.filter(record => record.distanceMetersFromOrigin <= request.radiusMeters);
   const allowed = inRadius.filter(record => !record.cuisineIds.some(id => request.excludedCuisineIds.includes(id)));
   const { kept, duplicates } = dedupe(allowed);
+  return {
+    kept,
+    counts: {
+      received: records.length,
+      invalid: records.length - usable.length,
+      outOfRadius: usable.length - inRadius.length,
+      excluded: inRadius.length - allowed.length,
+      duplicates,
+      eligible: kept.length,
+    },
+  };
+}
+
+/**
+ * Builds a deck from normalized records.
+ * @param {object[]} records NormalizedRestaurant records from any provider.
+ * @param {object} request A parsed search request (see request.js).
+ * @param {{seed: string, minimumPool?: number}} options The stored seed decides exact ties.
+ * @returns {{candidates: object[], pool: object}} Candidates in deck order and a pool report.
+ */
+function buildDeck(records, request, { seed, minimumPool = Math.min(MINIMUM_POOL, request.deckSize) }) {
+  if (typeof seed !== 'string' || !seed.length) throw new Error('A deck needs a stored seed.');
+  const { kept, counts } = eligiblePool(records, request);
   const ranked = kept
     .map(record => ({ record, points: score(record, request), tie: hash(`${seed}:${candidateId(record)}`) }))
     .sort((a, b) => b.points - a.points || (a.tie < b.tie ? -1 : a.tie > b.tie ? 1 : 0))
@@ -142,12 +162,7 @@ function buildDeck(records, request, { seed, minimumPool = Math.min(MINIMUM_POOL
   return {
     candidates,
     pool: {
-      received: records.length,
-      invalid: records.length - usable.length,
-      outOfRadius: usable.length - inRadius.length,
-      excluded: inRadius.length - allowed.length,
-      duplicates,
-      eligible: kept.length,
+      ...counts,
       selected: candidates.length,
       minimum: minimumPool,
       sufficient: kept.length >= minimumPool,
@@ -155,4 +170,4 @@ function buildDeck(records, request, { seed, minimumPool = Math.min(MINIMUM_POOL
   };
 }
 
-module.exports = { buildDeck, distanceMeters, normalizeText, candidateId, MINIMUM_POOL };
+module.exports = { buildDeck, eligiblePool, distanceMeters, normalizeText, candidateId, MINIMUM_POOL };
