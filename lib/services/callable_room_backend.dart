@@ -124,6 +124,7 @@ class CallableRoomBackend implements RoomBackend {
           votedIds: myVotes,
           resultsReady: status == 'closed',
           results: callableResults(data['results'], members),
+          votingEndsAt: (data['votingEndsAt'] as Timestamp?)?.toDate(),
         ),
       );
     }

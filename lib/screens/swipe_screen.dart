@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 import '../models/restaurant.dart';
 import '../models/user.dart';
+import '../services/result_nudges.dart';
 import '../services/room_backend.dart';
 import 'results_screen.dart';
 
@@ -58,6 +59,7 @@ class SwipeScreenState extends State<SwipeScreen> {
 
   StreamSubscription<RoomState>? _roomSub;
   Timer? _watchdogTimer;
+  ResultNudges? _nudges;
   late RoomBackend _backend;
 
   @override
@@ -75,15 +77,20 @@ class SwipeScreenState extends State<SwipeScreen> {
         .watch(widget.roomCode)
         .listen(_onRoomUpdate, onError: (_) {});
 
-    _watchdogTimer = Timer.periodic(_watchdogInterval, (_) {
-      _backend.nudge(widget.roomCode).catchError((_) {});
-    });
+    if (_backend.clientClosesRooms) {
+      _watchdogTimer = Timer.periodic(_watchdogInterval, (_) {
+        _backend.nudge(widget.roomCode).catchError((_) {});
+      });
+    } else {
+      _nudges = ResultNudges(() => _backend.nudge(widget.roomCode));
+    }
   }
 
   @override
   void dispose() {
     _isLeaving = true;
     _watchdogTimer?.cancel();
+    _nudges?.stop();
     _roomSub?.cancel();
     _cardSwiperController.dispose();
     super.dispose();
@@ -99,7 +106,11 @@ class SwipeScreenState extends State<SwipeScreen> {
             : swipeOptions.length;
     final bool iAmDone =
         restaurantsLen > 0 && room.myVoteCount >= restaurantsLen;
-    if (iAmDone && !_navigated) {
+    // Someone has to close the room when time runs out, even if nobody has
+    // reached the results screen yet; once it closes, leftover cards are moot.
+    _nudges?.votingEndsAt(room.votingEndsAt);
+    if ((iAmDone || (_nudges != null && room.status == 'closed')) &&
+        !_navigated) {
       _goToResults();
     }
 
@@ -116,6 +127,7 @@ class SwipeScreenState extends State<SwipeScreen> {
     _navigated = true;
     _isLeaving = true;
     _watchdogTimer?.cancel();
+    _nudges?.stop();
     _roomSub?.cancel();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -172,8 +184,12 @@ class SwipeScreenState extends State<SwipeScreen> {
           if (finishedDeck && !_navigated) {
             _goToResults();
           }
-          // A failed nudge is not a failed vote; the next one retries.
-          await _backend.nudge(widget.roomCode).catchError((_) {});
+          // Server-closed rooms only need asking once this person's last
+          // ballot is stored; earlier ones cannot complete the room.
+          if (_backend.clientClosesRooms || finishedDeck) {
+            // A failed nudge is not a failed vote; the next one retries.
+            await _backend.nudge(widget.roomCode).catchError((_) {});
+          }
         })
         .catchError((e) {
           if (!mounted || _isLeaving) return;

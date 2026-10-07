@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/restaurant.dart';
+import '../services/result_nudges.dart';
 import '../services/room_backend.dart';
 import 'home_screen.dart';
 
@@ -23,6 +24,7 @@ class ResultsScreenState extends State<ResultsScreen> {
   late RoomBackend _backend;
   bool _closedOnce = false;
   Timer? _kickTimer;
+  ResultNudges? _nudges;
 
   @override
   void didChangeDependencies() {
@@ -31,17 +33,23 @@ class ResultsScreenState extends State<ResultsScreen> {
     _backend = RoomBackendScope.of(context).backend;
     _roomStream = _backend.watch(widget.roomCode);
 
-    // Keeps nudging the backend until results are ready, then stops.
-    _kickTimer = Timer.periodic(const Duration(seconds: 6), (_) async {
-      try {
-        await _backend.nudge(widget.roomCode);
-      } catch (_) {}
-    });
+    if (_backend.clientClosesRooms) {
+      // Client-closed rooms also time out idle voters on each nudge, so they
+      // keep the frequent kick until results are ready.
+      _kickTimer = Timer.periodic(const Duration(seconds: 6), (_) async {
+        try {
+          await _backend.nudge(widget.roomCode);
+        } catch (_) {}
+      });
+    } else {
+      _nudges = ResultNudges(() => _backend.nudge(widget.roomCode))..start();
+    }
   }
 
   @override
   void dispose() {
     _kickTimer?.cancel();
+    _nudges?.stop();
     super.dispose();
   }
 
@@ -113,8 +121,13 @@ class ResultsScreenState extends State<ResultsScreen> {
                           final room = snapshot.data!;
 
                           if (!room.resultsReady) {
-                            // Extra nudge right here just in case
-                            _backend.nudge(widget.roomCode).catchError((_) {});
+                            if (_backend.clientClosesRooms) {
+                              _backend
+                                  .nudge(widget.roomCode)
+                                  .catchError((_) {});
+                            } else {
+                              _nudges?.votingEndsAt(room.votingEndsAt);
+                            }
                             return Center(
                               child: _ResultsLoader(
                                 remaining: room.remainingVoters,
@@ -123,8 +136,8 @@ class ResultsScreenState extends State<ResultsScreen> {
                             );
                           }
 
-                          // Stop the kicker.
                           _kickTimer?.cancel();
+                          _nudges?.stop();
                           // Finished rooms are no longer offered on Home.
                           RoomBackendScope.of(context).activeRooms?.forget();
 

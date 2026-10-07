@@ -20,6 +20,7 @@ class FakeRoomBackend implements RoomBackend {
   final room = StreamController<RoomState>.broadcast();
   final joined = <String>[];
   int closes = 0;
+  int nudges = 0;
   Object? createError;
   Object? startError;
   Object? voteError;
@@ -40,7 +41,7 @@ class FakeRoomBackend implements RoomBackend {
   @override
   Stream<RoomState> watch(String roomId) => room.stream;
   @override
-  Future<void> nudge(String roomId) async {}
+  Future<void> nudge(String roomId) async => nudges++;
   @override
   Future<void> close(String roomId) async => closes++;
   @override
@@ -76,6 +77,7 @@ RoomState state({
   RoomResults? results,
   Set<String> voted = const {},
   List<Restaurant>? restaurants,
+  DateTime? votingEndsAt,
 }) => RoomState(
   id: 'ROOM-ID',
   joinCode: null,
@@ -88,6 +90,7 @@ RoomState state({
   resultsReady: ready,
   remainingVoters: remaining,
   results: results,
+  votingEndsAt: votingEndsAt,
 );
 
 Widget app(FakeRoomBackend backend, Widget home, {ActiveRoomStore? rooms}) =>
@@ -424,6 +427,99 @@ void main() {
     expect(find.text('Demo Tacos'), findsOneWidget);
     expect(find.text('Votes: 2 of 3'), findsOneWidget);
     expect(backend.closes, 0, reason: 'the server closes these rooms');
+  });
+
+  testWidgets(
+    'results ask the server once, at the end of voting, then rarely',
+    (tester) async {
+      final backend = FakeRoomBackend();
+      await tester.pumpWidget(
+        app(backend, ResultsScreen(roomCode: 'ROOM-ID', restaurants: deck)),
+      );
+      expect(backend.nudges, 1);
+
+      final endsAt = DateTime.now().add(const Duration(seconds: 30));
+      // Room updates while others vote must not each trigger a tally.
+      for (var i = 0; i < 5; i++) {
+        backend.room.add(state(votingEndsAt: endsAt));
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 5));
+      }
+      expect(backend.nudges, 1);
+      await tester.pump(const Duration(seconds: 7));
+      expect(backend.nudges, 2, reason: 'voting window ended');
+      await tester.pump(const Duration(seconds: 30));
+      expect(backend.nudges, 3, reason: 'one-minute fallback');
+
+      backend.room.add(
+        state(
+          status: 'closed',
+          ready: true,
+          results: const RoomResults(
+            winnerId: 'a',
+            likes: {'a': 1},
+            participants: 1,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(minutes: 3));
+      expect(backend.nudges, 3, reason: 'stops once results are in');
+    },
+  );
+
+  testWidgets('legacy rooms keep the frequent nudge for idle voters', (
+    tester,
+  ) async {
+    final backend = FakeRoomBackend(clientClosesRooms: true);
+    await tester.pumpWidget(
+      app(backend, ResultsScreen(roomCode: 'ROOM-ID', restaurants: deck)),
+    );
+    await tester.pump(const Duration(seconds: 18));
+    expect(backend.nudges, 3);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('voters nudge only after their last card or when time is up', (
+    tester,
+  ) async {
+    final backend = FakeRoomBackend();
+    await tester.pumpWidget(
+      app(
+        backend,
+        SwipeScreen(
+          roomCode: 'ROOM-ID',
+          currentUser: AppUser(id: 'guest', name: 'Guest'),
+          radius: 1,
+          maxOptions: 2,
+          restaurants: deck,
+        ),
+      ),
+    );
+    await tester.pump();
+    final endsAt = DateTime.now().add(const Duration(minutes: 2));
+    backend.room.add(state(votingEndsAt: endsAt));
+    await tester.pump();
+
+    await tester.timedDrag(
+      find.byType(Card).last,
+      const Offset(500, 0),
+      const Duration(milliseconds: 300),
+    );
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await tester.pump(const Duration(seconds: 30));
+    expect(backend.nudges, 0, reason: 'one card left to vote on');
+
+    await tester.pump(const Duration(seconds: 90));
+    expect(backend.nudges, 1, reason: 'voting window ended');
+    backend.room.add(state(status: 'closed', votingEndsAt: endsAt));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(ResultsScreen), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets('legacy rooms are closed by the client once results show', (

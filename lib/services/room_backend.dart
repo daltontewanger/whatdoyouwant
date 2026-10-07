@@ -19,6 +19,7 @@ class RoomState {
     this.remainingVoters,
     this.results,
     this.votedIds = const {},
+    this.votingEndsAt,
   });
 
   /// Identifier used for every later call; also how members reconnect.
@@ -43,6 +44,10 @@ class RoomState {
   final bool resultsReady;
   final int? remainingVoters;
   final RoomResults? results;
+
+  /// When the server stops taking votes, for backends that close rooms
+  /// themselves.
+  final DateTime? votingEndsAt;
 }
 
 class RoomResults {
