@@ -232,11 +232,16 @@ test('rooms: join attempts are bounded; revoked and expired memberships cannot r
 
 test('rooms: concurrent new members cannot exceed the room capacity', async () => {
   const host = await user(true, true); const { roomId, joinCode } = await room(host);
-  await db.doc(`rooms/${roomId}`).update({ memberCount: 39 });
+  await db.doc(`rooms/${roomId}`).update({ memberCount: 14 });
   const guests = await Promise.all([user(), user()]);
   const results = await Promise.all(guests.map(guest => join(joinCode, guest)));
-  assert.deepEqual(results.map(r => r.status).sort(), [200, 403]);
-  assert.equal((await db.doc(`rooms/${roomId}`).get()).data().memberCount, 40);
+  assert.deepEqual(results.map(r => r.status).sort(), [200, 400]);
+  const full = results.find(r => r.status === 400).data.error;
+  assert.deepEqual([full.status, full.details], ['FAILED_PRECONDITION', { reason: 'room-full', capacity: 15 }]);
+  assert.equal((await db.doc(`rooms/${roomId}`).get()).data().memberCount, 15);
+  assert.equal((await join('ZZZZZZ', await user())).status, 403, 'a wrong code still reveals nothing');
+  const member = guests[results.findIndex(r => r.status === 200)];
+  assert.equal((await reconnect(roomId, member)).status, 200, 'members already in can reconnect');
 });
 
 test('results: the room closes once every member has voted; only totals are shared', async () => {

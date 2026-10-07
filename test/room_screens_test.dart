@@ -210,6 +210,12 @@ void main() {
       ),
       'Too many attempts. Wait a minute and try again.',
     );
+    expect(
+      joinErrorMessage(
+        FirebaseFunctionsException(code: 'failed-precondition', message: ''),
+      ),
+      'This room is full. Rooms hold up to 15 people.',
+    );
     expect(joinErrorMessage(InvalidJoinCode()), contains('6-character code'));
     expect(
       joinErrorMessage(Exception('offline')),

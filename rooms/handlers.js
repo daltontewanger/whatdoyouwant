@@ -12,7 +12,8 @@ const ROOM_TTL_MS = 24 * 3600000;
 const VOTING_WINDOW_MS = 30 * 60000;
 const RECEIPT_TTL_MS = 24 * 3600000;
 const RECENT_SIGN_IN_SECONDS = 300;
-const CAPACITY = 40;
+// Members per room, host included.
+const CAPACITY = 15;
 // No 0/O, 1/I/L: codes are read aloud and typed on phones.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const CODE = /^[A-HJKMNP-Z2-9]{6}$/;
@@ -199,8 +200,11 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
           return { roomId };
         }
         // The internal room ID only reconnects existing members; joining needs the current code.
-        if (!joinCode || state.joinCode !== joinCode || !authorize('join', actor, state) ||
-          state.memberCount >= CAPACITY) deny();
+        if (!joinCode || state.joinCode !== joinCode || !authorize('join', actor, state)) deny();
+        // Only someone holding the current code learns that the room is full.
+        if (state.memberCount >= CAPACITY) {
+          throw new HttpsError('failed-precondition', 'Room is full.', { reason: 'room-full', capacity: CAPACITY });
+        }
         tx.create(member, { uid: actor.uid, active: true, joinedAt: FieldValue.serverTimestamp(),
           expiresAt: snapshot.data().expiresAt });
         tx.update(room, { memberCount: state.memberCount + 1 });
@@ -400,4 +404,4 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
 const CALLABLES = ['createRoom', 'joinRoom', 'startRoom', 'closeRoom', 'roomResults',
   'revokeMember', 'rotateJoinCode', 'deleteAccount'];
 
-module.exports = { createRoomHandlers, CALLABLES, CODE_ALPHABET };
+module.exports = { createRoomHandlers, CALLABLES, CODE_ALPHABET, CAPACITY };

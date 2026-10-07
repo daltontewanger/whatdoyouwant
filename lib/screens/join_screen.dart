@@ -17,6 +17,8 @@ String joinErrorMessage(Object error) {
       case 'permission-denied':
       case 'not-found':
         return 'No open room uses that code. Check it with the host; rooms stop taking new people once voting starts.';
+      case 'failed-precondition':
+        return 'This room is full. Rooms hold up to 15 people.';
       case 'resource-exhausted':
         return 'Too many attempts. Wait a minute and try again.';
       case 'unauthenticated':
