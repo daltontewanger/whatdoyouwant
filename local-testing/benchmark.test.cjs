@@ -75,7 +75,10 @@ test('recorder: dry run and over-ceiling plans make no calls; live runs stay und
       error.name = 'TimeoutError';
       throw error;
     }
-    return { ok: true, status: 200, json: async () => ({ items: [] }) };
+    const headers = new Map([['cache-control', 'max-age=86400'], ['x-ratelimit-remaining', '4']]);
+    return url.pathname.includes('discover') && url.searchParams.has('in')
+      ? { ok: false, status: 429, headers, json: async () => ({ error: 'slow down' }) }
+      : { ok: true, status: 200, headers, json: async () => ({ items: [] }) };
   };
   const quiet = () => {};
   const out = mkdtempSync(path.join(os.tmpdir(), 'here-recordings-'));
@@ -86,7 +89,8 @@ test('recorder: dry run and over-ceiling plans make no calls; live runs stay und
       /exceeds the approved call ceiling/);
     assert.equal(requested.length, 0);
 
-    const live = await record({ locations, maxCalls: 12, live: true, out, apiKey: 'test-key', fetchImpl, log: quiet });
+    const live = await record({ locations, maxCalls: 12, live: true, out, apiKey: 'test-key', fetchImpl, pauseMs: 0,
+      log: quiet });
     assert.equal(live.used, 12);
     assert.equal(requested.length, 12);
     assert.ok(requested.every(url => url.startsWith('https://browse.search.hereapi.com/') ||
@@ -100,10 +104,15 @@ test('recorder: dry run and over-ceiling plans make no calls; live runs stay und
       assert.equal(saved.synthetic, false);
       assert.equal(saved.calls.length, CALLS_PER_LOCATION);
       assert.equal(saved.calls.filter(call => call.timedOut).length, 1);
+      assert.ok(saved.calls.some(call => call.headers['cache-control'] === 'max-age=86400'), 'caching headers kept');
     }
     const replayed = await runBenchmark(loadRecordings(out));
     const fallback = replayed.results[1].rows[0];
     assert.deepEqual([fallback.calls, fallback.timeouts], [2, 1], 'recordings replay, timeouts included');
+    const multi = replayed.results[2].summary;
+    assert.equal(multi.rateLimitedCalls, 0, 'multi-center centers are never the origin itself');
+    assert.equal(replayed.results[1].rows[0].rateLimited, 1, 'the fallback discover at the origin answered 429');
+    assert.deepEqual(multi.cacheControl, ['max-age=86400']);
   } finally {
     rmSync(out, { recursive: true, force: true });
   }

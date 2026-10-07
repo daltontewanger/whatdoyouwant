@@ -44,7 +44,7 @@ async function measure(recording, variant) {
     result = await provider.searchNearby(request);
   } catch (error) {
     return { location: recording.location, variant: variant.name, failed: true, calls: error.providerCalls ?? used.length,
-      timeouts: used.filter(call => call.timedOut).length };
+      timeouts: used.filter(call => call.timedOut).length, rateLimited: used.filter(call => call.status === 429).length };
   }
   const { kept, counts } = eligiblePool(result.restaurants, request);
   const deck = buildDeck(result.restaurants, request, { seed: 'benchmark', minimumPool: TARGET_POOL });
@@ -58,6 +58,8 @@ async function measure(recording, variant) {
     calls: result.providerCalls,
     failedCalls: result.failedCalls,
     timeouts: used.filter(call => call.timedOut).length,
+    rateLimited: used.filter(call => call.status === 429).length,
+    cacheControl: [...new Set(used.map(call => call.headers?.['cache-control']).filter(Boolean))],
     latencyMs: latencies.length ? latencies.reduce((a, b) => a + b, 0) : null,
     received: used.reduce((sum, call) => sum + (call.body?.items?.length ?? 0), 0),
     places: counts.received - counts.invalid,
@@ -110,6 +112,9 @@ function summarize(rows) {
     meanChainRate: mean(ok.map(row => row.chainRate)),
     meanDietaryHintRate: mean(ok.map(row => row.dietaryHintRate)),
     timeoutRate: share(rows.reduce((sum, row) => sum + row.timeouts, 0), calls),
+    rateLimitedCalls: rows.reduce((sum, row) => sum + row.rateLimited, 0),
+    // Distinct caching headers seen, for checking what HERE allows us to keep.
+    cacheControl: [...new Set(rows.flatMap(row => row.cacheControl ?? []))],
     meanLatencyMs: mean(ok.map(row => row.latencyMs)),
   };
 }

@@ -287,10 +287,10 @@ test('HERE transport: key only in the outgoing URL, bounded by a timeout, error 
   };
   const transport = createHereTransport({ apiKey: 'test-key', fetchImpl });
   const ok = await transport({ endpoint: ENDPOINTS.browse, params: { at: '1,2', limit: 100 } });
-  assert.deepEqual(ok, { status: 200, body: { items: [] } });
+  assert.deepEqual(ok, { status: 200, headers: {}, body: { items: [] } });
   assert.match(seen[0].url, /^https:\/\/browse\.search\.hereapi\.com\/v1\/browse\?at=1%2C2&limit=100&apiKey=test-key$/);
   assert.ok(seen[0].signal instanceof AbortSignal);
-  assert.deepEqual(await transport({ endpoint: ENDPOINTS.discover, params: {} }), { status: 401, body: null });
+  assert.deepEqual(await transport({ endpoint: ENDPOINTS.discover, params: {} }), { status: 401, headers: {}, body: null });
   await assert.rejects(transport({ endpoint: 'https://example.com/steal', params: {} }), /Unexpected HERE endpoint/);
   assert.throws(() => createHereTransport({ apiKey: '' }), /key is required/);
 });

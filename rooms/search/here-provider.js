@@ -17,6 +17,10 @@ const LIMIT = 100;
 const ATTRIBUTION = 'Restaurant data © HERE';
 // The production function's layout: four centers about five miles out.
 const MULTI_CENTER_OFFSET_METERS = 8047;
+// Response headers worth keeping: HERE's terms tie caching to its caching
+// headers, and rate limiting shows up as 429 with these.
+const KEPT_HEADERS = ['cache-control', 'expires', 'retry-after', 'x-ratelimit-limit', 'x-ratelimit-remaining',
+  'x-ratelimit-reset'];
 
 const STRATEGIES = Object.freeze({
   // One circle-constrained browse, plus one discover only when the first
@@ -146,8 +150,13 @@ function createHereTransport({ apiKey, fetchImpl = fetch, timeoutMs = 4000 }) {
     const url = new URL(endpoint);
     for (const [name, value] of Object.entries({ ...params, apiKey })) url.searchParams.set(name, String(value));
     const response = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs) });
+    const headers = {};
+    for (const name of KEPT_HEADERS) {
+      const value = response.headers?.get?.(name);
+      if (value) headers[name] = value;
+    }
     // Error bodies can echo the request URL, key included; never keep them.
-    return { status: response.status, body: response.ok ? await response.json() : null };
+    return { status: response.status, headers, body: response.ok ? await response.json() : null };
   };
 }
 

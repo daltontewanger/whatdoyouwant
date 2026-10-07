@@ -46,8 +46,11 @@ function print({ synthetic, results }) {
     chains: percent(s.meanChainRate),
     'dietary hints': percent(s.meanDietaryHintRate),
     timeouts: percent(s.timeoutRate),
+    '429s': s.rateLimitedCalls,
     'latency ms': number(s.meanLatencyMs, 0),
   }])));
+  const caching = [...new Set(results.flatMap(({ summary }) => summary.cacheControl))];
+  if (caching.length) console.log(`Cache-Control seen: ${caching.join(' | ')}\n`);
   console.log('Per location (usable pool / calls):');
   const locations = results[0].rows.map(row => row.location.id);
   console.table(Object.fromEntries(locations.map((id, index) => [id, Object.fromEntries(results.map(({ rows }) => [

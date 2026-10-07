@@ -54,26 +54,28 @@ function validateLocations(list) {
 // Wraps the live transport to keep what came back. Parameters are recorded as
 // the adapter sent them; the key is added inside the live transport and never
 // reaches this layer.
-function recordingTransport(live, calls, budget) {
+function recordingTransport(live, calls, budget, pauseMs) {
   return async ({ endpoint, params }) => {
     if (budget.used >= budget.max) throw new Error('Call ceiling reached.');
+    // Calls go one at a time with a pause, well under any per-second limit.
+    if (budget.used > 0 && pauseMs > 0) await new Promise(resolve => setTimeout(resolve, pauseMs));
     budget.used++;
     const kind = endpoint.includes('browse') ? 'browse' : 'discover';
     const started = Date.now();
     try {
       const response = await live({ endpoint, params });
       calls.push({ endpoint: kind, params, status: response.status, latencyMs: Date.now() - started,
-        body: response.body });
+        headers: response.headers ?? {}, body: response.body });
       return response;
     } catch (error) {
       calls.push({ endpoint: kind, params, status: null, latencyMs: Date.now() - started,
-        timedOut: error?.name === 'TimeoutError', body: null });
+        timedOut: error?.name === 'TimeoutError', headers: {}, body: null });
       throw new Error('HERE request failed.');
     }
   };
 }
 
-async function record({ locations, maxCalls, live, out, apiKey, fetchImpl, log = console.log }) {
+async function record({ locations, maxCalls, live, out, apiKey, fetchImpl, pauseMs = 500, log = console.log }) {
   const planned = locations.length * CALLS_PER_LOCATION;
   log(`${locations.length} locations x ${CALLS_PER_LOCATION} calls = ${planned} HERE calls (ceiling ${maxCalls}).`);
   if (planned > maxCalls) throw new Error('The plan exceeds the approved call ceiling; nothing was called.');
@@ -88,7 +90,7 @@ async function record({ locations, maxCalls, live, out, apiKey, fetchImpl, log =
   for (const location of locations) {
     const calls = [];
     const request = parseSearchRequest({ origin: location.origin, radius: location.radius });
-    const recorder = recordingTransport(transport, calls, budget);
+    const recorder = recordingTransport(transport, calls, budget, pauseMs);
     // An infinite threshold makes one-circle always run its fallback.
     for (const options of [{ strategy: 'one-circle', fallbackBelow: Infinity }, { strategy: 'multi-center' }]) {
       try {
@@ -102,7 +104,9 @@ async function record({ locations, maxCalls, live, out, apiKey, fetchImpl, log =
       location: { id: location.id, label: location.label, type: location.type }, origin: location.origin,
       radius: location.radius, calls }, null, 2)}\n`);
     files.push(file);
-    log(`${location.id}: ${calls.length} calls, ${calls.filter(call => call.status !== 200).length} failed.`);
+    const limited = calls.filter(call => call.status === 429).length;
+    log(`${location.id}: ${calls.length} calls, ${calls.filter(call => call.status !== 200).length} failed` +
+      `${limited ? `, ${limited} rate-limited` : ''}.`);
   }
   log(`Done: ${budget.used} HERE calls used of ${maxCalls}.`);
   return { planned, used: budget.used, files };
