@@ -273,7 +273,8 @@ test('account deletion removes memberships, ballots, hosted rooms, receipts and 
   const { roomId, joinCode } = await room(await user(true, true));
   for (const member of [guest, other]) assert.equal((await join(joinCode, member)).status, 200);
   assert.equal((await join(hosted.joinCode, guest)).status, 200);
-  await db.doc(`rooms/${roomId}`).update({ status: 'voting' });
+  // Set up the way startRoom leaves a room, without its fixture deck.
+  await db.doc(`rooms/${roomId}`).update({ status: 'voting', votingEndsAt: Timestamp.fromMillis(Date.now() + 600000) });
   await db.doc(`rooms/${roomId}/candidates/fixture-pizza`).set({ title: 'Demo Pizza', order: 0, expiresAt: await expiryOf(roomId) });
   assert.equal((await vote(roomId, guest, 'fixture-pizza')).status, 200);
 

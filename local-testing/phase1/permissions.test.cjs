@@ -5,7 +5,7 @@ const { assertLocalEnvironment, PROJECT } = require('../support.cjs');
 const { authorize } = require('./authorization.cjs');
 assertLocalEnvironment(process.env);
 const fromFunctions = createRequire(require.resolve('../../functions/package.json'));
-const { Firestore, Timestamp } = fromFunctions('firebase-admin/firestore');
+const { Firestore, Timestamp, FieldValue } = fromFunctions('firebase-admin/firestore');
 const db = new Firestore({ projectId: PROJECT, host: '127.0.0.1:8080', ssl: false });
 const base = `http://127.0.0.1:8080/v1/projects/${PROJECT}/databases/(default)/documents`;
 // Unsigned claims are accepted ONLY by the emulator. They are not real logins.
@@ -33,7 +33,8 @@ beforeEach(async () => {
   const clear = await fetch(`http://127.0.0.1:8080/emulator/v1/projects/${PROJECT}/databases/(default)/documents`, { method: 'DELETE' });
   assert.equal(clear.status, 200);
   roomExpiry = Timestamp.fromMillis(Date.now()+3600000);
-  await db.doc('rooms/ROOM').set({ creator: 'host', status: 'voting', expiresAt: roomExpiry });
+  await db.doc('rooms/ROOM').set({ creator: 'host', status: 'voting', expiresAt: roomExpiry,
+    votingEndsAt: Timestamp.fromMillis(Date.now()+600000) });
   for (const uid of ['host', 'guest', 'other']) await db.doc(`rooms/ROOM/members/${uid}`).set({ active: true });
   await db.doc('rooms/ROOM/candidates/pizza').set({ title: 'Fictional Pizza' });
 });
@@ -104,6 +105,14 @@ test('ballots reject outsiders, unknown candidates, extra fields, missing fields
     { liked: { booleanValue: true } }, { liked: { booleanValue: true }, ...later }]) {
     assert.equal(await ballot('guest', fields), 403);
   }
+});
+test('ballots are refused once the voting window has passed, before anyone closes the room', async () => {
+  await db.doc('rooms/ROOM').update({ votingEndsAt: Timestamp.fromMillis(Date.now()-1000) });
+  assert.equal(await ballot('guest'), 403);
+  await db.doc('rooms/ROOM').update({ votingEndsAt: FieldValue.delete() });
+  assert.equal(await ballot('guest'), 403);
+  await db.doc('rooms/ROOM').update({ votingEndsAt: Timestamp.fromMillis(Date.now()+60000) });
+  assert.equal(await ballot('guest'), 200);
 });
 test('closed, lobby, expired and revoked membership prevent voting', async () => {
   for (const status of ['closed', 'lobby']) {

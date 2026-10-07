@@ -3,7 +3,7 @@
 // by the room callables. Clients write nothing but their own immutable ballots.
 //
 // rooms/{id}: creator, status (lobby | voting | closed), memberCount, joinCode
-//   (lobby only), expiresAt, results (after close)
+//   (lobby only), votingEndsAt (from start), expiresAt, results (after close)
 // rooms/{id}/members/{uid}: uid, active, expiresAt
 // rooms/{id}/candidates/{candidateId}: title, order, expiresAt
 // rooms/{id}/votes/{uid}/ballot/{candidateId}: liked, at, expiresAt
@@ -21,6 +21,12 @@ service cloud.firestore {
     }
     function live(room) {
       return roomDoc(room).data.expiresAt > request.time;
+    }
+    // The room stays 'voting' until someone asks for results, so the deadline
+    // has to be checked here as well.
+    function votingOpen(room) {
+      let data = roomDoc(room).data;
+      return data.status == 'voting' && 'votingEndsAt' in data && request.time < data.votingEndsAt;
     }
     function validBallot(room, data) {
       return data.keys().hasAll(['liked', 'at', 'expiresAt']) &&
@@ -42,7 +48,7 @@ service cloud.firestore {
       match /votes/{uid}/ballot/{candidateId} {
         allow read: if member(room) && live(room) && request.auth.uid == uid;
         allow create: if member(room) && live(room) && request.auth.uid == uid &&
-          roomDoc(room).data.status == 'voting' &&
+          votingOpen(room) &&
           exists(/databases/$(database)/documents/rooms/$(room)/candidates/$(candidateId)) &&
           validBallot(room, request.resource.data);
         // Votes are immutable; tallying and closing are server-owned.
