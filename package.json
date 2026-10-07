@@ -5,7 +5,7 @@
     "local": "node scripts/local.mjs start",
     "local:preview": "node scripts/local.mjs preview",
     "test:local": "node scripts/local.mjs test",
-    "test:unit": "node --test local-testing/unit.test.cjs local-testing/rooms-entry.test.cjs",
+    "test:unit": "node --test local-testing/unit.test.cjs local-testing/rooms-entry.test.cjs local-testing/search.test.cjs",
     "test:tooling": "node --test local-testing/tooling.test.cjs",
     "test:policy": "node scripts/local.mjs policy",
     "deploy:staging": "node scripts/deploy-staging.mjs"
