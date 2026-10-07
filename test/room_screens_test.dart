@@ -1,12 +1,14 @@
 import 'dart:async';
 
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:whatdoyouwant/models/restaurant.dart';
 import 'package:whatdoyouwant/models/user.dart';
 import 'package:whatdoyouwant/screens/join_screen.dart';
 import 'package:whatdoyouwant/screens/results_screen.dart';
+import 'package:whatdoyouwant/screens/room_screen.dart';
 import 'package:whatdoyouwant/screens/swipe_screen.dart';
 import 'package:whatdoyouwant/services/active_room_store.dart';
 import 'package:whatdoyouwant/services/callable_room_backend.dart';
@@ -18,6 +20,9 @@ class FakeRoomBackend implements RoomBackend {
   final room = StreamController<RoomState>.broadcast();
   final joined = <String>[];
   int closes = 0;
+  Object? createError;
+  Object? startError;
+  Object? voteError;
 
   @override
   final bool clientClosesRooms;
@@ -39,13 +44,14 @@ class FakeRoomBackend implements RoomBackend {
   @override
   Future<void> close(String roomId) async => closes++;
   @override
-  Future<CreatedRoom> createRoom() => throw UnimplementedError();
+  Future<CreatedRoom> createRoom() async =>
+      throw createError ?? UnimplementedError();
   @override
   Future<List<Restaurant>> start(
     String roomId, {
     required double radiusMiles,
     required int maxOptions,
-  }) => throw UnimplementedError();
+  }) async => throw startError ?? UnimplementedError();
   @override
   Future<void> vote(
     String roomId,
@@ -53,7 +59,9 @@ class FakeRoomBackend implements RoomBackend {
     required bool liked,
     required int index,
     required int total,
-  }) async {}
+  }) async {
+    if (voteError != null) throw voteError!;
+  }
 }
 
 final deck = [
@@ -201,6 +209,131 @@ void main() {
     expect(
       joinErrorMessage(Exception('offline')),
       startsWith('Could not join'),
+    );
+  });
+
+  testWidgets('a host who cannot create a room is told why in plain words', (
+    tester,
+  ) async {
+    final backend =
+        FakeRoomBackend()
+          ..createError = FirebaseFunctionsException(
+            code: 'permission-denied',
+            message: 'Room action unavailable.',
+          );
+    await tester.pumpWidget(
+      app(backend, RoomScreen(currentUser: AppUser(id: 'host', name: 'Host'))),
+    );
+    await tester.pump();
+    expect(
+      find.text(
+        'Only verified accounts can host a room. Open Account to sign in or verify your email.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Room action unavailable'), findsNothing);
+  });
+
+  testWidgets('a host whose room cannot start sees a plain message', (
+    tester,
+  ) async {
+    final backend =
+        FakeRoomBackend()
+          ..startError = FirebaseFunctionsException(
+            code: 'permission-denied',
+            message: 'Room action unavailable.',
+          );
+    await tester.pumpWidget(
+      app(
+        backend,
+        RoomScreen(
+          currentUser: AppUser(id: 'host', name: 'Host'),
+          roomCode: 'ROOM-ID',
+          joinCode: 'AB3K7X',
+        ),
+      ),
+    );
+    backend.room.add(state(status: 'lobby'));
+    await tester.pump();
+    await tester.ensureVisible(find.text('Start Swiping'));
+    await tester.tap(find.text('Start Swiping'));
+    await tester.pump();
+    expect(
+      find.text(
+        'This room can no longer be started. It may have expired or been closed.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a rejected vote is explained without the raw error', (
+    tester,
+  ) async {
+    final backend =
+        FakeRoomBackend()
+          ..voteError = FirebaseException(
+            plugin: 'cloud_firestore',
+            code: 'permission-denied',
+            message: 'Missing or insufficient permissions.',
+          );
+    await tester.pumpWidget(
+      app(
+        backend,
+        SwipeScreen(
+          roomCode: 'ROOM-ID',
+          currentUser: AppUser(id: 'guest', name: 'Guest'),
+          radius: 1,
+          maxOptions: 2,
+          restaurants: deck,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.timedDrag(
+      find.byType(Card).last,
+      const Offset(500, 0),
+      const Duration(milliseconds: 300),
+    );
+    // The countdown timer never settles; pump through the swipe animation.
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(
+      find.text(
+        'That vote was not counted. Voting may have ended for this room.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('insufficient permissions'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  test('room, start and vote failures map to plain messages', () {
+    FirebaseFunctionsException callable(String code) =>
+        FirebaseFunctionsException(code: code, message: 'raw');
+    expect(
+      createRoomErrorMessage(callable('resource-exhausted')),
+      startsWith('You have created several rooms recently.'),
+    );
+    expect(
+      createRoomErrorMessage(Exception('offline')),
+      'Could not create the room. Check your connection and try again.',
+    );
+    expect(
+      startRoomErrorMessage(callable('resource-exhausted')),
+      startsWith('Restaurant search is busy'),
+    );
+    expect(
+      startRoomErrorMessage(Exception('Failed to load restaurants: x')),
+      'Could not load restaurants. Check your connection and try again.',
+    );
+    expect(
+      voteErrorMessage(callable('unauthenticated')),
+      startsWith('This device could not be verified.'),
+    );
+    expect(
+      voteErrorMessage(Exception('offline')),
+      'Your vote could not be saved. Check your connection.',
     );
   });
 

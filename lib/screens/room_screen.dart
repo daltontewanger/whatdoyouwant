@@ -1,8 +1,41 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import '../services/room_backend.dart';
 import 'swipe_screen.dart';
 import '../models/user.dart';
+
+/// What to tell a host whose room could not be created. Covers both callable
+/// and Firestore errors; anything else gets the generic retry message.
+String createRoomErrorMessage(Object error) {
+  if (error is FirebaseException) {
+    switch (error.code) {
+      case 'permission-denied':
+        return 'Only verified accounts can host a room. Open Account to sign in or verify your email.';
+      case 'resource-exhausted':
+        return 'You have created several rooms recently. Wait a while and try again.';
+      case 'unauthenticated':
+        return 'This device could not be verified. Restart the app and try again.';
+    }
+  }
+  return 'Could not create the room. Check your connection and try again.';
+}
+
+/// What to tell a host whose room could not start voting.
+String startRoomErrorMessage(Object error) {
+  if (error is FirebaseException) {
+    switch (error.code) {
+      case 'permission-denied':
+      case 'not-found':
+        return 'This room can no longer be started. It may have expired or been closed.';
+      case 'resource-exhausted':
+        return 'Restaurant search is busy right now. Wait a minute and try again.';
+      case 'unauthenticated':
+        return 'This device could not be verified. Restart the app and try again.';
+    }
+  }
+  return 'Could not load restaurants. Check your connection and try again.';
+}
 
 class RoomScreen extends StatefulWidget {
   final bool isCreator;
@@ -71,7 +104,7 @@ class _RoomScreenState extends State<RoomScreen> {
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error creating room: $e')));
+      ).showSnackBar(SnackBar(content: Text(createRoomErrorMessage(e))));
     }
   }
 
@@ -162,7 +195,7 @@ class _RoomScreenState extends State<RoomScreen> {
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error fetching restaurants: $e')));
+      ).showSnackBar(SnackBar(content: Text(startRoomErrorMessage(e))));
     }
   }
 

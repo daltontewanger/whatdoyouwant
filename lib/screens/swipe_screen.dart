@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 import '../models/restaurant.dart';
@@ -7,6 +8,20 @@ import '../services/room_backend.dart';
 import 'results_screen.dart';
 
 const Color cardSwipeBackground = Color(0xFFE7F8F3);
+
+/// What to tell someone whose vote was not saved. Ballots are written straight
+/// to Firestore, so a rejection usually means voting closed for this room.
+String voteErrorMessage(Object error) {
+  if (error is FirebaseException) {
+    switch (error.code) {
+      case 'permission-denied':
+        return 'That vote was not counted. Voting may have ended for this room.';
+      case 'unauthenticated':
+        return 'This device could not be verified. Restart the app and try again.';
+    }
+  }
+  return 'Your vote could not be saved. Check your connection.';
+}
 
 class SwipeScreen extends StatefulWidget {
   final String roomCode;
@@ -164,7 +179,7 @@ class SwipeScreenState extends State<SwipeScreen> {
           if (!mounted || _isLeaving) return;
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text('Vote failed: $e')));
+          ).showSnackBar(SnackBar(content: Text(voteErrorMessage(e))));
         });
 
     if (mounted && !_isLeaving) setState(() {});
