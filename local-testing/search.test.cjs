@@ -1,5 +1,5 @@
-// Restaurant search layer: request contract, cuisine mapping, deck pipeline
-// and fake provider. No network.
+// Restaurant search layer: request contract, cuisine mapping, deck pipeline,
+// fake provider and the HERE adapter against synthetic fixtures. No network.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 require('./network-guard.cjs').installHttpGuard();
@@ -8,9 +8,28 @@ const { CUISINES, CUISINE_IDS, cuisinesFromHere, dietaryHintsFromHere } = requir
 const { buildDeck, distanceMeters, candidateId } = require('../rooms/search/deck');
 const { createFakeProvider } = require('../rooms/search/fake-provider');
 const { assertProvider, normalizedRestaurant, ProviderUnavailable } = require('../rooms/search/provider');
+const { createHereProvider, createHereTransport, normalizeHereItem, ENDPOINTS } = require('../rooms/search/here-provider');
 
 const ORIGIN = { lat: 38.5, lng: -98.5 };
 const request = (fields = {}) => parseSearchRequest({ origin: ORIGIN, radiusMeters: 5000, ...fields });
+const fixture = name => require(`./search/here-fixtures/${name}.json`);
+
+// Plays a fixture's responses back in order for matching endpoints and keeps a
+// log of what the adapter asked for.
+function replay(name) {
+  const queue = [...fixture(name).responses];
+  const calls = [];
+  const transport = async ({ endpoint, params }) => {
+    const kind = Object.keys(ENDPOINTS).find(key => ENDPOINTS[key] === endpoint);
+    calls.push({ kind, params });
+    const index = queue.findIndex(response => response.endpoint === kind);
+    if (index === -1) throw new Error(`No ${kind} response left in ${name}.`);
+    const [response] = queue.splice(index, 1);
+    return { status: response.status, body: response.body };
+  };
+  return { transport, calls };
+}
+
 async function fakeDeck(fields = {}, seed = 'seed-1') {
   const parsed = request(fields);
   const { restaurants } = await createFakeProvider().searchNearby(parsed);
@@ -168,4 +187,104 @@ test('deck: duplicates collapse by provider ID, then by name and address or near
   assert.equal(candidates.find(c => c.providerPlaceId === 'p1')?.phone, '+15550100000', 'keeps the richer listing');
   assert.deepEqual([pool.invalid, pool.duplicates, pool.eligible, pool.sufficient], [1, 3, 2, false]);
   assert.match(candidateId(records[0]), /^c[0-9a-f]{20}$/);
+});
+
+test('HERE normalization: contract fields only, title stripped from the address, unknown stays unknown', () => {
+  const items = fixture('suburb').responses[0].body.items;
+  const slice = normalizeHereItem(items[0]);
+  assert.deepEqual(Object.keys(slice).sort(), ['address', 'attribution', 'categoryIds', 'chainId', 'cuisineIds',
+    'dietaryHints', 'distanceMetersFromOrigin', 'latitude', 'longitude', 'name', 'openStatus', 'phone', 'provider',
+    'providerPlaceId', 'website'].sort());
+  assert.equal(slice.address, '101 Synthetic Ave, Exampleton, KS 67000, United States');
+  assert.deepEqual(slice.cuisineIds, ['italian', 'pizza']);
+  assert.equal(slice.chainId, 'here:9001');
+  assert.equal(slice.openStatus, 'open');
+  assert.match(slice.website, /^https:\/\/example\.com\//);
+  const byName = name => normalizeHereItem(items.find(item => item.title === name));
+  assert.equal(byName('Taqueria Inventada').openStatus, 'closed');
+  assert.equal(byName('Sample Pho').openStatus, 'unknown');
+  assert.equal(byName('Dummy Diner').address, '114 Synthetic Ave, Exampleton, KS 67000, United States');
+  assert.deepEqual(byName('Untyped Eatery').cuisineIds, []);
+  assert.equal(byName('Untyped Eatery').phone, null);
+  assert.deepEqual(byName('Test Kitchen Curry').dietaryHints, ['vegetarian']);
+  assert.equal(normalizeHereItem(items.find(item => item.resultType === 'locality')), null);
+  assert.equal(normalizeHereItem({ ...items[0], contacts: [{ www: [{ value: 'javascript:alert(1)' }] }] }).website, null);
+});
+
+test('HERE one-circle: one browse call when the pool is healthy, with no key or free text in it', async () => {
+  const { transport, calls } = replay('suburb');
+  const parsed = request({ includedCuisineIds: ['thai'] });
+  const result = await createHereProvider({ transport }).searchNearby(parsed);
+  assert.equal(result.providerCalls, 1);
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0], { kind: 'browse', params: { at: '38.5,-98.5', in: 'circle:38.5,-98.5;r=5000',
+    categories: '100-1000', limit: 100 } });
+  const { candidates, pool } = buildDeck(result.restaurants, parsed, { seed: 'here-1' });
+  assert.equal(candidates[0].name, 'Stub Thai');
+  assert.equal(pool.outOfRadius, 1);
+  assert.ok(pool.sufficient);
+  assert.equal(new Set(candidates.map(c => c.chainId).filter(Boolean)).size,
+    candidates.filter(c => c.chainId).length);
+});
+
+test('HERE one-circle: a thin first answer triggers one discover fallback, and overlaps collapse', async () => {
+  const { transport, calls } = replay('suburb');
+  const result = await createHereProvider({ transport, fallbackBelow: 25 }).searchNearby(request({ deckSize: 20 }));
+  assert.deepEqual(calls.map(call => call.kind), ['browse', 'discover']);
+  assert.deepEqual(calls[1].params, { in: 'circle:38.5,-98.5;r=5000', q: 'restaurant', limit: 100 });
+  assert.equal(result.providerCalls, 2);
+  const { pool } = buildDeck(result.restaurants, request({ deckSize: 20 }), { seed: 'here-1' });
+  assert.equal(pool.duplicates, 2, 'the repeated ID and the twin listing');
+});
+
+test('HERE one-circle: a rural area falls back and still reports an insufficient pool', async () => {
+  const { transport } = replay('sparse');
+  const parsed = request({ radiusMeters: 8000 });
+  const result = await createHereProvider({ transport }).searchNearby(parsed);
+  assert.equal(result.providerCalls, 2);
+  const { pool } = buildDeck(result.restaurants, parsed, { seed: 'rural' });
+  assert.equal(pool.sufficient, false);
+  assert.equal(pool.eligible, 4);
+});
+
+test('HERE failures count every call; a total failure raises ProviderUnavailable', async () => {
+  const { transport } = replay('browse-fails');
+  const partial = await createHereProvider({ transport }).searchNearby(request());
+  assert.deepEqual([partial.providerCalls, partial.failedCalls], [2, 1]);
+  assert.ok(partial.restaurants.length > 0);
+
+  const down = createHereProvider({ transport: async () => { throw new Error('timeout'); } });
+  await assert.rejects(down.searchNearby(request()), error => error instanceof ProviderUnavailable &&
+    error.providerCalls === 2);
+  const malformed = createHereProvider({ transport: async () => ({ status: 200, body: { nope: true } }) });
+  await assert.rejects(malformed.searchNearby(request()), ProviderUnavailable);
+});
+
+test('HERE multi-center: the production layout costs four calls and mostly lands outside the circle', async () => {
+  const { transport, calls } = replay('multi-center');
+  const result = await createHereProvider({ transport, strategy: 'multi-center' }).searchNearby(request());
+  assert.equal(result.providerCalls, 4);
+  assert.ok(calls.every(call => call.kind === 'discover' && call.params.q === 'restaurant' && !call.params.in));
+  const { pool } = buildDeck(result.restaurants, request(), { seed: 'm' });
+  assert.equal(pool.outOfRadius, 8);
+  assert.equal(pool.duplicates, 18);
+  assert.equal(assertProvider(createHereProvider({ transport, strategy: 'multi-center' })).maxCallsPerSearch, 4);
+});
+
+test('HERE transport: key only in the outgoing URL, bounded by a timeout, error bodies dropped', async () => {
+  const seen = [];
+  const fetchImpl = async (url, options) => {
+    seen.push({ url: String(url), signal: options.signal });
+    return url.pathname.includes('browse')
+      ? { ok: true, status: 200, json: async () => ({ items: [] }) }
+      : { ok: false, status: 401, json: async () => ({ error: 'echo of the key' }) };
+  };
+  const transport = createHereTransport({ apiKey: 'test-key', fetchImpl });
+  const ok = await transport({ endpoint: ENDPOINTS.browse, params: { at: '1,2', limit: 100 } });
+  assert.deepEqual(ok, { status: 200, body: { items: [] } });
+  assert.match(seen[0].url, /^https:\/\/browse\.search\.hereapi\.com\/v1\/browse\?at=1%2C2&limit=100&apiKey=test-key$/);
+  assert.ok(seen[0].signal instanceof AbortSignal);
+  assert.deepEqual(await transport({ endpoint: ENDPOINTS.discover, params: {} }), { status: 401, body: null });
+  await assert.rejects(transport({ endpoint: 'https://example.com/steal', params: {} }), /Unexpected HERE endpoint/);
+  assert.throws(() => createHereTransport({ apiKey: '' }), /key is required/);
 });

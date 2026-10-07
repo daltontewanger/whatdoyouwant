@@ -1,0 +1,1943 @@
+{
+  "synthetic": true,
+  "description": "Four discover calls in the production layout, heavy overlap and many places outside the circle.",
+  "origin": {
+    "lat": 38.5,
+    "lng": -98.5
+  },
+  "radiusMeters": 5000,
+  "responses": [
+    {
+      "endpoint": "discover",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "title": "Synthetic Slice",
+            "id": "here:pds:place:840synthetic0001",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Synthetic Slice, 101 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "101"
+            },
+            "position": {
+              "lat": 38.502654,
+              "lng": -98.499402
+            },
+            "access": [
+              {
+                "lat": 38.502654,
+                "lng": -98.499402
+              }
+            ],
+            "distance": 300,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "800-057",
+                "name": "Pizza",
+                "primary": true
+              },
+              {
+                "id": "304-000",
+                "name": "Italian",
+                "primary": false
+              }
+            ],
+            "chains": [
+              {
+                "id": "9001",
+                "name": "Synthetic Slice"
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100001"
+                  }
+                ],
+                "www": [
+                  {
+                    "value": "https://example.com/synthetic-slice"
+                  }
+                ]
+              }
+            ],
+            "openingHours": [
+              {
+                "text": [
+                  "Mon-Sun: 11:00 - 22:00"
+                ],
+                "isOpen": true
+              }
+            ]
+          },
+          {
+            "title": "Synthetic Slice",
+            "id": "here:pds:place:840synthetic0002",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Synthetic Slice, 102 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "102"
+            },
+            "position": {
+              "lat": 38.467079,
+              "lng": -98.515311
+            },
+            "access": [
+              {
+                "lat": 38.467079,
+                "lng": -98.515311
+              }
+            ],
+            "distance": 3900,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "800-057",
+                "name": "Pizza",
+                "primary": true
+              }
+            ],
+            "chains": [
+              {
+                "id": "9001",
+                "name": "Synthetic Slice"
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100002"
+                  }
+                ]
+              }
+            ],
+            "openingHours": [
+              {
+                "text": [
+                  "Mon-Sun: 11:00 - 22:00"
+                ],
+                "isOpen": true
+              }
+            ]
+          },
+          {
+            "title": "Casa Ficticia",
+            "id": "here:pds:place:840synthetic0003",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Casa Ficticia, 103 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "103"
+            },
+            "position": {
+              "lat": 38.5,
+              "lng": -98.490817
+            },
+            "access": [
+              {
+                "lat": 38.5,
+                "lng": -98.490817
+              }
+            ],
+            "distance": 800,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "102-000",
+                "name": "Mexican",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100003"
+                  }
+                ]
+              }
+            ],
+            "openingHours": [
+              {
+                "text": [
+                  "Mon-Sun: 11:00 - 22:00"
+                ],
+                "isOpen": true
+              }
+            ]
+          },
+          {
+            "title": "Taqueria Inventada",
+            "id": "here:pds:place:840synthetic0004",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Taqueria Inventada, 104 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "104"
+            },
+            "position": {
+              "lat": 38.493263,
+              "lng": -98.485089
+            },
+            "access": [
+              {
+                "lat": 38.493263,
+                "lng": -98.485089
+              }
+            ],
+            "distance": 1500,
+            "categories": [
+              {
+                "id": "100-1000-0005",
+                "name": "Taqueria",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "102-005",
+                "name": "Mexican-Yucateca",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100004"
+                  }
+                ]
+              }
+            ],
+            "openingHours": [
+              {
+                "text": [
+                  "Mon-Sun: 11:00 - 22:00"
+                ],
+                "isOpen": false
+              }
+            ]
+          },
+          {
+            "title": "Golden Placeholder",
+            "id": "here:pds:place:840synthetic0005",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Golden Placeholder, 105 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "105"
+            },
+            "position": {
+              "lat": 38.49243,
+              "lng": -98.491884
+            },
+            "access": [
+              {
+                "lat": 38.49243,
+                "lng": -98.491884
+              }
+            ],
+            "distance": 1100,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "201-010",
+                "name": "Chinese-Cantonese",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100005"
+                  }
+                ]
+              }
+            ],
+            "openingHours": [
+              {
+                "text": [
+                  "Mon-Sun: 11:00 - 22:00"
+                ],
+                "isOpen": true
+              }
+            ]
+          },
+          {
+            "title": "Noodle Fixture",
+            "id": "here:pds:place:840synthetic0006",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Noodle Fixture, 106 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "106"
+            },
+            "position": {
+              "lat": 38.478052,
+              "lng": -98.489793
+            },
+            "access": [
+              {
+                "lat": 38.478052,
+                "lng": -98.489793
+              }
+            ],
+            "distance": 2600,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "201-055",
+                "name": "Chinese-Hot Pot",
+                "primary": true
+              },
+              {
+                "id": "800-085",
+                "name": "Noodles",
+                "primary": false
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100006"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Far Side Diner 0",
+            "id": "here:pds:place:840synthetic0201",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Far Side Diner 0, 301 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "301"
+            },
+            "position": {
+              "lat": 38.571865,
+              "lng": -98.5
+            },
+            "access": [
+              {
+                "lat": 38.571865,
+                "lng": -98.5
+              }
+            ],
+            "distance": 8000,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "101-000",
+                "name": "American",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100201"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Far Side Pizza 0",
+            "id": "here:pds:place:840synthetic0202",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Far Side Pizza 0, 302 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "302"
+            },
+            "position": {
+              "lat": 38.584043,
+              "lng": -98.481065
+            },
+            "access": [
+              {
+                "lat": 38.584043,
+                "lng": -98.481065
+              }
+            ],
+            "distance": 9500,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "800-057",
+                "name": "Pizza",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100202"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "endpoint": "discover",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "title": "Synthetic Slice",
+            "id": "here:pds:place:840synthetic0001",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Synthetic Slice, 101 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "101"
+            },
+            "position": {
+              "lat": 38.502654,
+              "lng": -98.499402
+            },
+            "access": [
+              {
+                "lat": 38.502654,
+                "lng": -98.499402
+              }
+            ],
+            "distance": 300,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "800-057",
+                "name": "Pizza",
+                "primary": true
+              },
+              {
+                "id": "304-000",
+                "name": "Italian",
+                "primary": false
+              }
+            ],
+            "chains": [
+              {
+                "id": "9001",
+                "name": "Synthetic Slice"
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100001"
+                  }
+                ],
+                "www": [
+                  {
+                    "value": "https://example.com/synthetic-slice"
+                  }
+                ]
+              }
+            ],
+            "openingHours": [
+              {
+                "text": [
+                  "Mon-Sun: 11:00 - 22:00"
+                ],
+                "isOpen": true
+              }
+            ]
+          },
+          {
+            "title": "Synthetic Slice",
+            "id": "here:pds:place:840synthetic0002",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Synthetic Slice, 102 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "102"
+            },
+            "position": {
+              "lat": 38.467079,
+              "lng": -98.515311
+            },
+            "access": [
+              {
+                "lat": 38.467079,
+                "lng": -98.515311
+              }
+            ],
+            "distance": 3900,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "800-057",
+                "name": "Pizza",
+                "primary": true
+              }
+            ],
+            "chains": [
+              {
+                "id": "9001",
+                "name": "Synthetic Slice"
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100002"
+                  }
+                ]
+              }
+            ],
+            "openingHours": [
+              {
+                "text": [
+                  "Mon-Sun: 11:00 - 22:00"
+                ],
+                "isOpen": true
+              }
+            ]
+          },
+          {
+            "title": "Casa Ficticia",
+            "id": "here:pds:place:840synthetic0003",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Casa Ficticia, 103 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "103"
+            },
+            "position": {
+              "lat": 38.5,
+              "lng": -98.490817
+            },
+            "access": [
+              {
+                "lat": 38.5,
+                "lng": -98.490817
+              }
+            ],
+            "distance": 800,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "102-000",
+                "name": "Mexican",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100003"
+                  }
+                ]
+              }
+            ],
+            "openingHours": [
+              {
+                "text": [
+                  "Mon-Sun: 11:00 - 22:00"
+                ],
+                "isOpen": true
+              }
+            ]
+          },
+          {
+            "title": "Taqueria Inventada",
+            "id": "here:pds:place:840synthetic0004",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Taqueria Inventada, 104 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "104"
+            },
+            "position": {
+              "lat": 38.493263,
+              "lng": -98.485089
+            },
+            "access": [
+              {
+                "lat": 38.493263,
+                "lng": -98.485089
+              }
+            ],
+            "distance": 1500,
+            "categories": [
+              {
+                "id": "100-1000-0005",
+                "name": "Taqueria",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "102-005",
+                "name": "Mexican-Yucateca",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100004"
+                  }
+                ]
+              }
+            ],
+            "openingHours": [
+              {
+                "text": [
+                  "Mon-Sun: 11:00 - 22:00"
+                ],
+                "isOpen": false
+              }
+            ]
+          },
+          {
+            "title": "Golden Placeholder",
+            "id": "here:pds:place:840synthetic0005",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Golden Placeholder, 105 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "105"
+            },
+            "position": {
+              "lat": 38.49243,
+              "lng": -98.491884
+            },
+            "access": [
+              {
+                "lat": 38.49243,
+                "lng": -98.491884
+              }
+            ],
+            "distance": 1100,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "201-010",
+                "name": "Chinese-Cantonese",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100005"
+                  }
+                ]
+              }
+            ],
+            "openingHours": [
+              {
+                "text": [
+                  "Mon-Sun: 11:00 - 22:00"
+                ],
+                "isOpen": true
+              }
+            ]
+          },
+          {
+            "title": "Noodle Fixture",
+            "id": "here:pds:place:840synthetic0006",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Noodle Fixture, 106 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "106"
+            },
+            "position": {
+              "lat": 38.478052,
+              "lng": -98.489793
+            },
+            "access": [
+              {
+                "lat": 38.478052,
+                "lng": -98.489793
+              }
+            ],
+            "distance": 2600,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "201-055",
+                "name": "Chinese-Hot Pot",
+                "primary": true
+              },
+              {
+                "id": "800-085",
+                "name": "Noodles",
+                "primary": false
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100006"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Far Side Diner 180",
+            "id": "here:pds:place:840synthetic0203",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Far Side Diner 180, 303 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "303"
+            },
+            "position": {
+              "lat": 38.428135,
+              "lng": -98.5
+            },
+            "access": [
+              {
+                "lat": 38.428135,
+                "lng": -98.5
+              }
+            ],
+            "distance": 8000,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "101-000",
+                "name": "American",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100203"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Far Side Pizza 180",
+            "id": "here:pds:place:840synthetic0204",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Far Side Pizza 180, 304 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "304"
+            },
+            "position": {
+              "lat": 38.415957,
+              "lng": -98.518935
+            },
+            "access": [
+              {
+                "lat": 38.415957,
+                "lng": -98.518935
+              }
+            ],
+            "distance": 9500,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "800-057",
+                "name": "Pizza",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100204"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "endpoint": "discover",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "title": "Synthetic Slice",
+            "id": "here:pds:place:840synthetic0001",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Synthetic Slice, 101 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "101"
+            },
+            "position": {
+              "lat": 38.502654,
+              "lng": -98.499402
+            },
+            "access": [
+              {
+                "lat": 38.502654,
+                "lng": -98.499402
+              }
+            ],
+            "distance": 300,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "800-057",
+                "name": "Pizza",
+                "primary": true
+              },
+              {
+                "id": "304-000",
+                "name": "Italian",
+                "primary": false
+              }
+            ],
+            "chains": [
+              {
+                "id": "9001",
+                "name": "Synthetic Slice"
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100001"
+                  }
+                ],
+                "www": [
+                  {
+                    "value": "https://example.com/synthetic-slice"
+                  }
+                ]
+              }
+            ],
+            "openingHours": [
+              {
+                "text": [
+                  "Mon-Sun: 11:00 - 22:00"
+                ],
+                "isOpen": true
+              }
+            ]
+          },
+          {
+            "title": "Synthetic Slice",
+            "id": "here:pds:place:840synthetic0002",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Synthetic Slice, 102 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "102"
+            },
+            "position": {
+              "lat": 38.467079,
+              "lng": -98.515311
+            },
+            "access": [
+              {
+                "lat": 38.467079,
+                "lng": -98.515311
+              }
+            ],
+            "distance": 3900,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "800-057",
+                "name": "Pizza",
+                "primary": true
+              }
+            ],
+            "chains": [
+              {
+                "id": "9001",
+                "name": "Synthetic Slice"
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100002"
+                  }
+                ]
+              }
+            ],
+            "openingHours": [
+              {
+                "text": [
+                  "Mon-Sun: 11:00 - 22:00"
+                ],
+                "isOpen": true
+              }
+            ]
+          },
+          {
+            "title": "Casa Ficticia",
+            "id": "here:pds:place:840synthetic0003",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Casa Ficticia, 103 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "103"
+            },
+            "position": {
+              "lat": 38.5,
+              "lng": -98.490817
+            },
+            "access": [
+              {
+                "lat": 38.5,
+                "lng": -98.490817
+              }
+            ],
+            "distance": 800,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "102-000",
+                "name": "Mexican",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100003"
+                  }
+                ]
+              }
+            ],
+            "openingHours": [
+              {
+                "text": [
+                  "Mon-Sun: 11:00 - 22:00"
+                ],
+                "isOpen": true
+              }
+            ]
+          },
+          {
+            "title": "Taqueria Inventada",
+            "id": "here:pds:place:840synthetic0004",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Taqueria Inventada, 104 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "104"
+            },
+            "position": {
+              "lat": 38.493263,
+              "lng": -98.485089
+            },
+            "access": [
+              {
+                "lat": 38.493263,
+                "lng": -98.485089
+              }
+            ],
+            "distance": 1500,
+            "categories": [
+              {
+                "id": "100-1000-0005",
+                "name": "Taqueria",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "102-005",
+                "name": "Mexican-Yucateca",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100004"
+                  }
+                ]
+              }
+            ],
+            "openingHours": [
+              {
+                "text": [
+                  "Mon-Sun: 11:00 - 22:00"
+                ],
+                "isOpen": false
+              }
+            ]
+          },
+          {
+            "title": "Golden Placeholder",
+            "id": "here:pds:place:840synthetic0005",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Golden Placeholder, 105 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "105"
+            },
+            "position": {
+              "lat": 38.49243,
+              "lng": -98.491884
+            },
+            "access": [
+              {
+                "lat": 38.49243,
+                "lng": -98.491884
+              }
+            ],
+            "distance": 1100,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "201-010",
+                "name": "Chinese-Cantonese",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100005"
+                  }
+                ]
+              }
+            ],
+            "openingHours": [
+              {
+                "text": [
+                  "Mon-Sun: 11:00 - 22:00"
+                ],
+                "isOpen": true
+              }
+            ]
+          },
+          {
+            "title": "Noodle Fixture",
+            "id": "here:pds:place:840synthetic0006",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Noodle Fixture, 106 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "106"
+            },
+            "position": {
+              "lat": 38.478052,
+              "lng": -98.489793
+            },
+            "access": [
+              {
+                "lat": 38.478052,
+                "lng": -98.489793
+              }
+            ],
+            "distance": 2600,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "201-055",
+                "name": "Chinese-Hot Pot",
+                "primary": true
+              },
+              {
+                "id": "800-085",
+                "name": "Noodles",
+                "primary": false
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100006"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Far Side Diner 90",
+            "id": "here:pds:place:840synthetic0205",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Far Side Diner 90, 305 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "305"
+            },
+            "position": {
+              "lat": 38.5,
+              "lng": -98.408173
+            },
+            "access": [
+              {
+                "lat": 38.5,
+                "lng": -98.408173
+              }
+            ],
+            "distance": 8000,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "101-000",
+                "name": "American",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100205"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Far Side Pizza 90",
+            "id": "here:pds:place:840synthetic0206",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Far Side Pizza 90, 306 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "306"
+            },
+            "position": {
+              "lat": 38.485181,
+              "lng": -98.392612
+            },
+            "access": [
+              {
+                "lat": 38.485181,
+                "lng": -98.392612
+              }
+            ],
+            "distance": 9500,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "800-057",
+                "name": "Pizza",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100206"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "endpoint": "discover",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "title": "Synthetic Slice",
+            "id": "here:pds:place:840synthetic0001",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Synthetic Slice, 101 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "101"
+            },
+            "position": {
+              "lat": 38.502654,
+              "lng": -98.499402
+            },
+            "access": [
+              {
+                "lat": 38.502654,
+                "lng": -98.499402
+              }
+            ],
+            "distance": 300,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "800-057",
+                "name": "Pizza",
+                "primary": true
+              },
+              {
+                "id": "304-000",
+                "name": "Italian",
+                "primary": false
+              }
+            ],
+            "chains": [
+              {
+                "id": "9001",
+                "name": "Synthetic Slice"
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100001"
+                  }
+                ],
+                "www": [
+                  {
+                    "value": "https://example.com/synthetic-slice"
+                  }
+                ]
+              }
+            ],
+            "openingHours": [
+              {
+                "text": [
+                  "Mon-Sun: 11:00 - 22:00"
+                ],
+                "isOpen": true
+              }
+            ]
+          },
+          {
+            "title": "Synthetic Slice",
+            "id": "here:pds:place:840synthetic0002",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Synthetic Slice, 102 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "102"
+            },
+            "position": {
+              "lat": 38.467079,
+              "lng": -98.515311
+            },
+            "access": [
+              {
+                "lat": 38.467079,
+                "lng": -98.515311
+              }
+            ],
+            "distance": 3900,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "800-057",
+                "name": "Pizza",
+                "primary": true
+              }
+            ],
+            "chains": [
+              {
+                "id": "9001",
+                "name": "Synthetic Slice"
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100002"
+                  }
+                ]
+              }
+            ],
+            "openingHours": [
+              {
+                "text": [
+                  "Mon-Sun: 11:00 - 22:00"
+                ],
+                "isOpen": true
+              }
+            ]
+          },
+          {
+            "title": "Casa Ficticia",
+            "id": "here:pds:place:840synthetic0003",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Casa Ficticia, 103 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "103"
+            },
+            "position": {
+              "lat": 38.5,
+              "lng": -98.490817
+            },
+            "access": [
+              {
+                "lat": 38.5,
+                "lng": -98.490817
+              }
+            ],
+            "distance": 800,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "102-000",
+                "name": "Mexican",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100003"
+                  }
+                ]
+              }
+            ],
+            "openingHours": [
+              {
+                "text": [
+                  "Mon-Sun: 11:00 - 22:00"
+                ],
+                "isOpen": true
+              }
+            ]
+          },
+          {
+            "title": "Taqueria Inventada",
+            "id": "here:pds:place:840synthetic0004",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Taqueria Inventada, 104 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "104"
+            },
+            "position": {
+              "lat": 38.493263,
+              "lng": -98.485089
+            },
+            "access": [
+              {
+                "lat": 38.493263,
+                "lng": -98.485089
+              }
+            ],
+            "distance": 1500,
+            "categories": [
+              {
+                "id": "100-1000-0005",
+                "name": "Taqueria",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "102-005",
+                "name": "Mexican-Yucateca",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100004"
+                  }
+                ]
+              }
+            ],
+            "openingHours": [
+              {
+                "text": [
+                  "Mon-Sun: 11:00 - 22:00"
+                ],
+                "isOpen": false
+              }
+            ]
+          },
+          {
+            "title": "Golden Placeholder",
+            "id": "here:pds:place:840synthetic0005",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Golden Placeholder, 105 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "105"
+            },
+            "position": {
+              "lat": 38.49243,
+              "lng": -98.491884
+            },
+            "access": [
+              {
+                "lat": 38.49243,
+                "lng": -98.491884
+              }
+            ],
+            "distance": 1100,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "201-010",
+                "name": "Chinese-Cantonese",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100005"
+                  }
+                ]
+              }
+            ],
+            "openingHours": [
+              {
+                "text": [
+                  "Mon-Sun: 11:00 - 22:00"
+                ],
+                "isOpen": true
+              }
+            ]
+          },
+          {
+            "title": "Noodle Fixture",
+            "id": "here:pds:place:840synthetic0006",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Noodle Fixture, 106 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "106"
+            },
+            "position": {
+              "lat": 38.478052,
+              "lng": -98.489793
+            },
+            "access": [
+              {
+                "lat": 38.478052,
+                "lng": -98.489793
+              }
+            ],
+            "distance": 2600,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "201-055",
+                "name": "Chinese-Hot Pot",
+                "primary": true
+              },
+              {
+                "id": "800-085",
+                "name": "Noodles",
+                "primary": false
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100006"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Far Side Diner 270",
+            "id": "here:pds:place:840synthetic0207",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Far Side Diner 270, 307 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "307"
+            },
+            "position": {
+              "lat": 38.5,
+              "lng": -98.591827
+            },
+            "access": [
+              {
+                "lat": 38.5,
+                "lng": -98.591827
+              }
+            ],
+            "distance": 8000,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "101-000",
+                "name": "American",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100207"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Far Side Pizza 270",
+            "id": "here:pds:place:840synthetic0208",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Far Side Pizza 270, 308 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "308"
+            },
+            "position": {
+              "lat": 38.514819,
+              "lng": -98.607388
+            },
+            "access": [
+              {
+                "lat": 38.514819,
+                "lng": -98.607388
+              }
+            ],
+            "distance": 9500,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "800-057",
+                "name": "Pizza",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100208"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
