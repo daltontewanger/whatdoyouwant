@@ -145,6 +145,10 @@ void main() {
             'name': 'Demo Pizza',
             'address': '1 Example Street',
             'distanceMeters': 1609,
+            'latitude': 38.5,
+            'longitude': -98.5,
+            'phone': '+15550100001',
+            'website': 'https://example.com',
           },
           {'id': 'c2', 'order': 1, 'name': 'Demo Kitchen', 'address': null},
         ],
@@ -155,6 +159,11 @@ void main() {
       );
       expect(cards[0].distance, closeTo(1.0, 0.001));
       expect(cards[1].distance, 0);
+      expect(
+        (cards[0].latitude, cards[0].longitude, cards[0].phone),
+        (38.5, -98.5, '+15550100001'),
+      );
+      expect((cards[1].latitude, cards[1].website), (null, null));
     });
 
     test('the start search rounds the location and sends offered values', () {

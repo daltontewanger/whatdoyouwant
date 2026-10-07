@@ -56,6 +56,10 @@ List<Restaurant> deckRestaurants(Map<String, dynamic> deck) => [
       name: raw['name'] as String,
       address: (raw['address'] as String?) ?? '',
       distance: ((raw['distanceMeters'] as num?) ?? 0) / _metersPerMile,
+      latitude: (raw['latitude'] as num?)?.toDouble(),
+      longitude: (raw['longitude'] as num?)?.toDouble(),
+      phone: raw['phone'] as String?,
+      website: raw['website'] as String?,
     ),
 ];
 
