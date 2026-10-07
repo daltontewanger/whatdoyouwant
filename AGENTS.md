@@ -26,8 +26,8 @@ Repository files and verified console evidence describe actual state. The playbo
 - `lib/environment_guard.dart`, `lib/firebase_options.dart`, `lib/firebase_options_staging.dart`, `lib/firebase_options_local.dart`: per-environment config and guards.
 - `lib/screens/`, `lib/services/`, `lib/models/`, `lib/themes/`: app UI and services (`setState` + `Navigator`, no state-management package). Screens use `RoomBackend` (`services/room_backend.dart`): `LegacyRoomBackend` in production, `CallableRoomBackend` in local/staging.
 - `functions/`: `fetchNearbyRestaurants` callable (`index.js`) and its handler (`search.js`), on Node 22 in production.
-- `rooms/`: room callables (create/join/start/close/results/revoke/rotate code/delete account) and a weekly idle-guest cleanup (`cleanup.js`). `handlers.js` holds the logic; `index.js` is the staging-only deployed entry (runs as `rooms-runtime`, App Check enforced); `firestore.rules` and `firestore.indexes.json` (TTL) serve both the emulators and staging. Separate from production `functions/`.
-- `local-testing/`: emulator harness and Node tests. `firestore.rules` is the open baseline copy; `phase1/` wires `rooms/` into the emulators (App Check off) and holds the rules, account and callable tests.
+- `rooms/`: room callables (create/join/start/close/results/revoke/rotate code/delete account) and a weekly idle-guest cleanup (`cleanup.js`). `handlers.js` holds the logic; `index.js` is the staging-only deployed entry (runs as `rooms-runtime`, App Check enforced); `firestore.rules` and `firestore.indexes.json` (TTL) serve both the emulators and staging. `search/` holds the restaurant search layer (request contract, cuisine whitelist, deck builder, fake provider, HERE adapter); `decks.js` shapes the stored `restaurantDecks`. Separate from production `functions/`.
+- `local-testing/`: emulator harness and Node tests. `firestore.rules` is the open baseline copy; `phase1/` wires `rooms/` into the emulators (App Check off) and holds the rules, account and callable tests. `search/` holds synthetic HERE fixtures and the search benchmark (`benchmark/record-here.cjs` makes live recordings only for an approved run).
 - `staging/`: staging client config, deny-all rollback rules, empty indexes. `app-check-debug.json` is a local secret and ignored.
 - `scripts/`: `local.mjs` (emulator launcher), `check-environments.mjs` (config preflight), PowerShell launchers.
 - `firebase.json` (production Functions), `firebase.emulators.json` (baseline emulators), `firebase.phase1.emulators.json` (room emulators), `firebase.staging.json` (staging Firestore rules/TTL, Auth, rooms Functions).
@@ -54,6 +54,7 @@ local scripts by default. The bypass applies only to that process.
 | Flutter tests | `flutter test --no-pub` |
 | Functions/emulator tests | `npm run test:unit`, `npm run test:local`, `npm run test:tooling` |
 | Firestore rules + callable tests | `npm run test:policy` |
+| Search benchmark (recorded or synthetic responses, no network) | `npm run benchmark:search` (`-- --recordings <dir>` for real recordings) |
 | Deploy rooms to staging (needs approval) | `npm run deploy:staging -- --confirm whatdoyouwant-staging` (add `--dry-run` first) |
 | Start emulators | `npm run local:preview` (room rules and callables; used by the app) or `npm run local` (legacy open-rules baseline, tests only) |
 | Run the app locally (web) | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-local-app.ps1` (needs `npm run local:preview`; serves on `localhost:5080` and opens the browser; `-WebPort` to change) |
