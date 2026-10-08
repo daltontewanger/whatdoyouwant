@@ -7,6 +7,14 @@
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "votingEndsAt", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "deckGenerations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "leaseExpiresAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [
@@ -23,6 +31,8 @@
     { "collectionGroup": "roomCodes", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "_requests", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "_limits", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "usageWeeks", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "deckGenerations", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     {
       "collectionGroup": "members",
       "fieldPath": "uid",

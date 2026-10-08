@@ -21,6 +21,10 @@ const handlers = createRoomHandlers({
     await auth.deleteUser(uid);
   },
 });
+// Live search fails closed without its config; the emulators start with a
+// generous one so the app can be tried straight away.
+db.doc('config/liveSearch').create({ enabled: true, weeklyCaps: { free: 20 }, monthlyCallStop: 27000 })
+  .catch(() => {});
 const options = { enforceAppCheck: false, cors: [/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/] };
 
 exports.roomsStatus = onCall(options, async () => ({ project: PROJECT, policy: 'rooms' }));

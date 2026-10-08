@@ -77,6 +77,7 @@ const deckOf = async roomId => {
 beforeEach(async () => {
   const response = await fetch(`http://127.0.0.1:8080/emulator/v1/projects/${PROJECT}/databases/(default)/documents`, { method: 'DELETE' });
   assert.equal(response.status, 200);
+  await db.doc('config/liveSearch').set({ enabled: true, weeklyCaps: { free: 20 }, monthlyCallStop: 27000 });
 });
 after(() => db.terminate());
 
@@ -324,7 +325,7 @@ test('sweep: closes rooms whose voting ran out unattended and deletes expired de
     candidateIds: [], candidates: [], expiresAt: Timestamp.fromMillis(Date.now() - 1000) });
 
   const first = await sweeper.sweep();
-  assert.deepEqual(first, { roomsClosed: 1, decksDeleted: 1 });
+  assert.deepEqual(first, { roomsClosed: 1, decksDeleted: 1, leasesSettled: 0 });
   const closed = (await db.doc(`rooms/${stale.roomId}`).get()).data();
   assert.equal(closed.status, 'closed');
   assert.equal(closed.results.winner, D[3]);
@@ -335,7 +336,7 @@ test('sweep: closes rooms whose voting ran out unattended and deletes expired de
 
   const staleDeck = (await db.doc(`rooms/${stale.roomId}`).get()).data().deckId;
   await db.doc(`restaurantDecks/${staleDeck}`).update({ expiresAt: Timestamp.fromMillis(Date.now() - 1000) });
-  assert.deepEqual(await sweeper.sweep(), { roomsClosed: 0, decksDeleted: 1 }, 'repeat runs are harmless');
+  assert.deepEqual(await sweeper.sweep(), { roomsClosed: 0, decksDeleted: 1, leasesSettled: 0 }, 'repeat runs are harmless');
   assert.equal((await readRoom(stale.roomId, guest)).status, 200, 'the result outlives the deck');
 });
 

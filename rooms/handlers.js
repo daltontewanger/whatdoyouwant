@@ -3,10 +3,10 @@
 const { randomBytes, randomInt, createHash } = require('node:crypto');
 const { authorize } = require('./authorization');
 const { parseSearchRequest, InvalidSearchRequest } = require('./search/request');
-const { buildDeck } = require('./search/deck');
 const { assertProvider } = require('./search/provider');
 const { createFakeProvider } = require('./search/fake-provider');
-const { deckDocument, resultCard } = require('./decks');
+const { resultCard } = require('./decks');
+const { createGeneration } = require('./generation');
 
 const ROOM_TTL_MS = 24 * 3600000;
 const VOTING_WINDOW_MS = 30 * 60000;
@@ -87,6 +87,9 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       return operation();
     }
   }
+
+  const generation = createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now, newSeed, log,
+    retryTransient });
 
   // startRoom takes the room and one search request. The search is parsed by
   // its own strict contract; its origin is used for this call and never kept.
@@ -233,52 +236,34 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       if (!authorize('create', actor)) deny();
       const { roomId, search } = startInput(request);
       await limit(actor.uid, 'start', 10, 60000);
-      // Check first, search outside any transaction, then commit only if the
-      // room is still waiting; a start that loses a race discards its deck.
-      const already = await db.runTransaction(async tx => {
-        const { state } = await memberView(tx, roomId, actor.uid);
-        if (state.creator !== actor.uid) deny();
-        if (state.status !== 'lobby') return startedView(roomId, state);
-        if (!authorize('start', actor, state, true)) deny();
-        return null;
-      }, { readOnly: true });
-      if (already) return already;
+      return generation.generateDeck({ uid: actor.uid, mode: 'room', targetId: roomId, search, target: {
+        async check(tx) {
+          const { room, snapshot, state } = await memberView(tx, roomId, actor.uid);
+          if (state.creator !== actor.uid) deny();
+          if (state.status !== 'lobby') return { done: startedView(roomId, state) };
+          if (!authorize('start', actor, state, true)) deny();
+          return { ready: { room, snapshot, state } };
+        },
+        commit(tx, deck, built, { room, snapshot, state }) {
+          const roomExpiry = snapshot.data().expiresAt.toMillis();
+          tx.update(room, { status: 'voting', deckId: deck.id, candidateCount: built.candidates.length,
+            joinCode: FieldValue.delete(), startedAt: FieldValue.serverTimestamp(),
+            votingEndsAt: expiry(VOTING_WINDOW_MS) });
+          if (state.joinCode) tx.delete(codeRef(state.joinCode));
+          return { view: { roomId, deckId: deck.id, candidateCount: built.candidates.length },
+            expiresAt: Timestamp.fromMillis(Math.min(roomExpiry, now() + VOTING_WINDOW_MS + DECK_AFTER_VOTING_MS)) };
+        },
+      } });
+    },
 
-      let result;
-      try {
-        result = await provider.searchNearby(search);
-      } catch (error) {
-        log({ event: 'search_failed', provider: provider.id, providerCalls: error?.providerCalls ?? null });
-        throw new HttpsError('unavailable', 'Restaurant search is unavailable.');
-      }
-      const seed = newSeed();
-      const built = buildDeck(result.restaurants, search, { seed });
-      // Nothing is stored for a pool too thin to vote on; the host is asked to
-      // widen the search instead.
-      if (!built.pool.sufficient) {
-        throw new HttpsError('failed-precondition', 'Too few restaurants match.',
-          { reason: 'too-few-results', eligible: built.pool.eligible, minimum: built.pool.minimum });
-      }
-      const deck = deckRef(randomBytes(12).toString('hex'));
-      const started = await db.runTransaction(async tx => {
-        const { room, snapshot, state } = await memberView(tx, roomId, actor.uid);
-        if (state.creator !== actor.uid) deny();
-        if (state.status !== 'lobby') return startedView(roomId, state);
-        if (!authorize('start', actor, state, true)) deny();
-        const roomExpiry = snapshot.data().expiresAt.toMillis();
-        const expiresAt = Timestamp.fromMillis(Math.min(roomExpiry, now() + VOTING_WINDOW_MS + DECK_AFTER_VOTING_MS));
-        tx.create(deck, deckDocument({ ownerUid: actor.uid, targetType: 'room', targetId: roomId, provider, result,
-          request: search, built, seed, expiresAt, generatedAt: FieldValue.serverTimestamp() }));
-        tx.update(room, { status: 'voting', deckId: deck.id, candidateCount: built.candidates.length,
-          joinCode: FieldValue.delete(), startedAt: FieldValue.serverTimestamp(),
-          votingEndsAt: expiry(VOTING_WINDOW_MS) });
-        if (state.joinCode) tx.delete(codeRef(state.joinCode));
-        return { roomId, deckId: deck.id, candidateCount: built.candidates.length };
-      });
-      // Counts only: no UID, location or restaurant names.
-      log({ event: 'deck_created', provider: provider.id, providerCalls: result.providerCalls,
-        eligible: built.pool.eligible, selected: built.pool.selected, kept: started.deckId === deck.id });
-      return started;
+    // Remaining live searches this week, when they reset, and whether live
+    // search is paused. Guests and unverified accounts cannot search at all.
+    async liveSearchStatus(request) {
+      const actor = identity(request);
+      input(request, {});
+      await limit(actor.uid, 'status', 30, 60000);
+      if (!authorize('create', actor)) return { eligible: false };
+      return { eligible: true, ...(await generation.allowance(actor.uid)) };
     },
 
     async closeRoom(request) {
@@ -316,7 +301,8 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
     },
 
     // Scheduled: closes rooms whose voting ended with nobody asking for results,
-    // then deletes expired decks. TTL deletion can lag by a day; this does not.
+    // deletes expired decks and settles deck generations that never finished.
+    // TTL deletion can lag by a day; this does not.
     async sweep() {
       let closed = 0;
       const stale = await db.collection('rooms').where('status', '==', 'voting')
@@ -339,8 +325,9 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
           await batch.commit();
         });
       }
-      log({ event: 'rooms_swept', roomsClosed: closed, decksDeleted: expired.size });
-      return { roomsClosed: closed, decksDeleted: expired.size };
+      const leasesSettled = await generation.reconcile();
+      log({ event: 'rooms_swept', roomsClosed: closed, decksDeleted: expired.size, leasesSettled });
+      return { roomsClosed: closed, decksDeleted: expired.size, leasesSettled };
     },
 
     async revokeMember(request) {
@@ -426,11 +413,14 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
           await batch.commit();
         });
       }
-      const receipts = await db.collection('_requests').where('uidHash', '==', digest(actor.uid)).get();
-      if (!receipts.empty) {
+      // Receipts, weekly usage and generation leases are tied to the person
+      // only through a hash of their UID.
+      for (const collection of ['_requests', 'usageWeeks', 'deckGenerations']) {
+        const records = await db.collection(collection).where('uidHash', '==', digest(actor.uid)).get();
+        if (records.empty) continue;
         await retryTransient(async () => {
           const batch = db.batch();
-          receipts.forEach(receipt => batch.delete(receipt.ref));
+          records.forEach(record => batch.delete(record.ref));
           await batch.commit();
         });
       }
@@ -447,6 +437,6 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
 }
 
 const CALLABLES = ['createRoom', 'joinRoom', 'startRoom', 'closeRoom', 'roomResults',
-  'revokeMember', 'rotateJoinCode', 'deleteAccount'];
+  'revokeMember', 'rotateJoinCode', 'deleteAccount', 'liveSearchStatus'];
 
 module.exports = { createRoomHandlers, CALLABLES, CODE_ALPHABET, CAPACITY };

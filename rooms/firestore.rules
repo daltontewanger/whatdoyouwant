@@ -1,6 +1,8 @@
 // Room data rules, used by the local emulators and the staging deployment.
 // Rooms, memberships, decks, join codes, receipts and limits are written only
 // by the room callables. Clients write nothing but their own immutable ballots.
+// Live-search config, weekly usage, the provider ledger, entitlements and deck
+// generation leases are server-only and fall to the final deny.
 //
 // rooms/{id}: creator, status (lobby | voting | closed), memberCount, joinCode
 //   (lobby only), deckId, candidateCount, votingEndsAt (from start), expiresAt,

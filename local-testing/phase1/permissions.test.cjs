@@ -85,6 +85,18 @@ test('clients cannot create rooms, transfer ownership, close rooms, forge member
     }
   }
 });
+test('quota, provider-usage and generation records are server-only, even for the person they count', async () => {
+  const records = ['/config/liveSearch', '/usageWeeks/host_2026-10-05', '/usageMonths/here_2026-10',
+    '/deckGenerations/room_ROOM', '/entitlements/host'];
+  for (const path of records) await db.doc(path.slice(1)).set({ enabled: true, used: 0 });
+  for (const uid of [undefined, 'host', 'guest']) {
+    for (const path of records) {
+      assert.equal(await request(path, 'GET', undefined, uid), 403, `${path} is not readable`);
+      assert.equal(await request(path, 'PATCH', { fields: { used: { integerValue: '99' } } }, uid), 403);
+      assert.equal(await request(path, 'DELETE', undefined, uid), 403);
+    }
+  }
+});
 test('anonymous member can submit and read an own ballot, but cannot rewrite or delete it', async () => {
   assert.equal(await ballot('guest'), 200);
   assert.equal(await request('/rooms/ROOM/votes/guest/ballot/pizza', 'GET', undefined, 'guest'), 200);

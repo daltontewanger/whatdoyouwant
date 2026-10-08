@@ -108,6 +108,6 @@ if (mode === 'unit') {
     '--config', configFile, '--project', 'demo-whatdoyouwant',
     '--only', 'auth,firestore,functions'];
   if (mode === 'test') args.push('node --test --test-concurrency=1 local-testing/unit.test.cjs local-testing/emulator.test.cjs');
-  if (mode === 'policy') args.push('node --test --test-concurrency=1 local-testing/phase1/permissions.test.cjs local-testing/phase1/accounts.test.cjs local-testing/phase1/endpoints.test.cjs');
+  if (mode === 'policy') args.push('node --test --test-concurrency=1 local-testing/phase1/permissions.test.cjs local-testing/phase1/accounts.test.cjs local-testing/phase1/endpoints.test.cjs local-testing/phase1/quota.test.cjs');
   run(args);
 }
