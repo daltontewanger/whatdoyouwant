@@ -14,7 +14,7 @@ Repository files and verified console evidence describe actual state. The playbo
 
 ## Current focus
 
-- Phase: 2 (Provider abstraction and search benchmark)
+- Phase: 2 (Provider abstraction and search benchmark), closed 2026-10-08; Phase 3 (quota and cost controls) next
 - Status doc: `docs/phase2-status.md`
 - Update this section when the phase changes.
 
