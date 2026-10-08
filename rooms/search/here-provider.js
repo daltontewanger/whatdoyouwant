@@ -23,8 +23,9 @@ const KEPT_HEADERS = ['cache-control', 'expires', 'retry-after', 'x-ratelimit-li
   'x-ratelimit-reset'];
 
 const STRATEGIES = Object.freeze({
-  // One circle-constrained browse, plus one discover only when the first
-  // result is too thin. Worst case two calls.
+  // One circle-constrained browse. The optional discover fallback (worst case
+  // two calls) is off by default: the 2026-10 benchmark showed it never grew a
+  // thin pool, so a deck costs exactly one call.
   'one-circle': { maxCalls: 2 },
   // Today's production search, kept for the benchmark comparison.
   'multi-center': { maxCalls: 4 },
@@ -86,16 +87,17 @@ function normalizeHereItem(item) {
  * @param {object} options
  * @param {(call: {endpoint: string, params: object}) => Promise<{status: number, body: any}>} options.transport
  * @param {'one-circle'|'multi-center'} [options.strategy]
- * @param {number} [options.fallbackBelow] Run the fallback when fewer in-radius places come back.
+ * @param {number} [options.fallbackBelow] Run the discover fallback when fewer in-radius places
+ *   come back; 0 (the default) never does.
  */
-function createHereProvider({ transport, strategy = 'one-circle', fallbackBelow = 15 }) {
+function createHereProvider({ transport, strategy = 'one-circle', fallbackBelow = 0 }) {
   if (typeof transport !== 'function') throw new Error('The HERE provider needs a transport.');
   if (!STRATEGIES[strategy]) throw new Error(`Unknown HERE strategy ${strategy}.`);
 
   return {
     id: 'here',
-    version: `1/${strategy}`,
-    maxCallsPerSearch: STRATEGIES[strategy].maxCalls,
+    version: `2/${strategy}${strategy === 'one-circle' && fallbackBelow > 0 ? `+fallback${fallbackBelow}` : ''}`,
+    maxCallsPerSearch: strategy === 'one-circle' && fallbackBelow <= 0 ? 1 : STRATEGIES[strategy].maxCalls,
 
     async searchNearby(request) {
       let providerCalls = 0;
@@ -121,7 +123,7 @@ function createHereProvider({ transport, strategy = 'one-circle', fallbackBelow 
         const primary = await call(ENDPOINTS.browse, { at, in: circle(request), categories: RESTAURANTS });
         const inRadius = items.filter(item => item?.resultType === 'place' && item.position &&
           distanceMeters(request.origin, item.position) <= request.radiusMeters).length;
-        if (!primary || inRadius < fallbackBelow) {
+        if (fallbackBelow > 0 && (!primary || inRadius < fallbackBelow)) {
           await call(ENDPOINTS.discover, { in: circle(request), q: 'restaurant' });
         }
       } else {

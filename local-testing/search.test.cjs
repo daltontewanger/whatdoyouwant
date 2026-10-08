@@ -220,7 +220,9 @@ test('HERE normalization: contract fields only, title stripped from the address,
 test('HERE one-circle: one browse call when the pool is healthy, with no key or free text in it', async () => {
   const { transport, calls } = replay('suburb');
   const parsed = request({ includedCuisineIds: ['thai'] });
-  const result = await createHereProvider({ transport }).searchNearby(parsed);
+  const provider = createHereProvider({ transport });
+  assert.equal(provider.maxCallsPerSearch, 1, 'the chosen strategy reserves exactly one call');
+  const result = await provider.searchNearby(parsed);
   assert.equal(result.providerCalls, 1);
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0], { kind: 'browse', params: { at: '38.5,-98.5', in: 'circle:38.5,-98.5;r=5000',
@@ -243,10 +245,15 @@ test('HERE one-circle: a thin first answer triggers one discover fallback, and o
   assert.equal(pool.duplicates, 2, 'the repeated ID and the twin listing');
 });
 
-test('HERE one-circle: a rural area falls back and still reports an insufficient pool', async () => {
-  const { transport } = replay('sparse');
+test('HERE one-circle: a thin rural answer stays one call by default and reports the short pool', async () => {
   const parsed = request({ radius: { value: 5, unit: 'mi' } });
-  const result = await createHereProvider({ transport }).searchNearby(parsed);
+  const single = await createHereProvider({ transport: replay('sparse').transport }).searchNearby(parsed);
+  assert.equal(single.providerCalls, 1);
+  assert.equal(buildDeck(single.restaurants, parsed, { seed: 'rural' }).pool.eligible, 3);
+  const { transport } = replay('sparse');
+  const withFallback = createHereProvider({ transport, fallbackBelow: 15 });
+  assert.equal(withFallback.maxCallsPerSearch, 2);
+  const result = await withFallback.searchNearby(parsed);
   assert.equal(result.providerCalls, 2);
   const { pool } = buildDeck(result.restaurants, parsed, { seed: 'rural' });
   assert.equal(pool.sufficient, false);
@@ -254,12 +261,14 @@ test('HERE one-circle: a rural area falls back and still reports an insufficient
 });
 
 test('HERE failures count every call; a total failure raises ProviderUnavailable', async () => {
+  await assert.rejects(createHereProvider({ transport: replay('browse-fails').transport }).searchNearby(request()),
+    error => error instanceof ProviderUnavailable && error.providerCalls === 1, 'no fallback: one failed call');
   const { transport } = replay('browse-fails');
-  const partial = await createHereProvider({ transport }).searchNearby(request());
+  const partial = await createHereProvider({ transport, fallbackBelow: 15 }).searchNearby(request());
   assert.deepEqual([partial.providerCalls, partial.failedCalls], [2, 1]);
   assert.ok(partial.restaurants.length > 0);
 
-  const down = createHereProvider({ transport: async () => { throw new Error('timeout'); } });
+  const down = createHereProvider({ transport: async () => { throw new Error('timeout'); }, fallbackBelow: 15 });
   await assert.rejects(down.searchNearby(request()), error => error instanceof ProviderUnavailable &&
     error.providerCalls === 2);
   const malformed = createHereProvider({ transport: async () => ({ status: 200, body: { nope: true } }) });
