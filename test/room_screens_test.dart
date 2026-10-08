@@ -31,7 +31,7 @@ class FakeRoomBackend implements RoomBackend {
   @override
   bool get requiresVerifiedHost => true;
   @override
-  bool get usesDeviceLocation => false;
+  bool usesDeviceLocation = false;
   @override
   bool get usesFictionalRestaurants => true;
 
@@ -49,6 +49,9 @@ class FakeRoomBackend implements RoomBackend {
   Future<void> close(String roomId) async => closes++;
   @override
   Future<LiveSearchAllowance?> liveSearchAllowance() async => null;
+  int prepared = 0;
+  @override
+  Future<void> prepareStart() async => prepared++;
   @override
   Future<CreatedRoom> createRoom() async =>
       throw createError ?? UnimplementedError();
@@ -278,6 +281,33 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('the host lobby gets the location ready once; guests do not', (
+    tester,
+  ) async {
+    final backend = FakeRoomBackend()..usesDeviceLocation = true;
+    Widget lobby({required bool host}) => app(
+      backend,
+      RoomScreen(
+        currentUser: AppUser(id: host ? 'host' : 'guest', name: 'Someone'),
+        isCreator: host,
+        roomCode: 'ROOM-ID',
+        joinCode: 'AB3K7X',
+      ),
+    );
+    await tester.pumpWidget(lobby(host: true));
+    backend.room.add(state(status: 'lobby'));
+    await tester.pump();
+    backend.room.add(state(status: 'lobby'));
+    await tester.pump();
+    expect(backend.prepared, 1);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(lobby(host: false));
+    await tester.pump();
+    expect(backend.prepared, 1);
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets('a rejected vote is explained without the raw error', (

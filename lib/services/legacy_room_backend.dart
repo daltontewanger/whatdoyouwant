@@ -98,6 +98,9 @@ class LegacyRoomBackend implements RoomBackend {
   @override
   Future<void> close(String roomId) => _rooms.closeRoom(roomId);
 
+  @override
+  Future<void> prepareStart() async {}
+
   // The original rooms have no weekly allowance.
   @override
   Future<LiveSearchAllowance?> liveSearchAllowance() async => null;

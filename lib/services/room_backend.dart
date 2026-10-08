@@ -118,6 +118,10 @@ abstract class RoomBackend {
     required int total,
   });
 
+  /// Gets ready to start while the host waits in the lobby, for example by
+  /// finding the device location. Never prompts the person.
+  Future<void> prepareStart();
+
   /// Lets the backend settle stragglers or close a finished room.
   Future<void> nudge(String roomId);
   Future<void> close(String roomId);

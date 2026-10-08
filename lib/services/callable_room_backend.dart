@@ -3,12 +3,14 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/restaurant.dart';
+import 'device_location.dart';
 import 'live_search.dart';
 import 'room_backend.dart';
+
+export 'device_location.dart' show SearchOrigin;
 
 /// Turns what someone typed into a join request: a six-character join code for
 /// new members, or the longer room ID that existing members reconnect with.
@@ -29,8 +31,6 @@ class InvalidJoinCode implements Exception {
 }
 
 const _metersPerMile = 1609.344;
-
-typedef SearchOrigin = ({double lat, double lng});
 
 /// The search the server's startRoom expects. The location is rounded to
 /// about 100 m first: plenty for a search measured in miles, and less
@@ -66,13 +66,6 @@ List<Restaurant> deckRestaurants(Map<String, dynamic> deck) => [
   for (final raw in deck['candidates'] as List) cardRestaurant(raw as Map),
 ];
 
-Future<SearchOrigin> _deviceLocation() async {
-  final position = await Geolocator.getCurrentPosition(
-    locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
-  );
-  return (lat: position.latitude, lng: position.longitude);
-}
-
 RoomResults? callableResults(Object? raw, int members) {
   if (raw is! Map) return null;
   final likes = <String, int>{
@@ -99,15 +92,20 @@ class CallableRoomBackend implements RoomBackend {
     FirebaseFunctions? functions,
     FirebaseAuth? auth,
     Future<SearchOrigin> Function()? locate,
+    DeviceLocator? locator,
   }) : _db = firestore ?? FirebaseFirestore.instance,
        _functions = functions ?? FirebaseFunctions.instance,
        _auth = auth ?? FirebaseAuth.instance,
-       _locate = locate ?? _deviceLocation;
+       _locator = locator ?? DeviceLocator(),
+       _fixedLocate = locate;
 
   final FirebaseFirestore _db;
   final FirebaseFunctions _functions;
   final FirebaseAuth _auth;
-  final Future<SearchOrigin> Function() _locate;
+  final DeviceLocator _locator;
+  final Future<SearchOrigin> Function()? _fixedLocate;
+
+  Future<SearchOrigin> _locate() => _fixedLocate?.call() ?? _locator.locate();
   final _expiries = <String, Timestamp>{};
 
   String get _uid => _auth.currentUser!.uid;
@@ -273,6 +271,12 @@ class CallableRoomBackend implements RoomBackend {
   Future<void> nudge(String roomId) async {
     // Closes the room on the server once everyone has voted or time is up.
     await _call('roomResults', {'roomId': roomId});
+  }
+
+  // Finds the location while the host waits for guests, so Start does not.
+  @override
+  Future<void> prepareStart() async {
+    if (_fixedLocate == null) await _locator.warmUp();
   }
 
   @override

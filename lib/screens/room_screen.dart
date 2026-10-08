@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import '../services/live_search.dart';
@@ -26,6 +29,15 @@ String createRoomErrorMessage(Object error) {
 String startRoomErrorMessage(Object error) {
   final limited = liveSearchErrorMessage(error);
   if (limited != null) return limited;
+  if (error is TimeoutException) {
+    return 'Could not find your location in time. Check that location is on, then try again.';
+  }
+  if (error is PermissionDeniedException) {
+    return 'Location permission is required to find restaurants near you.';
+  }
+  if (error is LocationServiceDisabledException) {
+    return 'Location services are disabled. Please enable them in settings.';
+  }
   if (error is FirebaseException) {
     switch (error.code) {
       case 'permission-denied':
@@ -90,6 +102,7 @@ class _RoomScreenState extends State<RoomScreen> {
     super.didChangeDependencies();
     if (_roomCode != null) {
       _roomStream ??= _backend.watch(_roomCode!);
+      _prepareStart();
     } else if (widget.isCreator && !_isLoading) {
       _createRoom();
     }
@@ -106,6 +119,7 @@ class _RoomScreenState extends State<RoomScreen> {
         _roomStream = _backend.watch(room.id);
         _isLoading = false;
       });
+      _prepareStart();
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -113,6 +127,15 @@ class _RoomScreenState extends State<RoomScreen> {
         context,
       ).showSnackBar(SnackBar(content: Text(createRoomErrorMessage(e))));
     }
+  }
+
+  bool _prepared = false;
+
+  /// Lets the backend find the location while the host waits for guests.
+  void _prepareStart() {
+    if (_prepared || !widget.isCreator || !_backend.usesDeviceLocation) return;
+    _prepared = true;
+    unawaited(_backend.prepareStart().catchError((_) {}));
   }
 
   /// Location permission for backends that search around the device.
@@ -132,6 +155,9 @@ class _RoomScreenState extends State<RoomScreen> {
     }
 
     LocationPermission permission = await Geolocator.checkPermission();
+    // On the web, asking for permission means taking a full location fix just
+    // to learn the answer. The search's own request prompts instead.
+    if (kIsWeb && permission == LocationPermission.denied) return true;
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
