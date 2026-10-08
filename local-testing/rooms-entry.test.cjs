@@ -25,7 +25,10 @@ test('every staging callable runs as the scoped identity and requires App Check'
   delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
   const rooms = require(entry);
   const { CALLABLES } = require('../rooms/handlers.js');
-  assert.deepEqual(Object.keys(rooms).sort(), [...CALLABLES, 'cleanUpIdleGuests', 'sweepRooms'].sort());
+  assert.deepEqual(Object.keys(rooms).sort(), [...CALLABLES, 'cleanUpIdleGuests', 'sweepRooms', 'pauseLiveSearchOnBudget'].sort());
+  const budget = rooms.pauseLiveSearchOnBudget.__endpoint;
+  assert.equal(budget.eventTrigger.eventFilters.topic, 'live-search-budget');
+  assert.equal(budget.serviceAccountEmail, 'rooms-runtime@whatdoyouwant-staging.iam.gserviceaccount.com');
   const sweep = rooms.sweepRooms.__endpoint;
   assert.equal(sweep.serviceAccountEmail, 'rooms-runtime@whatdoyouwant-staging.iam.gserviceaccount.com');
   assert.equal(sweep.scheduleTrigger.schedule, 'every 15 minutes');

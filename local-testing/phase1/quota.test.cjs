@@ -281,3 +281,30 @@ test('deleting an account removes its Quick Picks and their decks', async () => 
   assert.equal((await db.doc(`quickPicks/${pick.quickPickId}`).get()).exists, false);
   assert.equal((await db.doc(`restaurantDecks/${pick.deckId}`).get()).exists, false);
 });
+
+test('a budget notification at the pause point switches live search off until someone turns it on', async () => {
+  const { createBudgetGuard } = require('../../rooms/budget.js');
+  const guard = createBudgetGuard({ db, FieldValue });
+  await configure();
+  const handlers = handlersWith();
+  const roomId = await lobby(handlers, 'host11');
+  const notice = (costAmount, budgetAmount = 10) => ({ budgetDisplayName: 'staging', costAmount, budgetAmount,
+    alertThresholdExceeded: 0.5, currencyType: 'USD' });
+
+  assert.deepEqual(await guard(notice(4.99)), { paused: false });
+  assert.deepEqual(await guard({ costAmount: 'n/a' }), { paused: false });
+  assert.equal((await db.doc('config/liveSearch').get()).data().enabled, true);
+
+  await db.doc('config/liveSearch').update({ budgetPauseAt: 0.5 });
+  assert.deepEqual(await guard(notice(5)), { paused: true });
+  const config = (await db.doc('config/liveSearch').get()).data();
+  assert.deepEqual([config.enabled, config.pausedReason], [false, 'budget']);
+  await fails(start(handlers, 'host11', roomId), 'unavailable', 'live-search-paused');
+  assert.deepEqual(await guard(notice(1)), { paused: false }, 'a later, lower notification does not turn it back on');
+  assert.equal((await db.doc('config/liveSearch').get()).data().enabled, false);
+
+  await db.doc('config/liveSearch').delete();
+  assert.deepEqual(await guard(notice(20)), { paused: true });
+  assert.equal(require('../../rooms/quota.js').liveSearchConfig(
+    (await db.doc('config/liveSearch').get()).data()).enabled, false, 'still paused with no other settings');
+});

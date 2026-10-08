@@ -5,9 +5,11 @@ const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
+const { onMessagePublished } = require('firebase-functions/v2/pubsub');
 const logger = require('firebase-functions/logger');
 const { createRoomHandlers, CALLABLES } = require('./handlers');
 const { createGuestCleanup } = require('./cleanup');
+const { createBudgetGuard } = require('./budget');
 
 const STAGING = 'whatdoyouwant-staging';
 const project = process.env.GCLOUD_PROJECT || JSON.parse(process.env.FIREBASE_CONFIG || '{}').projectId;
@@ -17,8 +19,9 @@ if (project !== STAGING) {
 
 initializeApp();
 const auth = getAuth();
+const db = getFirestore();
 const handlers = createRoomHandlers({
-  db: getFirestore(), FieldValue, Timestamp, HttpsError,
+  db, FieldValue, Timestamp, HttpsError,
   deleteAuthUser: async uid => {
     await auth.revokeRefreshTokens(uid);
     await auth.deleteUser(uid);
@@ -63,3 +66,15 @@ exports.sweepRooms = onSchedule({
   timeoutSeconds: 120,
   retryCount: 0,
 }, () => handlers.sweep());
+
+// The project's billing budget publishes to this topic; reaching the pause
+// point switches live search off until someone turns it back on.
+const guardBudget = createBudgetGuard({ db, FieldValue, log: entry => logger.info(entry) });
+exports.pauseLiveSearchOnBudget = onMessagePublished({
+  topic: 'live-search-budget',
+  region: options.region,
+  serviceAccount: options.serviceAccount,
+  maxInstances: 1,
+  timeoutSeconds: 60,
+  retry: false,
+}, event => guardBudget(event.data.message.json));
