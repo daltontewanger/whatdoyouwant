@@ -6,10 +6,12 @@ const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestor
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { onMessagePublished } = require('firebase-functions/v2/pubsub');
+const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
 const { createRoomHandlers, CALLABLES } = require('./handlers');
 const { createGuestCleanup } = require('./cleanup');
 const { createBudgetGuard } = require('./budget');
+const { createHereProvider, createHereTransport } = require('./search/here-provider');
 
 const STAGING = 'whatdoyouwant-staging';
 const project = process.env.GCLOUD_PROJECT || JSON.parse(process.env.FIREBASE_CONFIG || '{}').projectId;
@@ -20,8 +22,19 @@ if (project !== STAGING) {
 initializeApp();
 const auth = getAuth();
 const db = getFirestore();
+
+// Live search runs on HERE behind the weekly cap, the monthly stop and the
+// config/liveSearch switch. The key comes from Secret Manager and is read only
+// when a search runs, so loading or deploying this file never touches it.
+const hereKey = defineSecret('HERE_API_KEY');
+let hereTransport;
+const provider = createHereProvider({
+  transport: call => (hereTransport ??= createHereTransport({ apiKey: hereKey.value() }))(call),
+});
+// Only these callables can search, so only they can read the key.
+const SEARCHING = ['startRoom', 'createQuickPick'];
 const handlers = createRoomHandlers({
-  db, FieldValue, Timestamp, HttpsError,
+  db, FieldValue, Timestamp, HttpsError, provider,
   deleteAuthUser: async uid => {
     await auth.revokeRefreshTokens(uid);
     await auth.deleteUser(uid);
@@ -40,7 +53,9 @@ const options = {
   timeoutSeconds: 30,
 };
 
-for (const name of CALLABLES) exports[name] = onCall(options, handlers[name]);
+for (const name of CALLABLES) {
+  exports[name] = onCall(SEARCHING.includes(name) ? { ...options, secrets: [hereKey] } : options, handlers[name]);
+}
 
 // Weekly removal of idle guest accounts; staging gains few guests, so weekly is
 // plenty. No App Check or CORS: it runs as the scoped identity, which can manage
