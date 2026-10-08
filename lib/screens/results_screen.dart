@@ -147,7 +147,10 @@ class ResultsScreenState extends State<ResultsScreen> {
                             for (final r in room.restaurants) r.id: r,
                           };
                           final Restaurant? winning =
-                              results == null ? null : byId[results.winnerId];
+                              results == null
+                                  ? null
+                                  : byId[results.winnerId] ??
+                                      results.winnerCard;
 
                           if (winning == null || results == null) {
                             return Center(

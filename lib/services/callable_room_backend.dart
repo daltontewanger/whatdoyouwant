@@ -47,20 +47,22 @@ Map<String, Object?> startSearchFor(
   'deckSize': deckSize,
 };
 
-/// The cards of a stored deck, in deck order. Decks keep meters; the app
-/// still shows miles.
+/// One card as the server stores it, in a deck or a room's results. Cards keep
+/// meters; the app still shows miles.
+Restaurant cardRestaurant(Map raw) => Restaurant(
+  id: raw['id'] as String,
+  name: raw['name'] as String,
+  address: (raw['address'] as String?) ?? '',
+  distance: ((raw['distanceMeters'] as num?) ?? 0) / _metersPerMile,
+  latitude: (raw['latitude'] as num?)?.toDouble(),
+  longitude: (raw['longitude'] as num?)?.toDouble(),
+  phone: raw['phone'] as String?,
+  website: raw['website'] as String?,
+);
+
+/// The cards of a stored deck, in deck order.
 List<Restaurant> deckRestaurants(Map<String, dynamic> deck) => [
-  for (final raw in deck['candidates'] as List)
-    Restaurant(
-      id: (raw as Map)['id'] as String,
-      name: raw['name'] as String,
-      address: (raw['address'] as String?) ?? '',
-      distance: ((raw['distanceMeters'] as num?) ?? 0) / _metersPerMile,
-      latitude: (raw['latitude'] as num?)?.toDouble(),
-      longitude: (raw['longitude'] as num?)?.toDouble(),
-      phone: raw['phone'] as String?,
-      website: raw['website'] as String?,
-    ),
+  for (final raw in deck['candidates'] as List) cardRestaurant(raw as Map),
 ];
 
 Future<SearchOrigin> _deviceLocation() async {
@@ -76,11 +78,15 @@ RoomResults? callableResults(Object? raw, int members) {
     for (final entry in Map<String, dynamic>.from(raw['likes'] as Map).entries)
       entry.key: (entry.value as num).toInt(),
   };
+  final winnerCard = raw['winnerCard'];
+  final backupCard = raw['backupCard'];
   return RoomResults(
     winnerId: raw['winner'] as String?,
     backupId: raw['backup'] as String?,
     likes: likes,
     participants: members,
+    winnerCard: winnerCard is Map ? cardRestaurant(winnerCard) : null,
+    backupCard: backupCard is Map ? cardRestaurant(backupCard) : null,
   );
 }
 
@@ -179,7 +185,8 @@ class CallableRoomBackend implements RoomBackend {
           .doc('restaurantDecks/$deckId')
           .get()
           .then((snapshot) {
-            deck = deckRestaurants(snapshot.data()!);
+            final stored = snapshot.data();
+            if (stored != null) deck = deckRestaurants(stored);
             emit();
           })
           .catchError((Object error) {
@@ -196,7 +203,9 @@ class CallableRoomBackend implements RoomBackend {
             if (data == null) return;
             _expiries[roomId] = data['expiresAt'] as Timestamp;
             final deckId = data['deckId'] as String?;
-            if (deckId != null) loadDeck(deckId);
+            // A closed room's deck is removed soon after; its results carry
+            // the winner and backup instead.
+            if (deckId != null && data['status'] != 'closed') loadDeck(deckId);
             emit();
           }, onError: controller.addError),
         );

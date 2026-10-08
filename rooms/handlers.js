@@ -6,10 +6,16 @@ const { parseSearchRequest, InvalidSearchRequest } = require('./search/request')
 const { buildDeck } = require('./search/deck');
 const { assertProvider } = require('./search/provider');
 const { createFakeProvider } = require('./search/fake-provider');
-const { deckDocument } = require('./decks');
+const { deckDocument, resultCard } = require('./decks');
 
 const ROOM_TTL_MS = 24 * 3600000;
 const VOTING_WINDOW_MS = 30 * 60000;
+// Provider decks are kept only as long as a vote needs them: until 30 minutes
+// after voting ends, or 15 minutes after the room closes, whichever is sooner.
+// The winner and backup are copied onto the room's results first.
+const DECK_AFTER_VOTING_MS = 30 * 60000;
+const DECK_AFTER_CLOSE_MS = 15 * 60000;
+const SWEEP_BATCH = 200;
 const RECEIPT_TTL_MS = 24 * 3600000;
 const RECENT_SIGN_IN_SECONDS = 300;
 // Members per room, host included.
@@ -122,7 +128,8 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       tx.get(room.collection('members').where('active', '==', true)),
       state.deckId ? tx.get(deckRef(state.deckId)) : null,
     ]);
-    const deckIds = deck?.exists ? deck.data().candidateIds : [];
+    const deckData = deck?.exists ? deck.data() : null;
+    const deckIds = deckData?.candidateIds ?? [];
     const likes = Object.fromEntries(deckIds.map(id => [id, 0]));
     let voters = 0;
     let complete = true;
@@ -136,13 +143,22 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
     }
     // Most likes wins; deck order (best ranked first) breaks ties.
     const ranking = [...deckIds].sort((a, b) => likes[b] - likes[a]);
-    return { complete, results: { likes, winner: ranking[0] ?? null, backup: ranking[1] ?? null, voters } };
+    const card = id => resultCard(deckData?.candidates?.find(candidate => candidate.id === id));
+    const winner = ranking[0] ?? null;
+    const backup = ranking[1] ?? null;
+    return { complete, deck: deck?.exists ? deck : null,
+      results: { likes, winner, backup, voters, winnerCard: card(winner), backupCard: card(backup) } };
   }
 
-  function closeInto(tx, room, state, results) {
+  // Closing keeps the result on the room and lets the deck go shortly after.
+  function closeInto(tx, room, state, outcome) {
     tx.update(room, { status: 'closed', closedAt: FieldValue.serverTimestamp(), joinCode: FieldValue.delete(),
-      ...(results ? { results } : {}) });
+      ...(outcome?.results ? { results: outcome.results } : {}) });
     if (state.joinCode) tx.delete(codeRef(state.joinCode));
+    const soon = now() + DECK_AFTER_CLOSE_MS;
+    if (outcome?.deck && outcome.deck.data().expiresAt.toMillis() > soon) {
+      tx.update(outcome.deck.ref, { expiresAt: Timestamp.fromMillis(soon) });
+    }
   }
 
   return {
@@ -249,7 +265,8 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
         if (state.creator !== actor.uid) deny();
         if (state.status !== 'lobby') return startedView(roomId, state);
         if (!authorize('start', actor, state, true)) deny();
-        const expiresAt = snapshot.data().expiresAt;
+        const roomExpiry = snapshot.data().expiresAt.toMillis();
+        const expiresAt = Timestamp.fromMillis(Math.min(roomExpiry, now() + VOTING_WINDOW_MS + DECK_AFTER_VOTING_MS));
         tx.create(deck, deckDocument({ ownerUid: actor.uid, targetType: 'room', targetId: roomId, provider, result,
           request: search, built, seed, expiresAt, generatedAt: FieldValue.serverTimestamp() }));
         tx.update(room, { status: 'voting', deckId: deck.id, candidateCount: built.candidates.length,
@@ -273,7 +290,7 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
         if (state.creator !== actor.uid) deny();
         if (state.status === 'closed') return { roomId, status: 'closed', results: state.results ?? null };
         const outcome = state.status === 'voting' ? await tally(tx, room, state) : null;
-        closeInto(tx, room, state, outcome?.results);
+        closeInto(tx, room, state, outcome);
         return { roomId, status: 'closed', results: outcome?.results ?? null };
       });
     },
@@ -293,9 +310,37 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
         if (!outcome.complete && !ended) {
           return { roomId, status: 'voting', results: null, voters: outcome.results.voters };
         }
-        closeInto(tx, room, state, outcome.results);
+        closeInto(tx, room, state, outcome);
         return { roomId, status: 'closed', results: outcome.results };
       });
+    },
+
+    // Scheduled: closes rooms whose voting ended with nobody asking for results,
+    // then deletes expired decks. TTL deletion can lag by a day; this does not.
+    async sweep() {
+      let closed = 0;
+      const stale = await db.collection('rooms').where('status', '==', 'voting')
+        .where('votingEndsAt', '<=', Timestamp.fromMillis(now())).limit(SWEEP_BATCH).get();
+      for (const snapshot of stale.docs) {
+        closed += await retryTransient(() => db.runTransaction(async tx => {
+          const current = await tx.get(snapshot.ref);
+          const state = current.exists ? stateOf(current) : null;
+          if (state?.status !== 'voting' || !(state.votingEndsAt?.toMillis() <= now())) return 0;
+          closeInto(tx, current.ref, state, await tally(tx, current.ref, state));
+          return 1;
+        }));
+      }
+      const expired = await db.collection('restaurantDecks').where('expiresAt', '<=', Timestamp.fromMillis(now()))
+        .limit(SWEEP_BATCH).get();
+      if (!expired.empty) {
+        await retryTransient(async () => {
+          const batch = db.batch();
+          expired.forEach(deck => batch.delete(deck.ref));
+          await batch.commit();
+        });
+      }
+      log({ event: 'rooms_swept', roomsClosed: closed, decksDeleted: expired.size });
+      return { roomsClosed: closed, decksDeleted: expired.size };
     },
 
     async revokeMember(request) {

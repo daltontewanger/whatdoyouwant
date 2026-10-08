@@ -193,7 +193,28 @@ void main() {
       expect(results.backupId, 'b');
       expect(results.winnerLikes, 2);
       expect(results.participants, 3);
+      expect(results.winnerCard, isNull);
       expect(callableResults(null, 3), isNull);
+      final kept =
+          callableResults({
+            'likes': {'a': 2},
+            'winner': 'a',
+            'winnerCard': {
+              'id': 'a',
+              'name': 'Demo Pizza',
+              'address': '1 Example Street',
+              'distanceMeters': 3218.688,
+              'latitude': 38.5,
+              'longitude': -98.5,
+              'phone': null,
+              'website': 'https://example.com',
+            },
+          }, 2)!;
+      expect(
+        (kept.winnerCard!.name, kept.winnerCard!.distance),
+        ('Demo Pizza', 2.0),
+      );
+      expect(kept.winnerCard!.website, 'https://example.com');
     });
   });
 }

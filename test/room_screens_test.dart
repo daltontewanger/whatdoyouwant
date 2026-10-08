@@ -484,6 +484,34 @@ void main() {
     },
   );
 
+  testWidgets('a result still shows after the deck is gone', (tester) async {
+    final backend = FakeRoomBackend();
+    await tester.pumpWidget(
+      app(backend, ResultsScreen(roomCode: 'ROOM-ID', restaurants: const [])),
+    );
+    backend.room.add(
+      state(
+        status: 'closed',
+        ready: true,
+        restaurants: const [],
+        results: RoomResults(
+          winnerId: 'gone',
+          likes: const {'gone': 2},
+          participants: 2,
+          winnerCard: Restaurant(
+            id: 'gone',
+            name: 'Demo Noodle House',
+            address: '6 Example Street',
+            distance: 1,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Demo Noodle House'), findsOneWidget);
+  });
+
   testWidgets('legacy rooms keep the frequent nudge for idle voters', (
     tester,
   ) async {

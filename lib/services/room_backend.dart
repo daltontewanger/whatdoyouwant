@@ -57,6 +57,8 @@ class RoomResults {
     required this.participants,
     this.backupId,
     this.winnerVotes,
+    this.winnerCard,
+    this.backupCard,
   });
 
   final String? winnerId;
@@ -66,6 +68,10 @@ class RoomResults {
 
   /// Set when the vote count shown for the winner is not simply its likes.
   final int? winnerVotes;
+
+  /// The winner and backup as the room keeps them once its deck is gone.
+  final Restaurant? winnerCard;
+  final Restaurant? backupCard;
 
   int get winnerLikes => winnerVotes ?? likes[winnerId] ?? 0;
 }

@@ -4,7 +4,10 @@ const { randomUUID } = require('node:crypto');
 const { createRequire } = require('node:module');
 const { PROJECT, assertLocalEnvironment } = require('../support.cjs');
 assertLocalEnvironment(process.env);
-const { Firestore, Timestamp } = createRequire(require.resolve('../../functions/package.json'))('firebase-admin/firestore');
+const fromFunctions = createRequire(require.resolve('../../functions/package.json'));
+const { Firestore, Timestamp, FieldValue } = fromFunctions('firebase-admin/firestore');
+const { HttpsError } = fromFunctions('firebase-functions/v2/https');
+const { createRoomHandlers } = require('../../rooms/handlers.js');
 const db = new Firestore({ projectId: PROJECT, host: '127.0.0.1:8080', ssl: false });
 const documents = `http://127.0.0.1:8080/v1/projects/${PROJECT}/databases/(default)/documents`;
 async function request(url, body, token, method = 'POST') {
@@ -93,6 +96,8 @@ test('rooms: verified host creates with a short code; guest joins, reads and vot
   const started = await start(roomId, host);
   assert.equal(started.status, 200); assert.equal(started.data.result.candidateCount, 5);
   const D = (await deckOf(roomId)).candidateIds;
+  const deckLife = (await deckOf(roomId)).expiresAt.toMillis() - Date.now();
+  assert.ok(deckLife > 59 * 60000 && deckLife <= 60 * 60000, 'a deck lives 30 minutes past the voting window');
   assert.equal(started.data.result.deckId, (await db.doc(`rooms/${roomId}`).get()).data().deckId);
   // The code stops working once voting starts; members reconnect with the room ID.
   assert.equal((await db.doc(`roomCodes/${joinCode}`).get()).exists, false);
@@ -191,7 +196,7 @@ test('decks: start accepts only the search contract; thin pools store nothing; d
   assert.deepEqual(deck.candidateIds, deck.candidates.map(candidate => candidate.id));
   assert.ok(deck.candidates.every(c => Number.isInteger(c.distanceMeters) && c.distanceMeters <= 8047 &&
     !c.cuisineIds.includes('pizza') && c.chainId === undefined));
-  assert.equal(deck.expiresAt.toMillis(), (await expiryOf(roomId)).toMillis());
+  assert.ok(deck.expiresAt.toMillis() < (await expiryOf(roomId)).toMillis(), 'decks go well before their room');
   const deckPath = `${documents}/restaurantDecks/${(await db.doc(`rooms/${roomId}`).get()).data().deckId}`;
   assert.equal((await request(deckPath, undefined, guest.token, 'GET')).status, 200);
   assert.equal((await request(deckPath, undefined, outsider.token, 'GET')).status, 403);
@@ -263,10 +268,19 @@ test('results: the room closes once every member has voted; only totals are shar
   assert.equal((await call('roomResults', { roomId }, outsider)).status, 403);
   const final = await call('roomResults', { roomId }, guest);
   assert.equal(final.data.result.status, 'closed');
-  assert.deepEqual(final.data.result.results, {
+  const { winnerCard, backupCard, ...totals } = final.data.result.results;
+  assert.deepEqual(totals, {
     likes: { [D[0]]: 0, [D[1]]: 1, [D[2]]: 2, [D[3]]: 1, [D[4]]: 0 },
     winner: D[2], backup: D[1], voters: 2,
   });
+  const deck = await deckOf(roomId);
+  const cardOf = id => deck.candidates.find(candidate => candidate.id === id);
+  for (const [card, id] of [[winnerCard, D[2]], [backupCard, D[1]]]) {
+    const { id: cardId, name, address, distanceMeters, latitude, longitude, phone, website } = cardOf(id);
+    assert.deepEqual(card, { id: cardId, name, address, distanceMeters, latitude, longitude, phone, website },
+      'the room keeps just enough of the winner and backup to outlive the deck');
+  }
+  assert.ok(deck.expiresAt.toMillis() <= Date.now() + 15 * 60000, 'the deck goes about 15 minutes after closing');
   const stored = (await readRoom(roomId, host)).data.fields;
   assert.equal(stored.status.stringValue, 'closed');
   assert.ok(!JSON.stringify(stored).includes(guest.uid), 'results never name voters');
@@ -294,6 +308,35 @@ test('results: the voting window closes an incomplete room; the host can close e
   assert.equal(closed.data.result.results, null, 'closing before the deck starts has no results');
   assert.equal((await db.doc(`roomCodes/${second.joinCode}`).get()).exists, false);
   assert.equal((await start(second.roomId, host)).data.result.candidateCount, 0);
+});
+
+test('sweep: closes rooms whose voting ran out unattended and deletes expired decks', async () => {
+  const sweeper = createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthUser: async () => {} });
+  const host = await user(true, true); const guest = await user();
+  const stale = await room(host);
+  const live = await room(host);
+  assert.equal((await join(stale.joinCode, guest)).status, 200);
+  for (const target of [stale, live]) assert.equal((await start(target.roomId, host)).status, 200);
+  const D = (await deckOf(stale.roomId)).candidateIds;
+  assert.equal((await vote(stale.roomId, guest, D[3])).status, 200);
+  await db.doc(`rooms/${stale.roomId}`).update({ votingEndsAt: Timestamp.fromMillis(Date.now() - 1000) });
+  await db.doc('restaurantDecks/old').set({ ownerUid: host.uid, targetType: 'room', targetId: 'GONE',
+    candidateIds: [], candidates: [], expiresAt: Timestamp.fromMillis(Date.now() - 1000) });
+
+  const first = await sweeper.sweep();
+  assert.deepEqual(first, { roomsClosed: 1, decksDeleted: 1 });
+  const closed = (await db.doc(`rooms/${stale.roomId}`).get()).data();
+  assert.equal(closed.status, 'closed');
+  assert.equal(closed.results.winner, D[3]);
+  assert.equal(closed.results.winnerCard.id, D[3]);
+  assert.equal((await db.doc(`rooms/${live.roomId}`).get()).data().status, 'voting', 'open votes are left alone');
+  assert.equal((await db.doc('restaurantDecks/old').get()).exists, false);
+  assert.equal((await db.collection('restaurantDecks').get()).size, 2, 'decks still in use are kept');
+
+  const staleDeck = (await db.doc(`rooms/${stale.roomId}`).get()).data().deckId;
+  await db.doc(`restaurantDecks/${staleDeck}`).update({ expiresAt: Timestamp.fromMillis(Date.now() - 1000) });
+  assert.deepEqual(await sweeper.sweep(), { roomsClosed: 0, decksDeleted: 1 }, 'repeat runs are harmless');
+  assert.equal((await readRoom(stale.roomId, guest)).status, 200, 'the result outlives the deck');
 });
 
 test('host controls: revoke removes a member; codes rotate only in the lobby', async () => {

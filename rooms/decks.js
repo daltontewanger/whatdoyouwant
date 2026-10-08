@@ -23,6 +23,14 @@ function storedCandidate(candidate) {
   };
 }
 
+// The winner or backup as the room keeps it after its deck is gone: enough to
+// show the result and its links, nothing more.
+function resultCard(candidate) {
+  if (!candidate) return null;
+  const { id, name, address, distanceMeters, latitude, longitude, phone, website } = candidate;
+  return { id, name, address, distanceMeters, latitude, longitude, phone, website };
+}
+
 function deckDocument({ ownerUid, targetType, targetId, provider, result, request, built, seed, expiresAt,
   generatedAt }) {
   const candidates = built.candidates.map(storedCandidate);
@@ -45,4 +53,4 @@ function deckDocument({ ownerUid, targetType, targetId, provider, result, reques
   };
 }
 
-module.exports = { deckDocument, storedCandidate };
+module.exports = { deckDocument, storedCandidate, resultCard };

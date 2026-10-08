@@ -51,3 +51,15 @@ exports.cleanUpIdleGuests = onSchedule({
   timeoutSeconds: 540,
   retryCount: 0,
 }, createGuestCleanup({ auth, log: entry => logger.info(entry) }));
+
+// Closes rooms whose voting time ran out unattended and removes decks soon
+// after they are no longer needed.
+exports.sweepRooms = onSchedule({
+  schedule: 'every 15 minutes',
+  timeZone: 'Etc/UTC',
+  region: options.region,
+  serviceAccount: options.serviceAccount,
+  maxInstances: 1,
+  timeoutSeconds: 120,
+  retryCount: 0,
+}, () => handlers.sweep());

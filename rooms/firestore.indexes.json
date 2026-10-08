@@ -1,10 +1,24 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "rooms",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "votingEndsAt", "order": "ASCENDING" }
+      ]
+    }
+  ],
   "fieldOverrides": [
     { "collectionGroup": "rooms", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "members", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "candidates", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
-    { "collectionGroup": "restaurantDecks", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    {
+      "collectionGroup": "restaurantDecks",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
     { "collectionGroup": "ballot", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "roomCodes", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "_requests", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
