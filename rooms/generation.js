@@ -98,9 +98,12 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
   }
 
   async function generateDeck({ uid, mode, targetId, search, target }) {
+    // Wall-clock stage timings for the log; the injected clock is for limits.
+    const began = Date.now();
     const reserved = await reserve({ uid, mode, targetId, target });
     if (reserved.done) return reserved.done;
     const { reservation } = reserved;
+    const reservedAt = Date.now();
 
     let result;
     try {
@@ -113,6 +116,7 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
       throw new HttpsError('unavailable', 'Restaurant search is unavailable.');
     }
     const calls = result.providerCalls;
+    const searchedAt = Date.now();
     const seed = newSeed();
     const built = buildDeck(result.restaurants, search, { seed });
     // Nothing is stored or charged for a pool too thin to use; the person is
@@ -145,7 +149,8 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
     }
     // Counts only: no UID, location or restaurant names.
     log({ event: 'deck_created', mode, provider: provider.id, providerCalls: calls, eligible: built.pool.eligible,
-      selected: built.pool.selected, kept: Boolean(outcome.view) });
+      selected: built.pool.selected, kept: Boolean(outcome.view), reserveMs: reservedAt - began,
+      providerMs: searchedAt - reservedAt, commitMs: Date.now() - searchedAt });
     if (outcome.view) return outcome.view;
     if (outcome.done) return outcome.done;
     throw new HttpsError('unavailable', 'Please try again.');

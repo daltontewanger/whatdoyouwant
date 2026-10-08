@@ -217,7 +217,12 @@ test('rooms: concurrent retries preserve one room, one code, one membership and 
   assert.equal((await db.doc(`rooms/${roomId}`).get()).data().memberCount, 2);
   const starts = await Promise.all([1, 2].map(() => start(roomId, host)));
   assert.deepEqual(starts.map(r => r.status), [200, 200]);
-  assert.deepEqual(starts[1].data.result, starts[0].data.result, 'both answers name the one stored deck');
+  const pointer = ({ candidates, ...rest }) => rest;
+  assert.deepEqual(pointer(starts[1].data.result), pointer(starts[0].data.result), 'both answers name the one stored deck');
+  const stored = await deckOf(roomId);
+  for (const answer of starts.map(r => r.data.result).filter(result => result.candidates)) {
+    assert.deepEqual(answer.candidates.map(c => c.id), stored.candidateIds, 'returned cards match the stored deck');
+  }
   assert.equal((await db.collection('restaurantDecks').get()).size, 1);
 });
 

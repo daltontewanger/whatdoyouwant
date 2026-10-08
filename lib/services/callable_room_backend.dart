@@ -240,6 +240,8 @@ class CallableRoomBackend implements RoomBackend {
         deckSize: maxOptions,
       ),
     });
+    // A fresh start returns its cards; a repeat start points at the stored deck.
+    if (started['candidates'] is List) return deckRestaurants(started);
     final deck = await _db.doc('restaurantDecks/${started['deckId']}').get();
     return deckRestaurants(deck.data()!);
   }

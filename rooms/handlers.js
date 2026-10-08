@@ -5,7 +5,7 @@ const { authorize } = require('./authorization');
 const { parseSearchRequest, InvalidSearchRequest } = require('./search/request');
 const { assertProvider } = require('./search/provider');
 const { createFakeProvider } = require('./search/fake-provider');
-const { resultCard } = require('./decks');
+const { resultCard, storedCandidate } = require('./decks');
 const { createGeneration } = require('./generation');
 
 const ROOM_TTL_MS = 24 * 3600000;
@@ -278,7 +278,9 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
             joinCode: FieldValue.delete(), startedAt: FieldValue.serverTimestamp(),
             votingEndsAt: expiry(VOTING_WINDOW_MS) });
           if (state.joinCode) tx.delete(codeRef(state.joinCode));
-          return { view: { roomId, deckId: deck.id, candidateCount: built.candidates.length },
+          // The cards come back with the start, so the host need not read the deck.
+          return { view: { roomId, deckId: deck.id, candidateCount: built.candidates.length,
+            candidates: built.candidates.map(storedCandidate) },
             expiresAt: Timestamp.fromMillis(Math.min(roomExpiry, now() + VOTING_WINDOW_MS + DECK_AFTER_VOTING_MS)) };
         },
       } });

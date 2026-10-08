@@ -28,6 +28,8 @@ const caller = (uid, provider = 'password', verified = true) => ({ auth: { uid, 
 async function lobby(handlers, uid) {
   return (await handlers.createRoom({ ...caller(uid), data: { requestId: randomUUID() } })).roomId;
 }
+// A start's answer without the cards a fresh start also returns.
+const pointer = ({ candidates, ...rest }) => rest;
 const start = (handlers, uid, roomId, search = SEARCH) => handlers.startRoom({ ...caller(uid), data: { roomId, search } });
 const configure = fields => db.doc('config/liveSearch').set({ enabled: true, weeklyCaps: { free: 3 },
   monthlyCallStop: 100, ...fields });
@@ -61,7 +63,9 @@ test('a start uses one weekly search and the calls it made; asking again costs n
   const handlers = handlersWith();
   const roomId = await lobby(handlers, 'host1');
   const started = await start(handlers, 'host1', roomId);
-  assert.deepEqual(await start(handlers, 'host1', roomId), started, 'a repeat returns the same deck');
+  assert.deepEqual(await start(handlers, 'host1', roomId), pointer(started), 'a repeat returns the same deck');
+  const stored = (await db.doc(`restaurantDecks/${started.deckId}`).get()).data();
+  assert.deepEqual(started.candidates, stored.candidates, 'a fresh start returns the stored cards');
   assert.deepEqual([(await week('host1')).used, (await week('host1')).reserved], [1, 0]);
   const ledger = await month();
   assert.deepEqual([ledger.callsCompleted, ledger.callsReserved, ledger.generationsCompleted], [1, 0, 1]);
@@ -112,7 +116,7 @@ test('the kill switch and a missing config pause live search before any provider
   await configure();
   const started = await start(handlers, 'host4', roomId);
   await configure({ enabled: false });
-  assert.deepEqual(await start(handlers, 'host4', roomId), started, 'a room that has its deck still opens');
+  assert.deepEqual(await start(handlers, 'host4', roomId), pointer(started), 'a room that has its deck still opens');
 });
 
 test('the monthly stop is per provider, counts the worst case, and resets with the month', async () => {
@@ -164,7 +168,7 @@ test('a second start while one is running is turned away and nothing is charged 
   await fails(start(handlers, 'host7', roomId), 'aborted', 'in-progress');
   held.release();
   const started = await first;
-  assert.deepEqual(await start(handlers, 'host7', roomId), started);
+  assert.deepEqual(await start(handlers, 'host7', roomId), pointer(started));
   assert.equal(held.calls(), 1);
   assert.equal((await week('host7')).used, 1);
 });
