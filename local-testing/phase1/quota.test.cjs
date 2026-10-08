@@ -212,3 +212,72 @@ test('deleting an account removes its usage records but not the provider ledger'
   assert.equal((await db.doc(`deckGenerations/room_${roomId}`).get()).exists, false);
   assert.equal((await month()).generationsCompleted, 1);
 });
+
+const quickPick = (handlers, uid, requestId = randomUUID(), search = SEARCH) =>
+  handlers.createQuickPick({ ...caller(uid), data: { requestId, search } });
+const reroll = (handlers, uid, quickPickId, from) =>
+  handlers.rerollQuickPick({ ...caller(uid), data: { quickPickId, from } });
+
+test('a Quick Pick spends one search; retrying it and rerolling cost nothing', async () => {
+  await configure();
+  const handlers = handlersWith();
+  const requestId = randomUUID();
+  const pick = await quickPick(handlers, 'qp1', requestId);
+  assert.match(pick.quickPickId, /^[a-f0-9]{24}$/);
+  assert.equal(pick.position, 0);
+  assert.equal(pick.rerollsLeft, 4, 'a five-card deck allows four rerolls');
+  assert.deepEqual(await quickPick(handlers, 'qp1', requestId), pick, 'a retry returns the same pick');
+  const deck = (await db.doc(`restaurantDecks/${pick.deckId}`).get()).data();
+  assert.equal(deck.targetType, 'quickPick');
+  assert.ok(deck.candidateIds.includes(pick.candidateId));
+  assert.ok(deck.expiresAt.toMillis() <= clock + 60 * 60000, 'a Quick Pick deck lasts an hour');
+
+  const seen = [pick.candidateId];
+  let current = pick;
+  while (current.rerollsLeft > 0) {
+    current = await reroll(handlers, 'qp1', pick.quickPickId, current.position);
+    seen.push(current.candidateId);
+  }
+  assert.equal(new Set(seen).size, 5, 'every reroll shows a card not seen yet');
+  assert.deepEqual(await reroll(handlers, 'qp1', pick.quickPickId, current.position - 1), current,
+    'a retried reroll does not skip a card');
+  await fails(reroll(handlers, 'qp1', pick.quickPickId, current.position), 'failed-precondition', 'no-rerolls');
+  assert.equal((await week('qp1')).used, 1);
+});
+
+test('rerolls stop at five, and only the owner of a live pick can reroll', async () => {
+  await configure();
+  const handlers = handlersWith();
+  let pick = await quickPick(handlers, 'qp2', randomUUID(), { ...SEARCH, deckSize: 25 });
+  assert.equal(pick.rerollsLeft, 5);
+  await fails(reroll(handlers, 'someone', pick.quickPickId, 0), 'permission-denied');
+  for (let i = 0; i < 5; i++) pick = await reroll(handlers, 'qp2', pick.quickPickId, pick.position);
+  await fails(reroll(handlers, 'qp2', pick.quickPickId, pick.position), 'failed-precondition', 'no-rerolls');
+  clock += 60 * 60000;
+  await fails(reroll(handlers, 'qp2', pick.quickPickId, pick.position), 'permission-denied');
+  await fails(handlers.rerollQuickPick({ ...caller('qp2'), data: { quickPickId: pick.quickPickId, from: '1' } }),
+    'invalid-argument');
+});
+
+test('Quick Pick and Group Room share one weekly cap; guests cannot Quick Pick', async () => {
+  await configure({ weeklyCaps: { free: 2 } });
+  const handlers = handlersWith();
+  await start(handlers, 'qp3', await lobby(handlers, 'qp3'));
+  await quickPick(handlers, 'qp3');
+  await fails(quickPick(handlers, 'qp3'), 'resource-exhausted', 'weekly-cap');
+  await fails(start(handlers, 'qp3', await lobby(handlers, 'qp3')), 'resource-exhausted', 'weekly-cap');
+  await fails(handlers.createQuickPick({ ...caller('guest3', 'anonymous', false),
+    data: { requestId: randomUUID(), search: SEARCH } }), 'permission-denied');
+  await fails(quickPick(handlers, 'qp4', randomUUID(), { ...SEARCH, origin: EMPTY_ORIGIN }), 'failed-precondition',
+    'too-few-results');
+  assert.equal((await week('qp4')).used, 0);
+});
+
+test('deleting an account removes its Quick Picks and their decks', async () => {
+  await configure();
+  const handlers = handlersWith();
+  const pick = await quickPick(handlers, 'qp5');
+  await handlers.deleteAccount({ ...caller('qp5'), data: {} });
+  assert.equal((await db.doc(`quickPicks/${pick.quickPickId}`).get()).exists, false);
+  assert.equal((await db.doc(`restaurantDecks/${pick.deckId}`).get()).exists, false);
+});

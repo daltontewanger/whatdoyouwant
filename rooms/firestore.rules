@@ -9,8 +9,9 @@
 //   results (after close)
 // rooms/{id}/members/{uid}: uid, active, expiresAt
 // rooms/{id}/votes/{uid}/ballot/{candidateId}: liked, at, expiresAt
-// restaurantDecks/{id}: ownerUid, targetType (room), targetId, candidateIds,
-//   candidates, filter summary and pool report, expiresAt. Immutable.
+// restaurantDecks/{id}: ownerUid, targetType (room | quickPick), targetId,
+//   candidateIds, candidates, filter summary and pool report, expiresAt. Immutable.
+// quickPicks/{id}: ownerUid, deckId, order, position, rerollsUsed, expiresAt.
 // Every document carries expiresAt for TTL cleanup; reads check it as well
 // because TTL deletion can lag.
 rules_version = '2';
@@ -58,10 +59,18 @@ service cloud.firestore {
         allow update, delete: if false;
       }
     }
-    // Members of the room a deck was made for can read it while the room lives.
+    // Members of the room a deck was made for can read it while the room lives;
+    // a Quick Pick deck only its owner.
     match /restaurantDecks/{deck} {
-      allow get: if resource.data.targetType == 'room' && member(resource.data.targetId) &&
-        live(resource.data.targetId) && resource.data.expiresAt > request.time;
+      allow get: if resource.data.expiresAt > request.time && (
+        (resource.data.targetType == 'room' && member(resource.data.targetId) && live(resource.data.targetId)) ||
+        (resource.data.targetType == 'quickPick' && request.auth != null &&
+          resource.data.ownerUid == request.auth.uid));
+      allow list, write: if false;
+    }
+    match /quickPicks/{pick} {
+      allow get: if request.auth != null && resource.data.ownerUid == request.auth.uid &&
+        resource.data.expiresAt > request.time;
       allow list, write: if false;
     }
     match /{document=**} { allow read, write: if false; }

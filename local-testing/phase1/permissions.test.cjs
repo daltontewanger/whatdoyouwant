@@ -97,6 +97,23 @@ test('quota, provider-usage and generation records are server-only, even for the
     }
   }
 });
+test('a Quick Pick and its deck are readable only by their owner while they last', async () => {
+  const later = Timestamp.fromMillis(Date.now() + 3600000);
+  await db.doc('quickPicks/PICK').set({ ownerUid: 'host', deckId: 'QDECK', order: ['pizza'], position: 0,
+    rerollsUsed: 0, expiresAt: later });
+  await db.doc('restaurantDecks/QDECK').set({ ownerUid: 'host', targetType: 'quickPick', targetId: 'PICK',
+    candidateIds: ['pizza'], candidates: [], expiresAt: later });
+  for (const path of ['/quickPicks/PICK', '/restaurantDecks/QDECK']) {
+    assert.equal(await request(path, 'GET', undefined, 'host'), 200);
+    for (const uid of [undefined, 'guest']) assert.equal(await request(path, 'GET', undefined, uid), 403);
+    assert.equal(await request(path, 'PATCH', { fields: { position: { integerValue: '3' } } }, 'host'), 403);
+  }
+  await db.doc('quickPicks/PICK').update({ expiresAt: Timestamp.fromMillis(Date.now() - 1000) });
+  await db.doc('restaurantDecks/QDECK').update({ expiresAt: Timestamp.fromMillis(Date.now() - 1000) });
+  for (const path of ['/quickPicks/PICK', '/restaurantDecks/QDECK']) {
+    assert.equal(await request(path, 'GET', undefined, 'host'), 403, `${path} is gone once expired`);
+  }
+});
 test('anonymous member can submit and read an own ballot, but cannot rewrite or delete it', async () => {
   assert.equal(await ballot('guest'), 200);
   assert.equal(await request('/rooms/ROOM/votes/guest/ballot/pizza', 'GET', undefined, 'guest'), 200);
@@ -134,7 +151,9 @@ test('decks are readable only while the room lives, and only by its active membe
   assert.equal(await request('/restaurantDecks/OTHER', 'GET', undefined, 'guest'), 403, 'a deck for another room');
   await db.doc('restaurantDecks/QUICK').set({ ownerUid: 'guest', targetType: 'quickPick', targetId: 'ROOM',
     candidateIds: [], candidates: [], expiresAt: roomExpiry });
-  assert.equal(await request('/restaurantDecks/QUICK', 'GET', undefined, 'guest'), 403, 'no Quick Pick reads yet');
+  assert.equal(await request('/restaurantDecks/QUICK', 'GET', undefined, 'guest'), 200, 'its owner reads a Quick Pick deck');
+  assert.equal(await request('/restaurantDecks/QUICK', 'GET', undefined, 'host'), 403,
+    'a Quick Pick deck is not shared with a room that happens to match its target ID');
   await db.doc('rooms/ROOM/members/guest').update({ active: false });
   assert.equal(await request('/restaurantDecks/DECK', 'GET', undefined, 'guest'), 403);
   await db.doc('rooms/ROOM').update({ expiresAt: Timestamp.fromMillis(0) });

@@ -33,6 +33,7 @@
     { "collectionGroup": "_limits", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "usageWeeks", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "deckGenerations", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "quickPicks", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     {
       "collectionGroup": "members",
       "fieldPath": "uid",

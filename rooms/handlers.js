@@ -17,6 +17,11 @@ const DECK_AFTER_VOTING_MS = 30 * 60000;
 const DECK_AFTER_CLOSE_MS = 15 * 60000;
 const SWEEP_BATCH = 200;
 const RECEIPT_TTL_MS = 24 * 3600000;
+// A Quick Pick and its deck last an hour: long enough to decide, short enough
+// that provider results are not kept around.
+const QUICK_PICK_MS = 60 * 60000;
+const MAX_REROLLS = 5;
+const QUICK_PICK_ID = /^[a-f0-9]{24}$/;
 const RECENT_SIGN_IN_SECONDS = 300;
 // Members per room, host included.
 const CAPACITY = 15;
@@ -91,21 +96,44 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
   const generation = createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now, newSeed, log,
     retryTransient });
 
-  // startRoom takes the room and one search request. The search is parsed by
-  // its own strict contract; its origin is used for this call and never kept.
-  function startInput(request) {
+  // A target ID plus one search request. The search is parsed by its own
+  // strict contract; its origin is used for this call and never kept.
+  function searchInput(request, name, pattern) {
     const value = request.data ?? {};
     if (typeof value !== 'object' || Array.isArray(value) ||
-      Object.keys(value).sort().join() !== 'roomId,search' || typeof value.roomId !== 'string' ||
-      !ROOM_ID.test(value.roomId)) {
+      Object.keys(value).sort().join() !== [name, 'search'].sort().join() || typeof value[name] !== 'string' ||
+      !pattern.test(value[name])) {
       invalid();
     }
     try {
-      return { roomId: value.roomId, search: parseSearchRequest(value.search) };
+      return { [name]: value[name], search: parseSearchRequest(value.search) };
     } catch (error) {
       if (error instanceof InvalidSearchRequest) invalid();
       throw error;
     }
+  }
+
+  function rerollInput(request) {
+    const value = request.data ?? {};
+    if (typeof value !== 'object' || Array.isArray(value) || Object.keys(value).sort().join() !== 'from,quickPickId' ||
+      typeof value.quickPickId !== 'string' || !QUICK_PICK_ID.test(value.quickPickId) ||
+      !Number.isInteger(value.from) || value.from < 0 || value.from > 24) {
+      invalid();
+    }
+    return value;
+  }
+
+  const quickPickRef = quickPickId => db.doc(`quickPicks/${quickPickId}`);
+  const quickPickView = (quickPickId, data) => ({ quickPickId, deckId: data.deckId, position: data.position,
+    candidateId: data.order[data.position],
+    rerollsLeft: Math.max(0, Math.min(MAX_REROLLS - data.rerollsUsed, data.order.length - 1 - data.position)) });
+  function shuffled(ids) {
+    const order = [...ids];
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = randomInt(i + 1);
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    return order;
   }
 
   const roomRef = roomId => db.doc(`rooms/${roomId}`);
@@ -234,7 +262,7 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
     async startRoom(request) {
       const actor = identity(request);
       if (!authorize('create', actor)) deny();
-      const { roomId, search } = startInput(request);
+      const { roomId, search } = searchInput(request, 'roomId', ROOM_ID);
       await limit(actor.uid, 'start', 10, 60000);
       return generation.generateDeck({ uid: actor.uid, mode: 'room', targetId: roomId, search, target: {
         async check(tx) {
@@ -254,6 +282,52 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
             expiresAt: Timestamp.fromMillis(Math.min(roomExpiry, now() + VOTING_WINDOW_MS + DECK_AFTER_VOTING_MS)) };
         },
       } });
+    },
+
+    // One live deck for one person, revealed a card at a time. The request ID
+    // names the pick, so a retried call returns it instead of searching again.
+    async createQuickPick(request) {
+      const actor = identity(request);
+      if (!authorize('create', actor)) deny();
+      const { requestId, search } = searchInput(request, 'requestId', REQUEST_ID);
+      await limit(actor.uid, 'quickPick', 10, 60000);
+      const quickPickId = digest(`${actor.uid}:${requestId}`).slice(0, 24);
+      const ref = quickPickRef(quickPickId);
+      return generation.generateDeck({ uid: actor.uid, mode: 'quickPick', targetId: quickPickId, search, target: {
+        async check(tx) {
+          const existing = await tx.get(ref);
+          if (!existing.exists) return { ready: null };
+          if (existing.data().ownerUid !== actor.uid || existing.data().expiresAt.toMillis() <= now()) deny();
+          return { done: quickPickView(quickPickId, existing.data()) };
+        },
+        commit(tx, deck, built) {
+          const data = { ownerUid: actor.uid, deckId: deck.id, order: shuffled(built.candidates.map(c => c.id)),
+            position: 0, rerollsUsed: 0, createdAt: FieldValue.serverTimestamp(), expiresAt: expiry(QUICK_PICK_MS) };
+          tx.create(ref, data);
+          return { view: quickPickView(quickPickId, data), expiresAt: data.expiresAt };
+        },
+      } });
+    },
+
+    // Shows the next card from the same deck: no search and no charge. `from` is
+    // the position the app was showing, so a retried reroll does not skip a card.
+    async rerollQuickPick(request) {
+      const actor = identity(request);
+      const { quickPickId, from } = rerollInput(request);
+      await limit(actor.uid, 'reroll', 30, 60000);
+      return db.runTransaction(async tx => {
+        const ref = quickPickRef(quickPickId);
+        const snapshot = await tx.get(ref);
+        const data = snapshot.data();
+        if (!snapshot.exists || data.ownerUid !== actor.uid || data.expiresAt.toMillis() <= now()) deny();
+        if (data.position !== from) return quickPickView(quickPickId, data);
+        if (quickPickView(quickPickId, data).rerollsLeft === 0) {
+          throw new HttpsError('failed-precondition', 'No rerolls left.', { reason: 'no-rerolls' });
+        }
+        const next = { ...data, position: data.position + 1, rerollsUsed: data.rerollsUsed + 1 };
+        tx.update(ref, { position: next.position, rerollsUsed: next.rerollsUsed });
+        return quickPickView(quickPickId, next);
+      });
     },
 
     // Remaining live searches this week, when they reset, and whether live
@@ -406,10 +480,12 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
         }));
       }
       const decks = await db.collection('restaurantDecks').where('ownerUid', '==', actor.uid).get();
-      if (!decks.empty) {
+      const quickPicks = await db.collection('quickPicks').where('ownerUid', '==', actor.uid).get();
+      for (const records of [decks, quickPicks]) {
+        if (records.empty) continue;
         await retryTransient(async () => {
           const batch = db.batch();
-          decks.forEach(deck => batch.delete(deck.ref));
+          records.forEach(record => batch.delete(record.ref));
           await batch.commit();
         });
       }
@@ -437,6 +513,6 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
 }
 
 const CALLABLES = ['createRoom', 'joinRoom', 'startRoom', 'closeRoom', 'roomResults',
-  'revokeMember', 'rotateJoinCode', 'deleteAccount', 'liveSearchStatus'];
+  'revokeMember', 'rotateJoinCode', 'deleteAccount', 'liveSearchStatus', 'createQuickPick', 'rerollQuickPick'];
 
 module.exports = { createRoomHandlers, CALLABLES, CODE_ALPHABET, CAPACITY };
