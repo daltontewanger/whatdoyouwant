@@ -13,9 +13,9 @@ test('weeks start Monday 00:00 UTC whatever the local day', () => {
 });
 
 test('live search is paused unless the config is complete and switched on', () => {
-  const good = { enabled: true, weeklyCaps: { free: 20, plus: 50 }, monthlyCallStop: 27000 };
+  const good = { enabled: true, weeklyCaps: { free: 20, plus: 50 }, monthlyCallStop: 3500 };
   assert.deepEqual(liveSearchConfig(good), { enabled: true, pausedReason: null,
-    weeklyCaps: { free: 20, plus: 50 }, monthlyCallStop: 27000 });
+    weeklyCaps: { free: 20, plus: 50 }, monthlyCallStop: 3500 });
   assert.equal(liveSearchConfig(null).pausedReason, 'not-configured');
   assert.equal(liveSearchConfig({ ...good, enabled: 'true' }).enabled, false, 'only a real true switches it on');
   assert.equal(liveSearchConfig({ ...good, enabled: false, pausedReason: 'budget' }).pausedReason, 'budget');

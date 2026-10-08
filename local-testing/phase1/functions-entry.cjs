@@ -23,7 +23,7 @@ const handlers = createRoomHandlers({
 });
 // Live search fails closed without its config; the emulators start with a
 // generous one so the app can be tried straight away.
-db.doc('config/liveSearch').create({ enabled: true, weeklyCaps: { free: 20 }, monthlyCallStop: 27000 })
+db.doc('config/liveSearch').create({ enabled: true, weeklyCaps: { free: 20 }, monthlyCallStop: 3500 })
   .catch(() => {});
 const options = { enforceAppCheck: false, cors: [/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/] };
 

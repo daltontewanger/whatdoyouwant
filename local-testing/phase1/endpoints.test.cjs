@@ -77,7 +77,7 @@ const deckOf = async roomId => {
 beforeEach(async () => {
   const response = await fetch(`http://127.0.0.1:8080/emulator/v1/projects/${PROJECT}/databases/(default)/documents`, { method: 'DELETE' });
   assert.equal(response.status, 200);
-  await db.doc('config/liveSearch').set({ enabled: true, weeklyCaps: { free: 20 }, monthlyCallStop: 27000 });
+  await db.doc('config/liveSearch').set({ enabled: true, weeklyCaps: { free: 20 }, monthlyCallStop: 3500 });
 });
 after(() => db.terminate());
 
