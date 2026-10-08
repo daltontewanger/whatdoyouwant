@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/restaurant.dart';
+import 'live_search.dart';
 import 'room_backend.dart';
 
 /// Turns what someone typed into a join request: a six-character join code for
@@ -273,6 +274,10 @@ class CallableRoomBackend implements RoomBackend {
     // Closes the room on the server once everyone has voted or time is up.
     await _call('roomResults', {'roomId': roomId});
   }
+
+  @override
+  Future<LiveSearchAllowance?> liveSearchAllowance() async =>
+      LiveSearchAllowance.fromCallable(await _call('liveSearchStatus', {}));
 
   @override
   Future<void> close(String roomId) async {

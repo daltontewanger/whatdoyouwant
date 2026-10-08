@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/restaurant.dart';
+import 'live_search.dart';
 import 'location_services.dart';
 import 'room_backend.dart';
 import 'room_service.dart';
@@ -96,6 +97,10 @@ class LegacyRoomBackend implements RoomBackend {
 
   @override
   Future<void> close(String roomId) => _rooms.closeRoom(roomId);
+
+  // The original rooms have no weekly allowance.
+  @override
+  Future<LiveSearchAllowance?> liveSearchAllowance() async => null;
 }
 
 int _asInt(Object? value, int fallback) => value is int ? value : fallback;

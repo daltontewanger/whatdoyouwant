@@ -12,6 +12,7 @@ import 'package:whatdoyouwant/screens/room_screen.dart';
 import 'package:whatdoyouwant/screens/swipe_screen.dart';
 import 'package:whatdoyouwant/services/active_room_store.dart';
 import 'package:whatdoyouwant/services/callable_room_backend.dart';
+import 'package:whatdoyouwant/services/live_search.dart';
 import 'package:whatdoyouwant/services/room_backend.dart';
 
 class FakeRoomBackend implements RoomBackend {
@@ -46,6 +47,8 @@ class FakeRoomBackend implements RoomBackend {
   Future<void> nudge(String roomId) async => nudges++;
   @override
   Future<void> close(String roomId) async => closes++;
+  @override
+  Future<LiveSearchAllowance?> liveSearchAllowance() async => null;
   @override
   Future<CreatedRoom> createRoom() async =>
       throw createError ?? UnimplementedError();

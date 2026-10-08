@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import '../services/live_search.dart';
 import '../services/room_backend.dart';
 import 'swipe_screen.dart';
 import '../models/user.dart';
@@ -23,6 +24,8 @@ String createRoomErrorMessage(Object error) {
 
 /// What to tell a host whose room could not start voting.
 String startRoomErrorMessage(Object error) {
+  final limited = liveSearchErrorMessage(error);
+  if (limited != null) return limited;
   if (error is FirebaseException) {
     switch (error.code) {
       case 'permission-denied':

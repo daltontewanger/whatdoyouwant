@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import '../models/restaurant.dart';
 import 'account_service.dart';
 import 'active_room_store.dart';
+import 'live_search.dart';
 
 /// A room as the screens need to see it, whichever backend stores it.
 class RoomState {
@@ -120,6 +121,10 @@ abstract class RoomBackend {
   /// Lets the backend settle stragglers or close a finished room.
   Future<void> nudge(String roomId);
   Future<void> close(String roomId);
+
+  /// This week's live searches, or null where there is no allowance to show
+  /// (guests, unverified accounts, and backends without one).
+  Future<LiveSearchAllowance?> liveSearchAllowance();
 }
 
 /// Makes the backend and, where accounts exist, the account service available
