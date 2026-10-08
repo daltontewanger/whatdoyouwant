@@ -14,8 +14,8 @@ Repository files and verified console evidence describe actual state. The playbo
 
 ## Current focus
 
-- Phase: 2 (Provider abstraction and search benchmark), closed 2026-10-08; Phase 3 (quota and cost controls) next
-- Status doc: `docs/phase2-status.md`
+- Phase: 3 (Quota and cost controls), started 2026-10-08
+- Status doc: `docs/phase3-status.md`
 - Update this section when the phase changes.
 
 ## Repository map
@@ -26,7 +26,7 @@ Repository files and verified console evidence describe actual state. The playbo
 - `lib/environment_guard.dart`, `lib/firebase_options.dart`, `lib/firebase_options_staging.dart`, `lib/firebase_options_local.dart`: per-environment config and guards.
 - `lib/screens/`, `lib/services/`, `lib/models/`, `lib/themes/`: app UI and services (`setState` + `Navigator`, no state-management package). Screens use `RoomBackend` (`services/room_backend.dart`): `LegacyRoomBackend` in production, `CallableRoomBackend` in local/staging.
 - `functions/`: `fetchNearbyRestaurants` callable (`index.js`) and its handler (`search.js`), on Node 22 in production.
-- `rooms/`: room callables (create/join/start/close/results/revoke/rotate code/delete account), a weekly idle-guest cleanup (`cleanup.js`) and `sweepRooms` (every 15 minutes: closes rooms whose voting ran out, deletes expired decks). `handlers.js` holds the logic; `index.js` is the staging-only deployed entry (runs as `rooms-runtime`, App Check enforced); `firestore.rules` and `firestore.indexes.json` (TTL) serve both the emulators and staging. `search/` holds the restaurant search layer (request contract, cuisine whitelist, deck builder, fake provider, HERE adapter); `decks.js` shapes the stored `restaurantDecks`. Separate from production `functions/`.
+- `rooms/`: room callables (create/join/start/close/results/revoke/rotate code/delete account), a weekly idle-guest cleanup (`cleanup.js`) and `sweepRooms` (every 15 minutes: closes rooms whose voting ran out, deletes expired decks). `handlers.js` holds the logic; `index.js` is the staging-only deployed entry (runs as `rooms-runtime`, App Check enforced); `firestore.rules` and `firestore.indexes.json` (TTL) serve both the emulators and staging. `search/` holds the restaurant search layer (request contract, cuisine whitelist, deck builder, fake provider, HERE adapter); `decks.js` shapes the stored `restaurantDecks`. `generation.js` is the one path for live decks (weekly cap, monthly provider ledger, `config/liveSearch` kill switch, lease, refunds); `quota.js` holds its week/month keys and config parsing. Separate from production `functions/`.
 - `local-testing/`: emulator harness and Node tests. `firestore.rules` is the open baseline copy; `phase1/` wires `rooms/` into the emulators (App Check off) and holds the rules, account and callable tests. `search/` holds synthetic HERE fixtures and the search benchmark (`benchmark/record-here.cjs` makes live recordings only for an approved run).
 - `staging/`: staging client config, deny-all rollback rules, empty indexes. `app-check-debug.json` is a local secret and ignored.
 - `scripts/`: `local.mjs` (emulator launcher), `check-environments.mjs` (config preflight), PowerShell launchers.
