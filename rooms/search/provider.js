@@ -5,7 +5,9 @@
 //   id: string,                  // 'here', 'fake', ...
 //   version: string,             // bumps when normalization changes
 //   maxCallsPerSearch: number,   // worst case, reserved before searching
-//   searchNearby(request, { correlationId }) -> Promise<ProviderSearchResult>
+//   searchNearby(request, { seed }) -> Promise<ProviderSearchResult>
+//                                // seed: the deck's own seed, for providers that
+//                                // vary where they search
 // }
 //
 // ProviderSearchResult = {

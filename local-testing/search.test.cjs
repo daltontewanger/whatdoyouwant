@@ -112,22 +112,24 @@ test('deck: the same records, request and seed always give the same deck', async
   assert.throws(() => buildDeck(restaurants, parsed, {}), /stored seed/);
 });
 
-test('deck: the seed only decides exact ties', () => {
-  const parsed = request();
-  const twin = (id, bearing) => normalizedRestaurant({ provider: 'fake', providerPlaceId: id, name: `Tie ${id}`,
-    address: `${id} Example Street`, latitude: ORIGIN.lat + 0.01 * Math.cos(bearing), longitude: ORIGIN.lng,
-    cuisineIds: ['thai'] });
-  // Same distance north and south of the origin: identical scores.
-  const records = [twin('a', 0), twin('b', Math.PI)];
-  const orders = new Set();
-  for (let seed = 0; seed < 20; seed++) {
-    orders.add(buildDeck(records, parsed, { seed: `s${seed}` }).candidates.map(c => c.name).join());
+test('deck: each seed draws a different deck from the whole radius; distance does not rank', async () => {
+  const parsed = request({ deckSize: 5 });
+  const { restaurants } = await createFakeProvider().searchNearby(parsed);
+  const decks = new Set();
+  const farPicks = new Set();
+  for (let seed = 0; seed < 30; seed++) {
+    const { candidates } = buildDeck(restaurants, parsed, { seed: `s${seed}` });
+    decks.add(candidates.map(c => c.id).sort().join());
+    for (const c of candidates) if (c.distanceMetersFromOrigin > 0.5 * parsed.radiusMeters) farPicks.add(c.name);
   }
-  assert.equal(orders.size, 2);
-  const closer = normalizedRestaurant({ ...twin('c', 0), latitude: ORIGIN.lat + 0.001 });
-  for (let seed = 0; seed < 5; seed++) {
-    assert.equal(buildDeck([...records, closer], parsed, { seed: `s${seed}` }).candidates[0].name, 'Tie c');
-  }
+  assert.ok(decks.size >= 25, `30 seeds gave only ${decks.size} different decks`);
+  assert.ok(farPicks.size >= 5, 'places in the outer half of the radius are drawn too');
+  const nearest = [...restaurants].filter(r => distanceMeters(ORIGIN, { lat: r.latitude, lng: r.longitude }) <= 5000)
+    .sort((a, b) => distanceMeters(ORIGIN, { lat: a.latitude, lng: a.longitude }) -
+      distanceMeters(ORIGIN, { lat: b.latitude, lng: b.longitude })).slice(0, 5).map(r => r.name).sort().join();
+  const nearestEveryTime = [...Array(10).keys()].every(seed =>
+    buildDeck(restaurants, parsed, { seed: `n${seed}` }).candidates.map(c => c.name).sort().join() === nearest);
+  assert.equal(nearestEveryTime, false, 'the nearest five are not the deck every time');
 });
 
 test('deck: distance comes from the origin; out-of-radius and positively excluded places are removed', async () => {
@@ -158,8 +160,9 @@ test('deck: open-now preference ranks closed places last without removing them',
   assert.equal(candidates.length, 9);
   assert.equal(candidates.at(-1).name, 'Demo Burger Bar', 'closed, but still there when needed');
   assert.deepEqual(candidates.slice(-3, -1).map(c => c.openStatus), ['unknown', 'unknown']);
-  const plain = buildDeck(small, request({ deckSize: 10 }), { seed: 'open' }).candidates;
-  assert.ok(plain.findIndex(c => c.name === 'Demo Burger Bar') < 8, 'no penalty without the preference');
+  const lastWithout = [...Array(10).keys()].map(seed =>
+    buildDeck(small, request({ deckSize: 10 }), { seed: `plain${seed}` }).candidates.at(-1).name);
+  assert.ok(lastWithout.some(name => name !== 'Demo Burger Bar'), 'no penalty without the preference');
 });
 
 test('deck: one location per chain and a cuisine cap, relaxed only when the pool is short', async () => {
@@ -233,6 +236,30 @@ test('HERE one-circle: one browse call when the pool is healthy, with no key or 
   assert.ok(pool.sufficient);
   assert.equal(new Set(candidates.map(c => c.chainId).filter(Boolean)).size,
     candidates.filter(c => c.chainId).length);
+});
+
+test('HERE one-circle: each deck centers the ranking on its own point inside the circle', async () => {
+  const parsed = request({ radius: { value: 5, unit: 'mi' } });
+  const points = new Set();
+  let outerHalf = 0;
+  for (let seed = 0; seed < 40; seed++) {
+    const { transport, calls } = replay('suburb');
+    await createHereProvider({ transport }).searchNearby(parsed, { seed: `deck-${seed}` });
+    const { at, in: within } = calls[0].params;
+    assert.equal(within, `circle:38.5,-98.5;r=${parsed.radiusMeters}`, 'the hard filter stays on the origin');
+    const [lat, lng] = at.split(',').map(Number);
+    const away = distanceMeters(ORIGIN, { lat, lng });
+    assert.ok(away <= parsed.radiusMeters + 1, `${at} is inside the circle`);
+    if (away > parsed.radiusMeters / Math.SQRT2) outerHalf++;
+    points.add(at);
+  }
+  assert.equal(points.size, 40);
+  assert.ok(outerHalf >= 10 && outerHalf <= 30, `points spread by area (${outerHalf} of 40 in the outer half)`);
+  const { transport, calls } = replay('suburb');
+  await createHereProvider({ transport }).searchNearby(parsed, { seed: 'deck-0' });
+  const again = replay('suburb');
+  await createHereProvider({ transport: again.transport }).searchNearby(parsed, { seed: 'deck-0' });
+  assert.equal(calls[0].params.at, again.calls[0].params.at, 'the same seed searches the same point');
 });
 
 test('HERE one-circle: a thin first answer triggers one discover fallback, and overlaps collapse', async () => {

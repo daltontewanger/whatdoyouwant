@@ -105,9 +105,11 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
     const { reservation } = reserved;
     const reservedAt = Date.now();
 
+    // The seed comes first so the provider can use it to vary where it looks.
+    const seed = newSeed();
     let result;
     try {
-      result = await provider.searchNearby(search);
+      result = await provider.searchNearby(search, { seed });
     } catch (error) {
       // When a provider cannot say how many calls went out, assume the worst case.
       const calls = Number.isInteger(error?.providerCalls) ? error.providerCalls : reservation.calls;
@@ -117,7 +119,6 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
     }
     const calls = result.providerCalls;
     const searchedAt = Date.now();
-    const seed = newSeed();
     const built = buildDeck(result.restaurants, search, { seed });
     // Nothing is stored or charged for a pool too thin to use; the person is
     // asked to widen the search instead.

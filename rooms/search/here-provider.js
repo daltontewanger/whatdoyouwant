@@ -2,6 +2,7 @@
 // adapter builds requests and normalizes responses; a transport does the HTTP,
 // so tests replay recorded or synthetic responses and only the real transport
 // ever sees the API key.
+const { createHash } = require('node:crypto');
 const { normalizedRestaurant, ProviderUnavailable } = require('./provider');
 const { cuisinesFromHere, dietaryHintsFromHere } = require('./cuisines');
 const { distanceMeters } = require('./deck');
@@ -32,6 +33,20 @@ const STRATEGIES = Object.freeze({
 });
 
 const fixed = value => Number(value.toFixed(6));
+
+// HERE returns the places nearest `at`, up to the limit, and `in` keeps them
+// inside the person's circle. Centering `at` on the origin would always return
+// the same nearest hundred in a busy area, so each deck centers it on a point
+// drawn from its seed, spread evenly over the circle's area.
+function searchPoint(request, seed) {
+  if (!seed) return request.origin;
+  const digest = createHash('sha256').update(`here-at:${seed}`).digest();
+  const angle = (digest.readUInt32BE(0) / 2 ** 32) * 2 * Math.PI;
+  const meters = request.radiusMeters * Math.sqrt(digest.readUInt32BE(4) / 2 ** 32);
+  const dLat = (meters * Math.cos(angle)) / 111320;
+  const dLng = (meters * Math.sin(angle)) / (111320 * Math.cos((request.origin.lat * Math.PI) / 180));
+  return { lat: request.origin.lat + dLat, lng: request.origin.lng + dLng };
+}
 
 function circle(request) {
   return `circle:${fixed(request.origin.lat)},${fixed(request.origin.lng)};r=${request.radiusMeters}`;
@@ -99,7 +114,7 @@ function createHereProvider({ transport, strategy = 'one-circle', fallbackBelow 
     version: `2/${strategy}${strategy === 'one-circle' && fallbackBelow > 0 ? `+fallback${fallbackBelow}` : ''}`,
     maxCallsPerSearch: strategy === 'one-circle' && fallbackBelow <= 0 ? 1 : STRATEGIES[strategy].maxCalls,
 
-    async searchNearby(request) {
+    async searchNearby(request, { seed } = {}) {
       let providerCalls = 0;
       let failedCalls = 0;
       const items = [];
@@ -119,7 +134,8 @@ function createHereProvider({ transport, strategy = 'one-circle', fallbackBelow 
       };
 
       if (strategy === 'one-circle') {
-        const at = `${fixed(request.origin.lat)},${fixed(request.origin.lng)}`;
+        const point = searchPoint(request, seed);
+        const at = `${fixed(point.lat)},${fixed(point.lng)}`;
         const primary = await call(ENDPOINTS.browse, { at, in: circle(request), categories: RESTAURANTS });
         const inRadius = items.filter(item => item?.resultType === 'place' && item.position &&
           distanceMeters(request.origin, item.position) <= request.radiusMeters).length;

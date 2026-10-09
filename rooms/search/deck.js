@@ -1,6 +1,11 @@
 // Turns normalized provider records into one deterministic deck. Pure: no I/O,
 // no clock, no randomness except the seed it is given, so the same records,
 // request and seed always produce the same deck.
+//
+// A deck is a random draw from everything inside the chosen radius. Distance
+// does not rank places: someone who picks 5 miles expects anything within 5
+// miles, not the same nearest handful every time. Only the person's own
+// preferences (included cuisines, open now) put some places ahead of others.
 const { createHash } = require('node:crypto');
 
 const MINIMUM_POOL = 8;
@@ -61,24 +66,18 @@ function dedupe(records) {
   return { kept, duplicates: records.length - kept.length };
 }
 
-// Integer points so ordering never depends on floating-point rounding.
-// Included cuisines dominate; unknown cuisine sits between a match and a known
-// non-match (the flexible policy). Open-now only counts when asked for.
-function score(record, request) {
-  let points = 0;
+// Preference tier, higher first. Included cuisines dominate; unknown cuisine
+// sits between a match and a known non-match (the flexible policy). Open-now
+// only counts when asked for. Everything else is left to the seed.
+function tier(record, request) {
+  let cuisine = 0;
   if (request.includedCuisineIds.length) {
-    if (record.cuisineIds.some(id => request.includedCuisineIds.includes(id))) points += 3000;
-    else if (!record.cuisineIds.length) points += 1000;
+    if (record.cuisineIds.some(id => request.includedCuisineIds.includes(id))) cuisine = 2;
+    else if (!record.cuisineIds.length) cuisine = 1;
   }
-  if (request.openNowPreferred) {
-    if (record.openStatus === 'open') points += 600;
-    else if (record.openStatus === 'closed') points -= 600;
-  }
-  points += Math.round(500 * (1 - record.distanceMetersFromOrigin / request.radiusMeters));
-  if (record.address) points += 100;
-  if (record.cuisineIds.length) points += 50;
-  if (record.phone || record.website) points += 50;
-  return points;
+  let open = 0;
+  if (request.openNowPreferred) open = { open: 2, unknown: 1, closed: 0 }[record.openStatus];
+  return cuisine * 3 + open;
 }
 
 // Picks a varied deck: one location per chain and no cuisine taking more than
@@ -142,15 +141,16 @@ function eligiblePool(records, request) {
  * Builds a deck from normalized records.
  * @param {object[]} records NormalizedRestaurant records from any provider.
  * @param {object} request A parsed search request (see request.js).
- * @param {{seed: string, minimumPool?: number}} options The stored seed decides exact ties.
+ * @param {{seed: string, minimumPool?: number}} options The stored seed draws the order within each
+ *   preference tier.
  * @returns {{candidates: object[], pool: object}} Candidates in deck order and a pool report.
  */
 function buildDeck(records, request, { seed, minimumPool = Math.min(MINIMUM_POOL, request.deckSize) }) {
   if (typeof seed !== 'string' || !seed.length) throw new Error('A deck needs a stored seed.');
   const { kept, counts } = eligiblePool(records, request);
   const ranked = kept
-    .map(record => ({ record, points: score(record, request), tie: hash(`${seed}:${candidateId(record)}`) }))
-    .sort((a, b) => b.points - a.points || (a.tie < b.tie ? -1 : a.tie > b.tie ? 1 : 0))
+    .map(record => ({ record, tier: tier(record, request), draw: hash(`${seed}:${candidateId(record)}`) }))
+    .sort((a, b) => b.tier - a.tier || (a.draw < b.draw ? -1 : a.draw > b.draw ? 1 : 0))
     .map(entry => entry.record);
   const chosen = selectVaried(ranked, request.deckSize);
   const candidates = chosen.map((record, order) => ({
