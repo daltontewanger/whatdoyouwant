@@ -247,7 +247,7 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
           return { roomId };
         }
         // The internal room ID only reconnects existing members; joining needs the current code.
-        if (!joinCode || state.joinCode !== joinCode || !authorize('join', actor, state)) deny();
+        if (!joinCode || state.joinCode !== joinCode || !authorize('join', actor, state, false, now())) deny();
         // Only someone holding the current code learns that the room is full.
         if (state.memberCount >= CAPACITY) {
           throw new HttpsError('failed-precondition', 'Room is full.', { reason: 'room-full', capacity: CAPACITY });
@@ -269,7 +269,7 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
           const { room, snapshot, state } = await memberView(tx, roomId, actor.uid);
           if (state.creator !== actor.uid) deny();
           if (state.status !== 'lobby') return { done: startedView(roomId, state) };
-          if (!authorize('start', actor, state, true)) deny();
+          if (!authorize('start', actor, state, true, now())) deny();
           return { ready: { room, snapshot, state } };
         },
         commit(tx, deck, built, { room, snapshot, state }) {
