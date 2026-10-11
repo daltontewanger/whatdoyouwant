@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-final Color primaryGreen = Color(0xFF65B292); // #65b292
+// The logo's green. White text on it is too faint to read comfortably, so it
+// stays on accents and tints.
+final Color brandGreen = Color(0xFF65B292); // #65b292
+// A darker green for text, buttons and bars: white on it, and it on white,
+// meet the WCAG AA contrast ratio for normal text.
+final Color primaryGreen = Color(0xFF2F7A5C); // #2f7a5c
 final Color lightBackground = Color(0xFFFAFAFA);
 
 final ThemeData appTheme = ThemeData(
   brightness: Brightness.light,
   primaryColor: primaryGreen,
   colorScheme: ColorScheme.fromSeed(
-    seedColor: primaryGreen,
+    seedColor: brandGreen,
     primary: primaryGreen,
-    secondary: primaryGreen,
+    secondary: brandGreen,
     surface: Colors.white,
     onPrimary: Colors.white,
     onSurface: Color(0xFF222222),
