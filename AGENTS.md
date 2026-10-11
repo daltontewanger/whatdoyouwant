@@ -20,20 +20,21 @@ Repository files and verified console evidence describe actual state. The playbo
 
 ## Repository map
 
-- `lib/main.dart`: production entry (anonymous Auth, App Check).
+- `lib/main.dart`: production entry (accounts with a guest session, App Check, `CallableRoomBackend`; ships only at the production cut-over).
 - `lib/main_staging.dart`: staging entry (app on the deployed room backend; `STAGING_CONNECTION_CHECK=true` for the connection check).
 - `lib/main_local.dart`: emulator-only entry (app on the room emulators; Google sign-in uses the Auth emulator's fake provider).
 - `lib/environment_guard.dart`, `lib/firebase_options.dart`, `lib/firebase_options_staging.dart`, `lib/firebase_options_local.dart`: per-environment config and guards.
-- `lib/screens/`, `lib/services/`, `lib/models/`, `lib/themes/`: app UI and services (`setState` + `Navigator`, no state-management package). Screens use `RoomBackend` (`services/room_backend.dart`): `LegacyRoomBackend` in production, `CallableRoomBackend` in local/staging.
+- `lib/screens/`, `lib/services/`, `lib/models/`, `lib/themes/`: app UI and services (`setState` + `Navigator`, no state-management package). Screens use `RoomBackend` (`services/room_backend.dart`): `CallableRoomBackend` everywhere on this branch; `LegacyRoomBackend` stays only until production is cut over. `services/site_links.dart` reads app links (`/app/host`, `/app/join[/<code>]`, `/app/account`); `screens/update_gate.dart` shows "please update" for builds below `config/liveSearch.minimumClientBuild`.
 - `functions/`: `fetchNearbyRestaurants` callable (`index.js`) and its handler (`search.js`), on Node 22 in production.
-- `rooms/`: room callables (create/join/start/close/results/revoke/rotate code/delete account), a weekly idle-guest cleanup (`cleanup.js`) and `sweepRooms` (every 15 minutes: closes rooms whose voting ran out, deletes expired decks). `handlers.js` holds the logic; `index.js` is the staging-only deployed entry (runs as `rooms-runtime`, App Check enforced); `firestore.rules` and `firestore.indexes.json` (TTL) serve both the emulators and staging. `search/` holds the restaurant search layer (request contract, cuisine whitelist, deck builder, fake provider, HERE adapter); `decks.js` shapes the stored `restaurantDecks`. `generation.js` is the one path for live decks (weekly cap, monthly provider ledger, `config/liveSearch` kill switch, lease, refunds); `quota.js` holds its week/month keys and config parsing. Separate from production `functions/`.
+- `rooms/`: room callables (create/join/start/close/results/revoke/rotate code/delete account), a weekly idle-guest cleanup (`cleanup.js`) and `sweepRooms` (every 15 minutes: closes rooms whose voting ran out, deletes expired decks). `handlers.js` holds the logic; `index.js` is the deployed entry for staging and production (each project listed with its own settings; runs as that project's `rooms-runtime`, App Check enforced); `firestore.rules` and `firestore.indexes.json` (TTL) serve both the emulators and staging. `search/` holds the restaurant search layer (request contract, cuisine whitelist, deck builder, fake provider, HERE adapter); `decks.js` shapes the stored `restaurantDecks`. `generation.js` is the one path for live decks (weekly cap, monthly provider ledger, `config/liveSearch` kill switch, lease, refunds); `quota.js` holds its week/month keys and config parsing. Separate from production `functions/`.
 - `local-testing/`: emulator harness and Node tests. `firestore.rules` is the open baseline copy; `phase1/` wires `rooms/` into the emulators (App Check off) and holds the rules, account and callable tests. `search/` holds synthetic HERE fixtures and the search benchmark (`benchmark/record-here.cjs` makes live recordings only for an approved run).
 - `staging/`: staging client config, deny-all rollback rules, empty indexes. `app-check-debug.json` is a local secret and ignored.
-- `scripts/`: `local.mjs` (emulator launcher), `check-environments.mjs` (config preflight), PowerShell launchers.
-- `firebase.json` (production Functions), `firebase.emulators.json` (baseline emulators), `firebase.phase1.emulators.json` (room emulators), `firebase.staging.json` (staging Firestore rules/TTL, Auth, rooms Functions).
+- `site/`: the public website (static HTML/CSS/JS: home page, legal and help pages, account menu). Built together with the web app by `scripts/build-hosting.mjs` into `build/hosting` (site at `/`, app at `/app`).
+- `scripts/`: `local.mjs` (emulator launcher), `check-environments.mjs` (config preflight), `build-hosting.mjs`, `deploy-staging.mjs`, `deploy-production.mjs`, PowerShell launchers.
+- `firebase.json` (legacy production Functions, retired after cut-over), `firebase.production.json` (production Hosting with security headers, room rules/TTL, rooms Functions), `firebase.emulators.json` (baseline emulators), `firebase.phase1.emulators.json` (room emulators), `firebase.staging.json` (staging Firestore rules/TTL, Auth, rooms Functions).
 - `android/app`: flavors `local`, `staging`, `production`; one is always required.
 - `test/`: Flutter tests.
-- `.github/workflows/deploy.yml`: builds and publishes web to GitHub Pages on every push to `main`.
+- `.github/workflows/deploy.yml`: builds and publishes web to GitHub Pages (`/whatdoyouwant/`) on every push to `main`. Merging this branch publishes the new app there, so merge only after the production backend is deployed; the workflow is retired at cut-over.
 - `.github/workflows/deploy-staging.yml`: manual rooms deploy to staging (dry run by default; owner approves each run).
 - `docs/`: local-only, ignored.
 
@@ -58,10 +59,13 @@ local scripts by default. The bypass applies only to that process.
 | Staging function logs | `npx firebase functions:log --project whatdoyouwant-staging --config firebase.staging.json -n 50` (`--only <name>` for one function) |
 | Deploy rooms to staging (needs approval) | `npm run deploy:staging -- --confirm whatdoyouwant-staging` (add `--dry-run` first) |
 | Start emulators | `npm run local:preview` (room rules and callables; used by the app) or `npm run local` (legacy open-rules baseline, tests only) |
-| Run the app locally (web) | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-local-app.ps1` (needs `npm run local:preview`; serves on `localhost:5080` and opens the browser; `-WebPort` to change) |
+| Run the app locally (web) | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-local-app.ps1` (needs `npm run local:preview`; serves on `localhost:5080/` and opens the browser; `-WebPort` to change) |
 | Run the app locally (Android) | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-local-app.ps1 -Android -Device <device-id>` |
 | Run the app against staging | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-staging.ps1 -AppCheckDebugFile ./staging/app-check-debug.json` (`-Android -Device <id>`; web uses `localhost:7357`) |
-| Web build | `flutter build web --release --no-pub` |
+| Web build | `flutter build web --release --no-pub` (base path is set at build time: `--base-href /app/` for Hosting) |
+| Site + app hosting folder | `npm run build:hosting -- --env staging` (or `production`; `--skip-app` reuses the last web build) |
+| Preview the hosting folder locally | `npx firebase emulators:start --only hosting --config firebase.production.json --project demo-whatdoyouwant` (serves `build/hosting` on port 5000; build with `--env staging`, since a production build talks to the live project) |
+| Deploy to production (needs approval) | `npm run deploy:production -- --confirm what-do-you-want-8a404 --dry-run` (then without `--dry-run`; `--only site` or `--only backend`) |
 | Android debug build | `flutter build apk --debug --no-pub --flavor production -t lib/main.dart` (staging: `--flavor staging -t lib/main_staging.dart`) |
 
 There are no Functions lint scripts yet. Emulator tests must run with no other
