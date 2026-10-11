@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>What Do You Want?! Decide where to eat, together</title>
+  <meta name="description" content="Everyone swipes the same nearby picks and the group decides together. Host a room, join with a code, or try it as a guest.">
+  <meta name="theme-color" content="#0d1b3e">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="What Do You Want?!">
+  <meta property="og:title" content="You'll never have to ask &quot;What do you want?!&quot; again">
+  <meta property="og:description" content="Everyone swipes the same nearby picks and the group decides together.">
+  <meta property="og:image" content="%SITE_ORIGIN%/media/banner.webp">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;800&display=swap">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/firebase-config.js" defer></script>
+  <script src="/site.js" type="module"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="topbar">
+    <div class="wrap">
+      <a class="brand" href="/" aria-label="What Do You Want?! home">
+        <img src="/media/logo.png" alt="" width="40" height="40">
+        <span>What Do You Want?!</span>
+      </a>
+      <nav aria-label="Main">
+        <a class="nav-optional" href="#how-it-works">How it works</a>
+        <a class="btn btn-outline" href="/app">Open the app</a>
+        <div class="account" id="account" hidden>
+          <button class="btn account-button" id="account-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="account-menu">
+            <span class="avatar" id="account-initials" aria-hidden="true"></span>
+            <span class="visually-hidden" id="account-label">Your account</span>
+            <span aria-hidden="true">▾</span>
+          </button>
+          <div class="account-menu" id="account-menu" hidden></div>
+        </div>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="wrap">
+        <div>
+          <h1 id="hero-title">You'll never have to ask "What do you want?!" again.</h1>
+          <p>Let the group decide together. Everyone swipes the same nearby picks, and dinner gets settled in minutes.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="/app/host">Host a room</a>
+            <a class="btn btn-outline" href="/app/join">Join with a code</a>
+            <a class="btn btn-link" href="/app">Try it as a guest</a>
+          </div>
+          <div class="stores" aria-label="Store apps">
+            <span class="store">App Store · Coming soon</span>
+            <span class="store">Google Play · Coming soon</span>
+          </div>
+        </div>
+        <div class="hero-photo" role="img" aria-label="Four friends on a couch deciding where to eat, a phone on the table"></div>
+      </div>
+    </section>
+
+    <section class="steps-band" id="how-it-works" aria-labelledby="how-title">
+      <div class="wrap">
+        <h2 class="section-title" id="how-title">How it works</h2>
+        <ol class="steps">
+          <li><div class="bubble y" aria-hidden="true">1</div><h3>Start a room</h3><p>Pick how far to look and how many cards to swipe.</p></li>
+          <li><div class="bubble b" aria-hidden="true">2</div><h3>Share the code</h3><p>Friends join with the code, a link or a QR code. No account needed.</p></li>
+          <li><div class="bubble g" aria-hidden="true">3</div><h3>Everyone swipes</h3><p>Yes, no or never on the same nearby picks.</p></li>
+          <li><div class="bubble y" aria-hidden="true">4</div><h3>Go eat</h3><p>See the winner, a backup, and directions.</p></li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="demo-band" aria-labelledby="demo-title">
+      <div class="wrap">
+        <h2 class="section-title" id="demo-title">See it in action</h2>
+        <p class="section-lede">A room from start to finish.</p>
+        <div class="demo">
+          <div class="chips" aria-hidden="true"><span class="chip">4 friends joined</span><span class="chip">A favorite made the deck</span></div>
+          <div class="phone"><div class="screen" id="demo-screen" aria-live="off"></div></div>
+          <div class="chips right" aria-hidden="true"><span class="chip">3 of 4 said yes</span><span class="chip">Directions ready</span></div>
+        </div>
+        <div class="demo-controls">
+          <button class="btn btn-outline" id="demo-toggle" type="button">Pause demo</button>
+          <div class="dots" id="demo-dots" aria-hidden="true"></div>
+          <span id="demo-step" class="visually-hidden" aria-live="polite"></span>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="why-title">
+      <div class="wrap">
+        <h2 class="section-title" id="why-title">Why you're going to want it</h2>
+        <div class="tiles">
+          <div class="tile"><div class="bubble g" aria-hidden="true">15</div><h3>Everyone gets a say</h3><p>Up to 15 people swipe the same picks, so no one person decides alone.</p></div>
+          <div class="tile"><div class="bubble y" aria-hidden="true">?!</div><h3>Fresh picks every time</h3><p>A new random draw from your whole distance, not the same nearest handful.</p></div>
+          <div class="tile"><div class="bubble b" aria-hidden="true">♥</div><h3>I know what I want</h3><p>Your favorites can make the deck, and your "never" places stay out.</p></div>
+          <div class="tile"><div class="bubble g" aria-hidden="true">→</div><h3>No download to join</h3><p>Friends join from their phone's browser with a code, a link or a QR code.</p></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <nav aria-label="Legal and help">
+        <ul>
+          <li><a href="/privacy">Privacy policy</a></li>
+          <li><a href="/terms">Terms of use</a></li>
+          <li><a href="/cookies">Cookie notice</a></li>
+          <li><a href="/accessibility">Accessibility</a></li>
+          <li><a href="/support">Support</a></li>
+        </ul>
+      </nav>
+      <div class="socials" aria-label="Social accounts coming soon">
+        <span>Instagram</span><span>TikTok</span><span>X</span><span>Facebook</span>
+      </div>
+      <small>Restaurant data © HERE. © 2026 What Do You Want?!</small>
+    </div>
+  </footer>
+</body>
+</html>
