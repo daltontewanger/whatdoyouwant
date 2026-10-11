@@ -14,8 +14,8 @@ Repository files and verified console evidence describe actual state. The playbo
 
 ## Current focus
 
-- Phase: 3 (Quota and cost controls), closed 2026-10-11; Phase 4 (production cut-over) next
-- Status doc: `docs/phase3-status.md`
+- Phase: 4 (Production cut-over), planning since 2026-10-11
+- Status doc: `docs/phase4-status.md`
 - Update this section when the phase changes.
 
 ## Repository map
@@ -110,7 +110,7 @@ Write like a developer on the team, in plain natural language.
 - Clients are untrusted. The backend derives UID from verified Auth and never from request bodies.
 - Only registered, verified accounts can trigger live deck generation. Anonymous guests can join and vote but never cause a HERE call.
 - Quick Pick and Group Room share one weekly fair-use cap (server-configured, UTC Monday-start) under a global no-cost provider stop and kill switch, all enforced server-side. No ads or payments at launch.
-- We Know What We Want! (short form WKWWW!; formerly "Our Usual Spots") never calls a restaurant provider and never consumes a live search.
+- We'll Help Decide What We Want (the person's own typed list; formerly "Our Usual Spots" and "We Know What We Want!") never calls a restaurant provider and never consumes a live search.
 - One immutable deck per decision. Joins, votes, reconnects, and rerolls reuse it.
 - HERE stays behind `RestaurantProvider`. Flutter never sees HERE transport objects.
 - Never store, log, or send exact location to analytics or crash reports.
