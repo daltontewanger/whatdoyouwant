@@ -282,6 +282,10 @@ class CallableRoomBackend implements RoomBackend {
   }
 
   @override
+  Future<bool> updateRequired(int build) async =>
+      (await _call('appStatus', {'build': build}))['updateRequired'] == true;
+
+  @override
   Future<LiveSearchAllowance?> liveSearchAllowance() async =>
       LiveSearchAllowance.fromCallable(await _call('liveSearchStatus', {}));
 

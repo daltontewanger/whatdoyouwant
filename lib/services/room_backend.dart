@@ -126,6 +126,9 @@ abstract class RoomBackend {
   Future<void> nudge(String roomId);
   Future<void> close(String roomId);
 
+  /// Whether the backend no longer serves this build of the app.
+  Future<bool> updateRequired(int build);
+
   /// This week's live searches, or null where there is no allowance to show
   /// (guests, unverified accounts, and backends without one).
   Future<LiveSearchAllowance?> liveSearchAllowance();

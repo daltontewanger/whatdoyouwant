@@ -206,6 +206,19 @@ test('guests and unverified accounts cannot search or see an allowance', async (
   await fails(handlers.liveSearchStatus({ ...caller('host9'), data: { uid: 'someone-else' } }), 'invalid-argument');
 });
 
+test('old app builds are told to update; the minimum is optional', async () => {
+  const handlers = handlersWith();
+  const ask = build => handlers.appStatus({ ...caller('guest12', 'anonymous', false), data: { build } });
+  assert.deepEqual(await ask(1), { updateRequired: false }, 'no config means no minimum');
+  await configure({ minimumClientBuild: 5 });
+  assert.deepEqual(await ask(4), { updateRequired: true });
+  assert.deepEqual(await ask(5), { updateRequired: false });
+  for (const data of [{}, { build: '5' }, { build: 1.5 }, { build: 5, uid: 'x' }]) {
+    await fails(handlers.appStatus({ ...caller('guest12', 'anonymous', false), data }), 'invalid-argument');
+  }
+  await fails(handlers.appStatus({ data: { build: 5 } }), 'unauthenticated');
+});
+
 test('deleting an account removes its usage records but not the provider ledger', async () => {
   await configure();
   const handlers = handlersWith();

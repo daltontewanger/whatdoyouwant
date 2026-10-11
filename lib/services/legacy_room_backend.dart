@@ -101,6 +101,9 @@ class LegacyRoomBackend implements RoomBackend {
   @override
   Future<void> prepareStart() async {}
 
+  @override
+  Future<bool> updateRequired(int build) async => false;
+
   // The original rooms have no weekly allowance.
   @override
   Future<LiveSearchAllowance?> liveSearchAllowance() async => null;

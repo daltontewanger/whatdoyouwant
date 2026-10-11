@@ -332,6 +332,20 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       });
     },
 
+    // Whether this build of the app is too old to use. Purely a courtesy to
+    // people on old installs; every callable still validates its own input.
+    async appStatus(request) {
+      identity(request);
+      const value = request.data ?? {};
+      if (typeof value !== 'object' || Array.isArray(value) || Object.keys(value).join() !== 'build' ||
+        !Number.isInteger(value.build) || value.build < 0 || value.build > 1e9) {
+        invalid();
+      }
+      const config = await db.doc('config/liveSearch').get();
+      const minimum = config.data()?.minimumClientBuild;
+      return { updateRequired: Number.isInteger(minimum) && value.build < minimum };
+    },
+
     // Remaining live searches this week, when they reset, and whether live
     // search is paused. Guests and unverified accounts cannot search at all.
     async liveSearchStatus(request) {
@@ -515,6 +529,7 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
 }
 
 const CALLABLES = ['createRoom', 'joinRoom', 'startRoom', 'closeRoom', 'roomResults',
-  'revokeMember', 'rotateJoinCode', 'deleteAccount', 'liveSearchStatus', 'createQuickPick', 'rerollQuickPick'];
+  'revokeMember', 'rotateJoinCode', 'deleteAccount', 'liveSearchStatus', 'createQuickPick', 'rerollQuickPick',
+  'appStatus'];
 
 module.exports = { createRoomHandlers, CALLABLES, CODE_ALPHABET, CAPACITY };

@@ -10,6 +10,7 @@ import 'package:whatdoyouwant/screens/join_screen.dart';
 import 'package:whatdoyouwant/screens/results_screen.dart';
 import 'package:whatdoyouwant/screens/room_screen.dart';
 import 'package:whatdoyouwant/screens/swipe_screen.dart';
+import 'package:whatdoyouwant/screens/update_gate.dart';
 import 'package:whatdoyouwant/services/active_room_store.dart';
 import 'package:whatdoyouwant/services/callable_room_backend.dart';
 import 'package:whatdoyouwant/services/live_search.dart';
@@ -49,6 +50,9 @@ class FakeRoomBackend implements RoomBackend {
   Future<void> close(String roomId) async => closes++;
   @override
   Future<LiveSearchAllowance?> liveSearchAllowance() async => null;
+  bool tooOld = false;
+  @override
+  Future<bool> updateRequired(int build) async => tooOld;
   int prepared = 0;
   @override
   Future<void> prepareStart() async => prepared++;
@@ -309,6 +313,32 @@ void main() {
     expect(backend.prepared, 1);
     await tester.pumpWidget(const SizedBox());
   });
+
+  testWidgets(
+    'an old build is asked to update; a current one goes straight in',
+    (tester) async {
+      Future<int> build() async => 2;
+      final current = FakeRoomBackend();
+      await tester.pumpWidget(
+        app(
+          current,
+          UpdateGate(installedBuild: build, child: const Text('Home')),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('Home'), findsOneWidget);
+
+      final old = FakeRoomBackend()..tooOld = true;
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(
+        app(old, UpdateGate(installedBuild: build, child: const Text('Home'))),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Home'), findsNothing);
+      expect(find.text('A newer version is ready'), findsOneWidget);
+    },
+  );
 
   testWidgets('a rejected vote is explained without the raw error', (
     tester,
