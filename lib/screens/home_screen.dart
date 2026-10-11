@@ -47,15 +47,18 @@ class HomeScreenState extends State<HomeScreen>
       CurvedAnimation(parent: _animationController, curve: Curves.elasticOut),
     );
     _animationController.forward();
-    // A shared join link or the site's account menu opened the app.
+    // A shared join link or a button on the public site opened the app.
     final link = kIsWeb ? appLinkFrom(Uri.base) : null;
     if (link != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        if (link.joinCode != null) {
-          _joinRoom(code: link.joinCode);
-        } else if (link.account) {
-          _openAccount();
+        switch (link.target) {
+          case AppLinkTarget.host:
+            _createRoom();
+          case AppLinkTarget.join:
+            _joinRoom(code: link.joinCode);
+          case AppLinkTarget.account:
+            _openAccount();
         }
       });
     }

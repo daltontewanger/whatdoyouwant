@@ -24,27 +24,35 @@ Uri joinLink(String origin, String joinCode) =>
 Uri privacyLink(String origin) => Uri.parse('$origin/privacy');
 
 /// What an app address asks the app to open.
-class AppLink {
-  const AppLink.join(this.joinCode) : account = false;
-  const AppLink.account() : joinCode = null, account = true;
+enum AppLinkTarget { host, join, account }
 
+class AppLink {
+  const AppLink(this.target, {this.joinCode});
+
+  final AppLinkTarget target;
+
+  /// Set when a join link carries the room's code.
   final String? joinCode;
-  final bool account;
 }
 
-/// Reads `/app/join/<code>` and `/app/account`. The app is served from `/app`
-/// on the site and from the root during local development.
+/// Reads `/app/host`, `/app/join`, `/app/join/<code>` and `/app/account`. The
+/// app is served from `/app` on the site and from the root during local
+/// development.
 AppLink? appLinkFrom(Uri uri) {
   final segments = [...uri.pathSegments.where((part) => part.isNotEmpty)];
   if (segments.isNotEmpty && segments.first == 'app') segments.removeAt(0);
   if (segments.length == 2 && segments.first == 'join') {
     final code = segments[1].toUpperCase();
     if (RegExp(r'^[A-HJKMNP-Z2-9]{6}$').hasMatch(code)) {
-      return AppLink.join(code);
+      return AppLink(AppLinkTarget.join, joinCode: code);
     }
+    return null;
   }
-  if (segments.length == 1 && segments.first == 'account') {
-    return const AppLink.account();
-  }
-  return null;
+  if (segments.length != 1) return null;
+  return switch (segments.single) {
+    'host' => const AppLink(AppLinkTarget.host),
+    'join' => const AppLink(AppLinkTarget.join),
+    'account' => const AppLink(AppLinkTarget.account),
+    _ => null,
+  };
 }

@@ -11,12 +11,17 @@ void main() {
       appLinkFrom(Uri.parse('http://localhost:5080/join/AB3K7X'))?.joinCode,
       'AB3K7X',
     );
-    expect(
-      appLinkFrom(Uri.parse('https://example.test/app/account'))?.account,
-      isTrue,
-    );
+    for (final (path, target) in [
+      ('app/account', AppLinkTarget.account),
+      ('app/host', AppLinkTarget.host),
+      ('app/join', AppLinkTarget.join),
+    ]) {
+      final link = appLinkFrom(Uri.parse('https://example.test/$path'));
+      expect((link?.target, link?.joinCode), (target, null), reason: path);
+    }
     for (final other in [
       'https://example.test/app/',
+      'https://example.test/app/settings',
       'https://example.test/app/join/AB3K7',
       'https://example.test/app/join/AB3K7I',
       'https://example.test/app/join/AB3K7X/extra',
