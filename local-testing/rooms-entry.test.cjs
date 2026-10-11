@@ -10,14 +10,39 @@ const load = env => spawnSync(process.execPath, ['-e', `require(${JSON.stringify
   env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, ...env }, encoding: 'utf8',
 });
 
-test('rooms entry refuses to load for any project other than staging', () => {
-  for (const env of [{ GCLOUD_PROJECT: 'what-do-you-want-8a404' }, { GCLOUD_PROJECT: 'demo-whatdoyouwant' }, {},
-    { FIREBASE_CONFIG: JSON.stringify({ projectId: 'what-do-you-want-8a404' }) }]) {
+test('rooms entry loads only for staging and production', () => {
+  for (const env of [{ GCLOUD_PROJECT: 'demo-whatdoyouwant' }, { GCLOUD_PROJECT: 'someone-else' }, {},
+    { FIREBASE_CONFIG: JSON.stringify({ projectId: 'demo-whatdoyouwant' }) }]) {
     const result = load(env);
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /deploys only to whatdoyouwant-staging/);
+    assert.match(result.stderr, /deploys only to whatdoyouwant-staging or what-do-you-want-8a404/);
   }
-  assert.equal(load({ GCLOUD_PROJECT: 'whatdoyouwant-staging' }).status, 0);
+  for (const project of ['whatdoyouwant-staging', 'what-do-you-want-8a404']) {
+    assert.equal(load({ GCLOUD_PROJECT: project }).status, 0, project);
+  }
+});
+
+test('production runs as its own scoped identity, without local origins', () => {
+  const script = `const rooms = require(${JSON.stringify(entry)});
+    const out = {};
+    for (const [name, fn] of Object.entries(rooms)) {
+      const e = fn.__endpoint;
+      out[name] = { account: e.serviceAccountEmail, max: e.maxInstances, secrets: (e.secretEnvironmentVariables ?? []).map(s => s.key) };
+    }
+    console.log(JSON.stringify(out));`;
+  const result = spawnSync(process.execPath, ['-e', script], { encoding: 'utf8',
+    env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, GCLOUD_PROJECT: 'what-do-you-want-8a404' } });
+  assert.equal(result.status, 0, result.stderr);
+  const endpoints = JSON.parse(result.stdout.trim().split(/\r?\n/).pop());
+  for (const [name, endpoint] of Object.entries(endpoints)) {
+    assert.equal(endpoint.account, 'rooms-runtime@what-do-you-want-8a404.iam.gserviceaccount.com', name);
+  }
+  assert.equal(endpoints.joinRoom.max, 10);
+  assert.deepEqual(endpoints.startRoom.secrets, ['HERE_API_KEY']);
+  assert.deepEqual(endpoints.joinRoom.secrets, []);
+  const source = require('node:fs').readFileSync(entry, 'utf8');
+  const production = source.slice(source.indexOf("'what-do-you-want-8a404': {"));
+  assert.ok(!production.slice(0, production.indexOf('},')).includes('localhost'), 'no local origins in production');
 });
 
 test('every staging callable runs as the scoped identity and requires App Check', async () => {

@@ -30,8 +30,22 @@ check(JSON.stringify(stagingConfig.functions) === JSON.stringify([{ source: 'roo
   'staging deploys only the rooms codebase');
 // The room callables must never reach production through its config.
 check(!JSON.stringify(json('firebase.json')).includes('rooms'), 'production config excludes the rooms codebase');
-check(/const STAGING = 'whatdoyouwant-staging';/.test(readFileSync(resolve(root, 'rooms/index.js'), 'utf8')),
-  'rooms entry is pinned to staging');
+const roomsEntry = readFileSync(resolve(root, 'rooms/index.js'), 'utf8');
+const roomProjects = [...roomsEntry.slice(roomsEntry.indexOf('const PROJECTS = {'), roomsEntry.indexOf('const project ='))
+  .matchAll(/^  '([a-z0-9-]+)': \{/gm)].map(match => match[1]);
+check(JSON.stringify(roomProjects) === JSON.stringify([staging, production]), 'rooms entry knows only staging and production');
+const productionConfig = json('firebase.production.json');
+check(productionConfig.firestore.rules === 'rooms/firestore.rules' &&
+  productionConfig.firestore.indexes === 'rooms/firestore.indexes.json', 'production uses the room rules and TTL settings');
+check(JSON.stringify(productionConfig.functions) === JSON.stringify(stagingConfig.functions),
+  'production deploys only the rooms codebase');
+check(productionConfig.hosting.public === 'build/hosting', 'production hosting serves the assembled site and app');
+check(!JSON.stringify(productionConfig).includes(staging) && !JSON.stringify(stagingConfig).includes(production),
+  'production and staging configs never name each other');
+check(readFileSync(resolve(root, 'web/index.html'), 'utf8').includes('<base href="$FLUTTER_BASE_HREF">'),
+  'web base path is set at build time');
+check(readFileSync(resolve(root, '.github/workflows/deploy.yml'), 'utf8').includes('--base-href /whatdoyouwant/'),
+  'GitHub Pages build keeps its path');
 const rollback = readFileSync(resolve(root, 'staging/firestore.rules'), 'utf8');
 check((rollback.match(/allow /g) || []).length === 1 && rollback.includes('allow read, write: if false;'),
   'staging rollback rules deny everything');

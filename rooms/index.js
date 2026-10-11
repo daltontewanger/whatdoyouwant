@@ -1,5 +1,6 @@
-// Deployed room callables. This codebase targets staging only; loading it for any
-// other project fails, so CLI discovery stops before anything reaches production.
+// Deployed room callables for staging and production. Each project's settings
+// are listed here; loading for any other project fails, so CLI discovery stops
+// before anything reaches a project nobody set up.
 const { initializeApp } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
@@ -13,10 +14,24 @@ const { createGuestCleanup } = require('./cleanup');
 const { createBudgetGuard } = require('./budget');
 const { createHereProvider, createHereTransport } = require('./search/here-provider');
 
-const STAGING = 'whatdoyouwant-staging';
+const PROJECTS = {
+  'whatdoyouwant-staging': {
+    // Local web clients run against staging with App Check debug tokens.
+    origins: ['https://whatdoyouwant-staging.web.app', 'https://whatdoyouwant-staging.firebaseapp.com',
+      /^http:\/\/localhost:\d+$/],
+    maxInstances: 5,
+  },
+  'what-do-you-want-8a404': {
+    // The custom domain joins this list when it is connected.
+    origins: ['https://what-do-you-want-8a404.web.app', 'https://what-do-you-want-8a404.firebaseapp.com'],
+    maxInstances: 10,
+  },
+};
 const project = process.env.GCLOUD_PROJECT || JSON.parse(process.env.FIREBASE_CONFIG || '{}').projectId;
-if (project !== STAGING) {
-  throw new Error(`The rooms codebase deploys only to ${STAGING}; refusing to load for ${project || 'an unknown project'}.`);
+const settings = PROJECTS[project];
+if (!settings) {
+  throw new Error(`The rooms codebase deploys only to ${Object.keys(PROJECTS).join(' or ')}; ` +
+    `refusing to load for ${project || 'an unknown project'}.`);
 }
 
 initializeApp();
@@ -45,11 +60,10 @@ const handlers = createRoomHandlers({
 const options = {
   region: 'us-central1',
   // Least-privilege runtime identity instead of the project's default compute account.
-  serviceAccount: `rooms-runtime@${STAGING}.iam.gserviceaccount.com`,
+  serviceAccount: `rooms-runtime@${project}.iam.gserviceaccount.com`,
   enforceAppCheck: true,
-  cors: ['https://whatdoyouwant-staging.web.app', 'https://whatdoyouwant-staging.firebaseapp.com',
-    /^http:\/\/localhost:\d+$/],
-  maxInstances: 5,
+  cors: settings.origins,
+  maxInstances: settings.maxInstances,
   timeoutSeconds: 30,
 };
 
@@ -57,8 +71,7 @@ for (const name of CALLABLES) {
   exports[name] = onCall(SEARCHING.includes(name) ? { ...options, secrets: [hereKey] } : options, handlers[name]);
 }
 
-// Weekly removal of idle guest accounts; staging gains few guests, so weekly is
-// plenty. No App Check or CORS: it runs as the scoped identity, which can manage
+// Weekly removal of idle guest accounts; at this size weekly is plenty. No App Check or CORS: it runs as the scoped identity, which can manage
 // Auth users.
 exports.cleanUpIdleGuests = onSchedule({
   schedule: 'every monday 04:00',
