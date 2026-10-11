@@ -31,7 +31,7 @@ if (-not $Android) {
             throw 'Port 7357 is already in use. Stop the other staging web session first.'
         }
         # Flutter's own Chrome launch is unreliable on this machine; open the page instead.
-        $url = 'http://localhost:7357/whatdoyouwant/'
+        $url = 'http://localhost:7357/'
         Start-Job -ArgumentList $url -ScriptBlock {
             param($target)
             # The page is served before the app finishes compiling; until then the app's

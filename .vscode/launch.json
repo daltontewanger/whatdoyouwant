@@ -14,7 +14,7 @@
       ]
     },
     {
-      "name": "Local app - Web (open localhost:5080/whatdoyouwant/)",
+      "name": "Local app - Web (open localhost:5080/)",
       "request": "launch",
       "type": "dart",
       "program": "lib/main_local.dart",

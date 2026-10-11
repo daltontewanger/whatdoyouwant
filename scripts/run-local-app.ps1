@@ -52,7 +52,7 @@ if ($Device -eq 'web-server') {
     $webArgs = @('--web-hostname', 'localhost', '--web-port', "$WebPort")
     # Flutter's own Chrome launch fails intermittently on this machine, so serve the app and
     # open it in the default browser. A fixed origin also keeps the signed-in session between runs.
-    $url = "http://localhost:$WebPort/whatdoyouwant/"
+    $url = "http://localhost:$WebPort/"
     Start-Job -ArgumentList $url -ScriptBlock {
         param($target)
         # The page is served before the app finishes compiling; until then the app's

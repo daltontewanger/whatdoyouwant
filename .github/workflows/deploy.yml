@@ -43,7 +43,7 @@ jobs:
         run: flutter test --no-pub
 
       - name: Build web
-        run: flutter build web --release --no-pub
+        run: flutter build web --release --no-pub --base-href /whatdoyouwant/
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4
