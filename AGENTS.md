@@ -14,7 +14,7 @@ Repository files and verified console evidence describe actual state. The playbo
 
 ## Current focus
 
-- Phase: 3 (Quota and cost controls), started 2026-10-08
+- Phase: 3 (Quota and cost controls), closed 2026-10-11; Phase 4 (production cut-over) next
 - Status doc: `docs/phase3-status.md`
 - Update this section when the phase changes.
 
