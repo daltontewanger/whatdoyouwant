@@ -40,6 +40,11 @@ check(productionConfig.firestore.rules === 'rooms/firestore.rules' &&
 check(JSON.stringify(productionConfig.functions) === JSON.stringify(stagingConfig.functions),
   'production deploys only the rooms codebase');
 check(productionConfig.hosting.public === 'build/hosting', 'production hosting serves the assembled site and app');
+// Staging rehearses production: the same hosting rules, plus a header that keeps it out of search results.
+const stagingHosting = JSON.parse(JSON.stringify(stagingConfig.hosting ?? {}));
+const robots = stagingHosting.headers?.[0]?.headers?.pop();
+check(robots?.key === 'X-Robots-Tag' && robots.value.includes('noindex') &&
+  JSON.stringify(stagingHosting) === JSON.stringify(productionConfig.hosting), 'staging hosting matches production');
 check(!JSON.stringify(productionConfig).includes(staging) && !JSON.stringify(stagingConfig).includes(production),
   'production and staging configs never name each other');
 check(readFileSync(resolve(root, 'web/index.html'), 'utf8').includes('<base href="$FLUTTER_BASE_HREF">'),

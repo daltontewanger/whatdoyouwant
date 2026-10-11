@@ -34,11 +34,11 @@ void main() {
   test('installed apps link to their project site; the web app to itself', () {
     expect(
       siteOrigin('whatdoyouwant-staging'),
-      'https://whatdoyouwant-staging.web.app',
+      'https://staging.getwhatdoyouwant.app',
     );
     expect(
       siteOrigin('what-do-you-want-8a404'),
-      'https://what-do-you-want-8a404.web.app',
+      'https://getwhatdoyouwant.app',
     );
     expect(
       siteOrigin(

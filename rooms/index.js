@@ -17,13 +17,14 @@ const { createHereProvider, createHereTransport } = require('./search/here-provi
 const PROJECTS = {
   'whatdoyouwant-staging': {
     // Local web clients run against staging with App Check debug tokens.
-    origins: ['https://whatdoyouwant-staging.web.app', 'https://whatdoyouwant-staging.firebaseapp.com',
-      /^http:\/\/localhost:\d+$/],
+    origins: ['https://staging.getwhatdoyouwant.app', 'https://whatdoyouwant-staging.web.app',
+      'https://whatdoyouwant-staging.firebaseapp.com', /^http:\/\/localhost:\d+$/],
     maxInstances: 5,
   },
   'what-do-you-want-8a404': {
-    // The custom domain joins this list when it is connected.
-    origins: ['https://what-do-you-want-8a404.web.app', 'https://what-do-you-want-8a404.firebaseapp.com'],
+    // www and the .com redirect to the main address, so only it calls the backend.
+    origins: ['https://getwhatdoyouwant.app', 'https://what-do-you-want-8a404.web.app',
+      'https://what-do-you-want-8a404.firebaseapp.com'],
     maxInstances: 10,
   },
 };

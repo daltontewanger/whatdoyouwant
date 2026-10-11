@@ -1,10 +1,9 @@
 // Addresses on the public site, shared by every way the app is installed.
 
-/// The public site for each Firebase project. The custom domain replaces the
-/// production entry once it is connected.
+/// The public site for each Firebase project.
 const _siteOrigins = {
-  'what-do-you-want-8a404': 'https://what-do-you-want-8a404.web.app',
-  'whatdoyouwant-staging': 'https://whatdoyouwant-staging.web.app',
+  'what-do-you-want-8a404': 'https://getwhatdoyouwant.app',
+  'whatdoyouwant-staging': 'https://staging.getwhatdoyouwant.app',
 };
 
 /// Where the site lives. The web app is already on it, so it uses its own

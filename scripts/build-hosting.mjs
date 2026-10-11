@@ -8,11 +8,10 @@ import { spawnSync } from 'node:child_process';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const ENTRIES = { production: 'lib/main.dart', staging: 'lib/main_staging.dart' };
-// Where each environment's site is served; the custom domain replaces the
-// production address once it is connected.
+// Where each environment's site is served.
 const ORIGINS = {
-  production: 'https://what-do-you-want-8a404.web.app',
-  staging: 'https://whatdoyouwant-staging.web.app',
+  production: 'https://getwhatdoyouwant.app',
+  staging: 'https://staging.getwhatdoyouwant.app',
 };
 const args = process.argv.slice(2);
 const environment = args[args.indexOf('--env') + 1];

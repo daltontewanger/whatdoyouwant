@@ -1,5 +1,8 @@
 // Deploys the room rules, TTL settings and callables to staging, and nowhere else.
-// Usage: node scripts/deploy-staging.mjs --confirm whatdoyouwant-staging [--dry-run] [--skip-tests]
+// Usage: node scripts/deploy-staging.mjs --confirm whatdoyouwant-staging [--only backend|site|all]
+//          [--dry-run] [--skip-tests]
+// The backend is the default: the GitHub workflow deploys only that and has no
+// Flutter toolchain. "site" builds and deploys the public site and web app.
 // Uses the Firebase CLI login of whoever runs it; no key files are involved.
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -12,9 +15,15 @@ const args = process.argv.slice(2);
 const confirm = args[args.indexOf('--confirm') + 1];
 const dryRun = args.includes('--dry-run');
 const skipTests = args.includes('--skip-tests');
-const known = new Set(['--confirm', STAGING, '--dry-run', '--skip-tests']);
-if (!args.includes('--confirm') || confirm !== STAGING || args.some(arg => !known.has(arg))) {
-  console.error(`Usage: node scripts/deploy-staging.mjs --confirm ${STAGING} [--dry-run] [--skip-tests]`);
+const TARGETS = {
+  backend: 'firestore:rules,firestore:indexes,functions:rooms',
+  site: 'hosting',
+  all: 'hosting,firestore:rules,firestore:indexes,functions:rooms',
+};
+const only = args.includes('--only') ? args[args.indexOf('--only') + 1] : 'backend';
+const known = new Set(['--confirm', STAGING, '--dry-run', '--skip-tests', '--only', ...Object.keys(TARGETS)]);
+if (!args.includes('--confirm') || confirm !== STAGING || !TARGETS[only] || args.some(arg => !known.has(arg))) {
+  console.error(`Usage: node scripts/deploy-staging.mjs --confirm ${STAGING} [--only backend|site|all] [--dry-run] [--skip-tests]`);
   process.exit(2);
 }
 if (![22, 24].includes(Number(process.versions.node.split('.')[0]))) {
@@ -35,6 +44,7 @@ function step(title, command, commandArgs) {
 }
 
 step('Configuration preflight', process.execPath, ['scripts/check-environments.mjs']);
+if (only !== 'backend') step('Build the site and web app', process.execPath, ['scripts/build-hosting.mjs', '--env', 'staging']);
 step('Restore rooms dependencies from the lockfile', 'npm', ['ci', '--prefix', 'rooms', '--no-audit', '--no-fund']);
 if (!skipTests) {
   // The unit suite also covers the production search function, which needs its own dependencies.
@@ -51,6 +61,6 @@ if (actualCli !== expectedCli) throw new Error(`Expected Firebase CLI ${expected
 
 step(dryRun ? `Dry run against ${STAGING}` : `Deploy to ${STAGING}`, process.execPath, [cli, 'deploy',
   '--config', 'firebase.staging.json', '--project', STAGING,
-  '--only', 'firestore:rules,firestore:indexes,functions:rooms', '--non-interactive',
+  '--only', TARGETS[only], '--non-interactive',
   ...(dryRun ? ['--dry-run'] : [])]);
 console.log(dryRun ? '\nDry run finished; nothing was deployed.' : `\nDeployed to ${STAGING}.`);
