@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/user.dart';
 import '../services/active_room_store.dart';
 import '../services/room_backend.dart';
+import '../services/site_links.dart';
 import 'account_screen.dart';
 import 'room_screen.dart';
 import 'join_screen.dart';
@@ -45,6 +47,18 @@ class HomeScreenState extends State<HomeScreen>
       CurvedAnimation(parent: _animationController, curve: Curves.elasticOut),
     );
     _animationController.forward();
+    // A shared join link or the site's account menu opened the app.
+    final link = kIsWeb ? appLinkFrom(Uri.base) : null;
+    if (link != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (link.joinCode != null) {
+          _joinRoom(code: link.joinCode);
+        } else if (link.account) {
+          _openAccount();
+        }
+      });
+    }
   }
 
   @override
@@ -271,11 +285,12 @@ class HomeScreenState extends State<HomeScreen>
     }
   }
 
-  void _joinRoom() {
+  void _joinRoom({String? code}) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => JoinRoomScreen(currentUser: _currentUser),
+        builder:
+            (_) => JoinRoomScreen(currentUser: _currentUser, initialCode: code),
       ),
     ).then((_) => _loadActiveRoom());
   }
@@ -507,9 +522,10 @@ class HomeScreenState extends State<HomeScreen>
                           TextButton(
                             onPressed: () async {
                               final messenger = ScaffoldMessenger.of(context);
-                              final url = Uri.parse(
-                                'https://daltontewanger.github.io/whatdoyouwant/privacy.html',
-                              );
+                              final url =
+                                  RoomBackendScope.of(
+                                    context,
+                                  ).backend.privacyPolicy;
                               try {
                                 final opened = await launchUrl(
                                   url,

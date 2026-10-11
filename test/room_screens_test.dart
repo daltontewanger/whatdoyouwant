@@ -50,6 +50,11 @@ class FakeRoomBackend implements RoomBackend {
   Future<void> close(String roomId) async => closes++;
   @override
   Future<LiveSearchAllowance?> liveSearchAllowance() async => null;
+  @override
+  Uri? joinLinkFor(String joinCode) =>
+      Uri.parse('https://example.test/app/join/$joinCode');
+  @override
+  Uri get privacyPolicy => Uri.parse('https://example.test/privacy');
   bool tooOld = false;
   @override
   Future<bool> updateRequired(int build) async => tooOld;
@@ -231,6 +236,52 @@ void main() {
       joinErrorMessage(Exception('offline')),
       startsWith('Could not join'),
     );
+  });
+
+  testWidgets('the lobby shows a QR code and a join link while it is open', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final backend = FakeRoomBackend();
+    await tester.pumpWidget(
+      app(
+        backend,
+        RoomScreen(
+          currentUser: AppUser(id: 'host', name: 'Host'),
+          roomCode: 'ROOM-ID',
+          joinCode: 'AB3K7X',
+        ),
+      ),
+    );
+    backend.room.add(state(status: 'lobby'));
+    await tester.pump();
+    expect(
+      find.bySemanticsLabel('QR code that opens the join link for this room'),
+      findsOneWidget,
+    );
+    expect(find.text('Copy join link'), findsOneWidget);
+    backend.room.add(state(status: 'voting'));
+    await tester.pump();
+    expect(find.text('Copy join link'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    semantics.dispose();
+  });
+
+  testWidgets('a join link joins with its code straight away', (tester) async {
+    final backend = FakeRoomBackend();
+    await tester.pumpWidget(
+      app(
+        backend,
+        JoinRoomScreen(
+          currentUser: AppUser(id: 'guest', name: 'Guest'),
+          initialCode: 'AB3K7X',
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(backend.joined, ['AB3K7X']);
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets('a host who cannot create a room is told why in plain words', (

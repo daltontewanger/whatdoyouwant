@@ -3,12 +3,14 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/restaurant.dart';
 import 'device_location.dart';
 import 'live_search.dart';
 import 'room_backend.dart';
+import 'site_links.dart';
 
 export 'device_location.dart' show SearchOrigin;
 
@@ -280,6 +282,17 @@ class CallableRoomBackend implements RoomBackend {
   Future<void> prepareStart() async {
     if (_fixedLocate == null) await _locator.warmUp();
   }
+
+  String get _siteOrigin => siteOrigin(
+    _functions.app.options.projectId,
+    current: kIsWeb ? Uri.base : null,
+  );
+
+  @override
+  Uri? joinLinkFor(String joinCode) => joinLink(_siteOrigin, joinCode);
+
+  @override
+  Uri get privacyPolicy => privacyLink(_siteOrigin);
 
   @override
   Future<bool> updateRequired(int build) async =>

@@ -104,6 +104,14 @@ class LegacyRoomBackend implements RoomBackend {
   @override
   Future<bool> updateRequired(int build) async => false;
 
+  // The original rooms are joined by typing the code only.
+  @override
+  Uri? joinLinkFor(String joinCode) => null;
+
+  @override
+  Uri get privacyPolicy =>
+      Uri.parse('https://daltontewanger.github.io/whatdoyouwant/privacy.html');
+
   // The original rooms have no weekly allowance.
   @override
   Future<LiveSearchAllowance?> liveSearchAllowance() async => null;

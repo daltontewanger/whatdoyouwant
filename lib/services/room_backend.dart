@@ -129,6 +129,11 @@ abstract class RoomBackend {
   /// Whether the backend no longer serves this build of the app.
   Future<bool> updateRequired(int build);
 
+  /// The link that joins a room by its code, where rooms can be joined by link.
+  Uri? joinLinkFor(String joinCode);
+
+  Uri get privacyPolicy;
+
   /// This week's live searches, or null where there is no allowance to show
   /// (guests, unverified accounts, and backends without one).
   Future<LiveSearchAllowance?> liveSearchAllowance();

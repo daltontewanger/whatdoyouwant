@@ -31,7 +31,14 @@ String joinErrorMessage(Object error) {
 class JoinRoomScreen extends StatefulWidget {
   final AppUser currentUser;
 
-  const JoinRoomScreen({super.key, required this.currentUser});
+  /// A code from a join link; the screen joins with it straight away.
+  final String? initialCode;
+
+  const JoinRoomScreen({
+    super.key,
+    required this.currentUser,
+    this.initialCode,
+  });
 
   @override
   JoinRoomScreenState createState() => JoinRoomScreenState();
@@ -40,6 +47,18 @@ class JoinRoomScreen extends StatefulWidget {
 class JoinRoomScreenState extends State<JoinRoomScreen> {
   final TextEditingController _codeController = TextEditingController();
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final code = widget.initialCode;
+    if (code != null) {
+      _codeController.text = code;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _joinRoom();
+      });
+    }
+  }
 
   @override
   void dispose() {

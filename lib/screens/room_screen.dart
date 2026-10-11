@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../services/live_search.dart';
 import '../services/room_backend.dart';
 import 'swipe_screen.dart';
@@ -315,6 +317,10 @@ class _RoomScreenState extends State<RoomScreen> {
                                           letterSpacing: 3,
                                         ),
                                       ),
+                                      if (_backend.joinLinkFor(shownCode)
+                                          case final link?
+                                          when snapshot.data?.status == 'lobby')
+                                        _JoinLink(link: link),
                                     ],
 
                                     // Instructional text
@@ -481,6 +487,53 @@ class _RoomScreenState extends State<RoomScreen> {
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+/// A QR code and a copyable link, so people at the same table can join by
+/// pointing a camera instead of typing the code.
+class _JoinLink extends StatelessWidget {
+  const _JoinLink({required this.link});
+
+  final Uri link;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        children: [
+          Semantics(
+            label: 'QR code that opens the join link for this room',
+            image: true,
+            // A fixed-size painter: the lobby measures its own height, which
+            // QrImageView's layout builder cannot report.
+            child: Container(
+              color: Colors.white,
+              padding: const EdgeInsets.all(8),
+              child: CustomPaint(
+                size: const Size.square(132),
+                painter: QrPainter(
+                  data: link.toString(),
+                  version: QrVersions.auto,
+                ),
+              ),
+            ),
+          ),
+          TextButton.icon(
+            icon: const Icon(Icons.link),
+            label: const Text('Copy join link'),
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              await Clipboard.setData(ClipboardData(text: link.toString()));
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Join link copied')),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
