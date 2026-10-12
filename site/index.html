@@ -23,33 +23,6 @@
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
 
-  <!-- Food bubbles in the logo's style, reused around the page. -->
-  <svg width="0" height="0" class="sprite" aria-hidden="true" focusable="false">
-    <symbol id="bubble" viewBox="0 0 48 48">
-      <path d="M10 4h28a6 6 0 0 1 6 6v20a6 6 0 0 1-6 6H20l-8 8v-8h-2a6 6 0 0 1-6-6V10a6 6 0 0 1 6-6z" fill="currentColor" stroke="#1f2a24" stroke-width="3" stroke-linejoin="round"/>
-    </symbol>
-    <symbol id="burger" viewBox="0 0 48 48">
-      <use href="#bubble"/>
-      <path d="M14 18a10 6 0 0 1 20 0z" fill="#e9a23b" stroke="#1f2a24" stroke-width="2.5" stroke-linejoin="round"/>
-      <path d="M13 22h22" stroke="#6b3a1e" stroke-width="3.5" stroke-linecap="round"/>
-      <path d="M14 26h20a3 3 0 0 1-3 3H17a3 3 0 0 1-3-3z" fill="#e9a23b" stroke="#1f2a24" stroke-width="2.5" stroke-linejoin="round"/>
-    </symbol>
-    <symbol id="pizza" viewBox="0 0 48 48">
-      <use href="#bubble"/>
-      <path d="M14 12l20 4-14 16z" fill="#f7c948" stroke="#1f2a24" stroke-width="2.5" stroke-linejoin="round"/>
-      <circle cx="22" cy="17" r="2.2" fill="#d4533b"/><circle cx="24" cy="23" r="2" fill="#d4533b"/>
-    </symbol>
-    <symbol id="sushi" viewBox="0 0 48 48">
-      <use href="#bubble"/>
-      <circle cx="24" cy="20" r="10" fill="#1f2a24"/><circle cx="24" cy="20" r="7" fill="#fff"/><circle cx="24" cy="20" r="3.5" fill="#f08a6c"/>
-    </symbol>
-    <symbol id="coffee" viewBox="0 0 48 48">
-      <use href="#bubble"/>
-      <path d="M15 14h15v8a7 7 0 0 1-7 7h-1a7 7 0 0 1-7-7z" fill="#fff" stroke="#1f2a24" stroke-width="2.5" stroke-linejoin="round"/>
-      <path d="M30 16h2a3 3 0 0 1 0 6h-2" fill="none" stroke="#1f2a24" stroke-width="2.5"/>
-    </symbol>
-  </svg>
-
   <header class="topbar">
     <div class="wrap">
       <a class="brand" href="/" aria-label="What Do You Want?! home">
@@ -75,8 +48,8 @@
     <section class="hero" aria-labelledby="hero-title">
       <span class="blob mint" aria-hidden="true"></span>
       <span class="blob butter" aria-hidden="true"></span>
-      <svg class="food float f1" aria-hidden="true" style="color: var(--yellow)"><use href="#burger"/></svg>
-      <svg class="food float f2" aria-hidden="true" style="color: var(--blue)"><use href="#pizza"/></svg>
+      <span class="bubble-icon burger float f1" aria-hidden="true"></span>
+      <span class="bubble-icon pizza float f2" aria-hidden="true"></span>
       <div class="wrap">
         <h1 id="hero-title"><span class="first-line">You'll never have to ask</span> <span class="say">"What do you want?!"</span> again.</h1>
         <p class="lede">We pull up spots to eat near you. Everyone in your group swipes through the same picks and votes, and the place you all agree on wins. Breakfast, lunch, dinner or whenever, settled in minutes.</p>
@@ -108,9 +81,9 @@
                   <li>When everyone matches on a spot, see where to eat!</li>
                 </ol>
                 <span class="app-art">
-                  <svg class="food" style="color: var(--yellow)"><use href="#burger"/></svg>
-                  <svg class="food" style="color: var(--blue)"><use href="#pizza"/></svg>
-                  <svg class="food" style="color: var(--green)"><use href="#sushi"/></svg>
+                  <span class="bubble-icon burger" aria-hidden="true"></span>
+                  <span class="bubble-icon pizza" aria-hidden="true"></span>
+                  <span class="bubble-icon sushi" aria-hidden="true"></span>
                 </span>
                 <span class="app-btn">Create Room</span>
                 <span class="app-btn outline">Join Room</span>
@@ -123,7 +96,7 @@
     </section>
 
     <section class="story" aria-labelledby="story-title">
-      <svg class="food float f3" aria-hidden="true" style="color: var(--green)"><use href="#sushi"/></svg>
+      <span class="bubble-icon sushi float f3" aria-hidden="true"></span>
       <div class="wrap">
         <h2 class="section-title" id="story-title">How a room works</h2>
         <div class="story-grid">
@@ -134,7 +107,7 @@
               <span class="tag solid bottom">5 mi · 10 spots</span>
             </div>
             <div class="scene" data-scene="2">
-              <span class="qr"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+              <svg class="qr" viewBox="-1 -1 23 23" aria-hidden="true"><rect x="-1" y="-1" width="23" height="23" rx="2" fill="#fff"/><path d="M0 0h1v1h-1zM1 0h1v1h-1zM2 0h1v1h-1zM3 0h1v1h-1zM4 0h1v1h-1zM5 0h1v1h-1zM6 0h1v1h-1zM0 1h1v1h-1zM6 1h1v1h-1zM0 2h1v1h-1zM2 2h1v1h-1zM3 2h1v1h-1zM4 2h1v1h-1zM6 2h1v1h-1zM0 3h1v1h-1zM2 3h1v1h-1zM3 3h1v1h-1zM4 3h1v1h-1zM6 3h1v1h-1zM0 4h1v1h-1zM2 4h1v1h-1zM3 4h1v1h-1zM4 4h1v1h-1zM6 4h1v1h-1zM0 5h1v1h-1zM6 5h1v1h-1zM0 6h1v1h-1zM1 6h1v1h-1zM2 6h1v1h-1zM3 6h1v1h-1zM4 6h1v1h-1zM5 6h1v1h-1zM6 6h1v1h-1zM14 0h1v1h-1zM15 0h1v1h-1zM16 0h1v1h-1zM17 0h1v1h-1zM18 0h1v1h-1zM19 0h1v1h-1zM20 0h1v1h-1zM14 1h1v1h-1zM20 1h1v1h-1zM14 2h1v1h-1zM16 2h1v1h-1zM17 2h1v1h-1zM18 2h1v1h-1zM20 2h1v1h-1zM14 3h1v1h-1zM16 3h1v1h-1zM17 3h1v1h-1zM18 3h1v1h-1zM20 3h1v1h-1zM14 4h1v1h-1zM16 4h1v1h-1zM17 4h1v1h-1zM18 4h1v1h-1zM20 4h1v1h-1zM14 5h1v1h-1zM20 5h1v1h-1zM14 6h1v1h-1zM15 6h1v1h-1zM16 6h1v1h-1zM17 6h1v1h-1zM18 6h1v1h-1zM19 6h1v1h-1zM20 6h1v1h-1zM0 14h1v1h-1zM1 14h1v1h-1zM2 14h1v1h-1zM3 14h1v1h-1zM4 14h1v1h-1zM5 14h1v1h-1zM6 14h1v1h-1zM0 15h1v1h-1zM6 15h1v1h-1zM0 16h1v1h-1zM2 16h1v1h-1zM3 16h1v1h-1zM4 16h1v1h-1zM6 16h1v1h-1zM0 17h1v1h-1zM2 17h1v1h-1zM3 17h1v1h-1zM4 17h1v1h-1zM6 17h1v1h-1zM0 18h1v1h-1zM2 18h1v1h-1zM3 18h1v1h-1zM4 18h1v1h-1zM6 18h1v1h-1zM0 19h1v1h-1zM6 19h1v1h-1zM0 20h1v1h-1zM1 20h1v1h-1zM2 20h1v1h-1zM3 20h1v1h-1zM4 20h1v1h-1zM5 20h1v1h-1zM6 20h1v1h-1zM8 0h1v1h-1zM9 0h1v1h-1zM11 0h1v1h-1zM8 1h1v1h-1zM9 1h1v1h-1zM11 1h1v1h-1zM12 1h1v1h-1zM8 2h1v1h-1zM9 2h1v1h-1zM10 2h1v1h-1zM12 2h1v1h-1zM8 3h1v1h-1zM12 3h1v1h-1zM9 4h1v1h-1zM11 4h1v1h-1zM12 4h1v1h-1zM8 5h1v1h-1zM9 5h1v1h-1zM11 5h1v1h-1zM9 6h1v1h-1zM11 6h1v1h-1zM12 6h1v1h-1zM8 7h1v1h-1zM10 7h1v1h-1zM11 7h1v1h-1zM0 8h1v1h-1zM1 8h1v1h-1zM4 8h1v1h-1zM9 8h1v1h-1zM11 8h1v1h-1zM12 8h1v1h-1zM14 8h1v1h-1zM16 8h1v1h-1zM0 9h1v1h-1zM4 9h1v1h-1zM7 9h1v1h-1zM9 9h1v1h-1zM14 9h1v1h-1zM15 9h1v1h-1zM17 9h1v1h-1zM18 9h1v1h-1zM19 9h1v1h-1zM20 9h1v1h-1zM0 10h1v1h-1zM2 10h1v1h-1zM3 10h1v1h-1zM4 10h1v1h-1zM6 10h1v1h-1zM7 10h1v1h-1zM12 10h1v1h-1zM13 10h1v1h-1zM14 10h1v1h-1zM17 10h1v1h-1zM18 10h1v1h-1zM19 10h1v1h-1zM20 10h1v1h-1zM2 11h1v1h-1zM3 11h1v1h-1zM4 11h1v1h-1zM5 11h1v1h-1zM12 11h1v1h-1zM17 11h1v1h-1zM18 11h1v1h-1zM19 11h1v1h-1zM0 12h1v1h-1zM1 12h1v1h-1zM2 12h1v1h-1zM3 12h1v1h-1zM4 12h1v1h-1zM5 12h1v1h-1zM6 12h1v1h-1zM7 12h1v1h-1zM8 12h1v1h-1zM9 12h1v1h-1zM10 12h1v1h-1zM13 12h1v1h-1zM14 12h1v1h-1zM15 12h1v1h-1zM16 12h1v1h-1zM17 12h1v1h-1zM20 12h1v1h-1zM9 13h1v1h-1zM10 13h1v1h-1zM11 13h1v1h-1zM12 13h1v1h-1zM14 13h1v1h-1zM15 13h1v1h-1zM18 13h1v1h-1zM20 13h1v1h-1zM12 14h1v1h-1zM13 14h1v1h-1zM14 14h1v1h-1zM18 14h1v1h-1zM19 14h1v1h-1zM13 15h1v1h-1zM15 15h1v1h-1zM16 15h1v1h-1zM17 15h1v1h-1zM18 15h1v1h-1zM19 15h1v1h-1zM9 16h1v1h-1zM13 16h1v1h-1zM14 16h1v1h-1zM15 16h1v1h-1zM16 16h1v1h-1zM17 16h1v1h-1zM8 17h1v1h-1zM11 17h1v1h-1zM16 17h1v1h-1zM17 17h1v1h-1zM19 17h1v1h-1zM9 18h1v1h-1zM10 18h1v1h-1zM13 18h1v1h-1zM14 18h1v1h-1zM15 18h1v1h-1zM18 18h1v1h-1zM9 19h1v1h-1zM11 19h1v1h-1zM12 19h1v1h-1zM17 19h1v1h-1zM20 19h1v1h-1zM8 20h1v1h-1zM9 20h1v1h-1zM10 20h1v1h-1zM12 20h1v1h-1zM13 20h1v1h-1zM14 20h1v1h-1zM16 20h1v1h-1zM17 20h1v1h-1zM20 20h1v1h-1z" fill="#1f2a24"/></svg>
               <span class="code">AB3 K7X</span>
               <span class="tag outline">Copy join link</span>
               <span class="faces"><b class="y">A</b><b class="b">J</b><b class="c">M</b><b class="g">S</b></span>
@@ -161,7 +134,7 @@
     </section>
 
     <section class="why" aria-labelledby="why-title">
-      <svg class="food float f4" aria-hidden="true" style="color: var(--coral)"><use href="#coffee"/></svg>
+      <span class="bubble-icon pizza float f4" aria-hidden="true"></span>
       <div class="wrap">
         <h2 class="section-title" id="why-title">Why you're going to want it</h2>
         <p class="section-lede js-only">Open any tile to learn more.</p>
