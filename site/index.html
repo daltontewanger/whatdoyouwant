@@ -26,12 +26,13 @@
   <header class="topbar">
     <div class="wrap">
       <a class="brand" href="/" aria-label="What Do You Want?! home">
-        <img src="/media/logo.png" alt="" width="40" height="40">
+        <img src="/media/logo.png" alt="" width="52" height="52">
         <span>What Do You Want?!</span>
       </a>
       <nav aria-label="Main">
         <a class="nav-optional" href="#how-it-works">How it works</a>
-        <a class="btn btn-outline" href="/app">Open the app</a>
+        <a class="btn btn-outline nav-optional" href="/app">Open the app</a>
+        <a class="btn btn-primary" id="sign-in" href="/app/account">Sign in</a>
         <div class="account" id="account" hidden>
           <button class="btn account-button" id="account-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="account-menu">
             <span class="avatar" id="account-initials" aria-hidden="true"></span>
@@ -82,12 +83,12 @@
         <p class="section-lede">A room from start to finish.</p>
         <div class="demo">
           <div class="chips" aria-hidden="true"><span class="chip">4 friends joined</span><span class="chip">A favorite made the deck</span></div>
-          <div class="phone"><div class="screen" id="demo-screen" aria-live="off"></div></div>
+          <div class="phone-stage"><div class="phone" id="demo-phone"><div class="screen" id="demo-screen"></div></div></div>
           <div class="chips right" aria-hidden="true"><span class="chip">3 of 4 said yes</span><span class="chip">Directions ready</span></div>
         </div>
         <div class="demo-controls">
           <button class="btn btn-outline" id="demo-toggle" type="button">Pause demo</button>
-          <div class="dots" id="demo-dots" aria-hidden="true"></div>
+          <div class="dots" id="demo-dots" role="group" aria-label="Demo steps"></div>
           <span id="demo-step" class="visually-hidden" aria-live="polite"></span>
         </div>
       </div>

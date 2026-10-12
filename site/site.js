@@ -24,15 +24,26 @@ function startDemo() {
   const dots = document.getElementById('demo-dots');
   const toggle = document.getElementById('demo-toggle');
   const step = document.getElementById('demo-step');
+  const phone = document.getElementById('demo-phone');
   if (!screen) return;
-  dots.innerHTML = frames.map(() => '<span></span>').join('');
   let index = 0;
   let timer = null;
+  const buttons = frames.map(([name], i) => {
+    const button = Object.assign(document.createElement('button'), { type: 'button' });
+    button.setAttribute('aria-label', `Step ${i + 1}: ${name}`);
+    // Picking a step stops the slideshow so it stays on what was chosen.
+    button.addEventListener('click', () => { play(false); show(i); });
+    dots.append(button);
+    return button;
+  });
   const show = next => {
     index = next;
     screen.innerHTML = frames[index][1];
     step.textContent = `Demo step ${index + 1} of ${frames.length}: ${frames[index][0]}`;
-    [...dots.children].forEach((dot, i) => dot.classList.toggle('on', i === index));
+    buttons.forEach((button, i) => {
+      if (i === index) button.setAttribute('aria-current', 'step');
+      else button.removeAttribute('aria-current');
+    });
   };
   const play = on => {
     clearInterval(timer);
@@ -42,6 +53,22 @@ function startDemo() {
   show(0);
   play(!reduceMotion);
   toggle.addEventListener('click', () => play(!timer));
+
+  // The phone leans a little toward the pointer, only where a pointer hovers.
+  if (!reduceMotion && matchMedia('(hover: hover)').matches) {
+    const band = phone.closest('section');
+    band.addEventListener('pointermove', event => {
+      const box = phone.getBoundingClientRect();
+      const x = (event.clientX - (box.left + box.width / 2)) / window.innerWidth;
+      const y = (event.clientY - (box.top + box.height / 2)) / window.innerHeight;
+      phone.style.setProperty('--ry', `${(-10 + x * 24).toFixed(1)}deg`);
+      phone.style.setProperty('--rx', `${(4 - y * 16).toFixed(1)}deg`);
+    });
+    band.addEventListener('pointerleave', () => {
+      phone.style.removeProperty('--ry');
+      phone.style.removeProperty('--rx');
+    });
+  }
 }
 
 // ---- Account menu: recognizes someone signed in to the web app on this
@@ -94,6 +121,7 @@ async function startAccountMenu() {
 
   onAuthStateChanged(auth, user => {
     root.hidden = !user;
+    document.getElementById('sign-in').hidden = Boolean(user);
     if (!user) return;
     const view = menuItems(user);
     document.getElementById('account-initials').textContent = user.isAnonymous ? 'G' : initials(user);
