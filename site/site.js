@@ -1,74 +1,79 @@
-// The public site's two moving parts: the "See it in action" demo and the
-// account menu. Both are optional; the page works fully without them.
+// The public site's moving parts: the hero phone's lean, the room story and
+// the why tiles. All optional; the page reads fully without them.
 
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+document.documentElement.classList.add('js');
 
-// ---- Demo: the phone cycles through a room from lobby to result.
-const frames = [
-  ['The lobby', `<strong>Room code</strong><span class="code">AB3 K7X</span>
-    <span class="small">4 people joined</span><span>Distance: 5 mi</span><span>Cards: 10</span>
-    <span class="cta">Start swiping</span>`],
-  ['Swiping', `<div class="card" style="flex:1"><strong>Demo Thai Kitchen</strong>
-    <div class="small">Thai · 2.4 mi · Open now</div></div>
-    <div class="answers"><span class="no">No</span><span>Never</span><span class="yes">Yes</span></div>`],
-  ['Waiting for votes', `<strong>Waiting for votes</strong><span class="small">3 of 4 done</span>
-    <div style="height:10px;background:#e3ece7;border-radius:5px"><div style="width:75%;height:10px;background:#2f7a5c;border-radius:5px"></div></div>
-    <span class="small" style="margin-top:auto">Results open when everyone finishes</span>`],
-  ['The result', `<strong>The group picked</strong><div class="card"><strong>Demo Pho</strong>
-    <div class="small">3 of 4 said yes</div></div>
-    <span>Map and directions</span><span>Website</span><span>Call</span>`],
-];
-
-function startDemo() {
-  const screen = document.getElementById('demo-screen');
-  const dots = document.getElementById('demo-dots');
-  const toggle = document.getElementById('demo-toggle');
-  const step = document.getElementById('demo-step');
-  const phone = document.getElementById('demo-phone');
-  if (!screen) return;
-  let index = 0;
-  let timer = null;
-  const buttons = frames.map(([name], i) => {
-    const button = Object.assign(document.createElement('button'), { type: 'button' });
-    button.setAttribute('aria-label', `Step ${i + 1}: ${name}`);
-    // Picking a step stops the slideshow so it stays on what was chosen.
-    button.addEventListener('click', () => { play(false); show(i); });
-    dots.append(button);
-    return button;
+// ---- Hero: the phone leans a little toward the pointer and settles flat when
+// it leaves. Only where a pointer hovers, and never under reduced motion.
+function leanPhone() {
+  const phone = document.getElementById('hero-phone');
+  if (!phone || reduceMotion || !matchMedia('(hover: hover)').matches) return;
+  const hero = phone.closest('section');
+  hero.addEventListener('pointermove', event => {
+    const box = phone.getBoundingClientRect();
+    const x = (event.clientX - (box.left + box.width / 2)) / hero.offsetWidth;
+    const y = (event.clientY - (box.top + box.height / 2)) / hero.offsetHeight;
+    phone.style.setProperty('--ry', `${(x * 22).toFixed(1)}deg`);
+    phone.style.setProperty('--rx', `${(-y * 14).toFixed(1)}deg`);
   });
-  const show = next => {
-    index = next;
-    screen.innerHTML = frames[index][1];
-    step.textContent = `Demo step ${index + 1} of ${frames.length}: ${frames[index][0]}`;
-    buttons.forEach((button, i) => {
-      if (i === index) button.setAttribute('aria-current', 'step');
-      else button.removeAttribute('aria-current');
-    });
-  };
-  const play = on => {
-    clearInterval(timer);
-    timer = on ? setInterval(() => show((index + 1) % frames.length), 2600) : null;
-    toggle.textContent = on ? 'Pause demo' : 'Play demo';
-  };
-  show(0);
-  play(!reduceMotion);
-  toggle.addEventListener('click', () => play(!timer));
+  hero.addEventListener('pointerleave', () => {
+    phone.style.removeProperty('--ry');
+    phone.style.removeProperty('--rx');
+  });
+}
 
-  // The phone leans a little toward the pointer, only where a pointer hovers.
-  if (!reduceMotion && matchMedia('(hover: hover)').matches) {
-    const band = phone.closest('section');
-    band.addEventListener('pointermove', event => {
-      const box = phone.getBoundingClientRect();
-      const x = (event.clientX - (box.left + box.width / 2)) / window.innerWidth;
-      const y = (event.clientY - (box.top + box.height / 2)) / window.innerHeight;
-      phone.style.setProperty('--ry', `${(-10 + x * 24).toFixed(1)}deg`);
-      phone.style.setProperty('--rx', `${(4 - y * 16).toFixed(1)}deg`);
+// ---- Room story: the step crossing the middle of the screen lights up and
+// sets the scene. The scene is decorative; the steps carry the words.
+function followStory() {
+  const steps = [...document.querySelectorAll('.steps li')];
+  const scenes = [...document.querySelectorAll('.scene')];
+  if (!steps.length || !('IntersectionObserver' in window)) return;
+  const show = step => {
+    steps.forEach(item => item.classList.toggle('on', item === step));
+    scenes.forEach(scene => scene.classList.toggle('on', scene.dataset.scene === step.dataset.step));
+  };
+  show(steps[0]);
+  const observer = new IntersectionObserver(entries => {
+    for (const entry of entries) if (entry.isIntersecting) show(entry.target);
+  }, { rootMargin: '-45% 0px -45% 0px' });
+  steps.forEach(step => observer.observe(step));
+}
+
+// ---- Why tiles: opening one fills the grid with its fuller explanation.
+function openTiles() {
+  const grid = document.getElementById('tiles');
+  if (!grid) return;
+  let opener = null;
+  const close = () => {
+    const panel = grid.querySelector('.tile-more:not([hidden])');
+    if (!panel) return;
+    panel.hidden = true;
+    panel.closest('.tile').classList.remove('current');
+    grid.classList.remove('open');
+    opener.setAttribute('aria-expanded', 'false');
+    opener.focus();
+  };
+  for (const button of grid.querySelectorAll('.tile-open')) {
+    const panel = document.getElementById(button.getAttribute('aria-controls'));
+    const title = Object.assign(document.createElement('h3'), {
+      textContent: button.closest('.tile').querySelector('h3').textContent,
     });
-    band.addEventListener('pointerleave', () => {
-      phone.style.removeProperty('--ry');
-      phone.style.removeProperty('--rx');
+    title.setAttribute('aria-hidden', 'true');
+    const done = Object.assign(document.createElement('button'), { type: 'button', className: 'tile-close', textContent: 'Close' });
+    done.addEventListener('click', close);
+    panel.prepend(done, title);
+    button.addEventListener('click', () => {
+      opener = button;
+      grid.classList.add('open');
+      button.closest('.tile').classList.add('current');
+      panel.hidden = false;
+      button.setAttribute('aria-expanded', 'true');
+      done.focus();
+      if (grid.getBoundingClientRect().top < 64) grid.scrollIntoView({ block: 'start' });
     });
   }
+  grid.addEventListener('keydown', event => { if (event.key === 'Escape') close(); });
 }
 
 // ---- Account menu: recognizes someone signed in to the web app on this
@@ -147,5 +152,7 @@ async function startAccountMenu() {
   });
 }
 
-startDemo();
+leanPhone();
+followStory();
+openTiles();
 startAccountMenu().catch(() => {});

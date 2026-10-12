@@ -4,12 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>What Do You Want?! Decide where to eat, together</title>
-  <meta name="description" content="Everyone swipes the same nearby picks and the group decides together. Host a room, join with a code, or try it as a guest.">
+  <meta name="description" content="We pull up spots to eat near you, everyone in your group swipes through the same picks, and the place you all agree on wins. Host a room, join with a code, or try it as a guest.">
   <meta name="theme-color" content="#2f7a5c">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="What Do You Want?!">
   <meta property="og:title" content="You'll never have to ask &quot;What do you want?!&quot; again">
-  <meta property="og:description" content="Everyone swipes the same nearby picks and the group decides together.">
+  <meta property="og:description" content="Everyone swipes the same nearby picks, and the place you all agree on wins.">
   <meta property="og:image" content="%SITE_ORIGIN%/media/banner.webp">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" type="image/png" href="/favicon.png">
@@ -22,6 +22,33 @@
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
+
+  <!-- Food bubbles in the logo's style, reused around the page. -->
+  <svg width="0" height="0" class="sprite" aria-hidden="true" focusable="false">
+    <symbol id="bubble" viewBox="0 0 48 48">
+      <path d="M10 4h28a6 6 0 0 1 6 6v20a6 6 0 0 1-6 6H20l-8 8v-8h-2a6 6 0 0 1-6-6V10a6 6 0 0 1 6-6z" fill="currentColor" stroke="#1f2a24" stroke-width="3" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="burger" viewBox="0 0 48 48">
+      <use href="#bubble"/>
+      <path d="M14 18a10 6 0 0 1 20 0z" fill="#e9a23b" stroke="#1f2a24" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M13 22h22" stroke="#6b3a1e" stroke-width="3.5" stroke-linecap="round"/>
+      <path d="M14 26h20a3 3 0 0 1-3 3H17a3 3 0 0 1-3-3z" fill="#e9a23b" stroke="#1f2a24" stroke-width="2.5" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="pizza" viewBox="0 0 48 48">
+      <use href="#bubble"/>
+      <path d="M14 12l20 4-14 16z" fill="#f7c948" stroke="#1f2a24" stroke-width="2.5" stroke-linejoin="round"/>
+      <circle cx="22" cy="17" r="2.2" fill="#d4533b"/><circle cx="24" cy="23" r="2" fill="#d4533b"/>
+    </symbol>
+    <symbol id="sushi" viewBox="0 0 48 48">
+      <use href="#bubble"/>
+      <circle cx="24" cy="20" r="10" fill="#1f2a24"/><circle cx="24" cy="20" r="7" fill="#fff"/><circle cx="24" cy="20" r="3.5" fill="#f08a6c"/>
+    </symbol>
+    <symbol id="coffee" viewBox="0 0 48 48">
+      <use href="#bubble"/>
+      <path d="M15 14h15v8a7 7 0 0 1-7 7h-1a7 7 0 0 1-7-7z" fill="#fff" stroke="#1f2a24" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M30 16h2a3 3 0 0 1 0 6h-2" fill="none" stroke="#1f2a24" stroke-width="2.5"/>
+    </symbol>
+  </svg>
 
   <header class="topbar">
     <div class="wrap">
@@ -46,61 +73,146 @@
 
   <main id="main">
     <section class="hero" aria-labelledby="hero-title">
+      <span class="blob mint" aria-hidden="true"></span>
+      <span class="blob butter" aria-hidden="true"></span>
+      <svg class="food float f1" aria-hidden="true" style="color: var(--yellow)"><use href="#burger"/></svg>
+      <svg class="food float f2" aria-hidden="true" style="color: var(--blue)"><use href="#pizza"/></svg>
       <div class="wrap">
-        <div>
-          <h1 id="hero-title">You'll never have to ask "What do you want?!" again.</h1>
-          <p>Let the group decide together. Everyone swipes the same nearby picks, and dinner gets settled in minutes.</p>
-          <div class="hero-actions">
-            <a class="btn btn-primary" href="/app/host">Host a room</a>
-            <a class="btn btn-outline" href="/app/join">Join with a code</a>
-            <a class="btn btn-link" href="/app">Try it as a guest</a>
+        <h1 id="hero-title"><span class="first-line">You'll never have to ask</span> <span class="say">"What do you want?!"</span> again.</h1>
+        <p class="lede">We pull up spots to eat near you. Everyone in your group swipes through the same picks and votes, and the place you all agree on wins. Breakfast, lunch, dinner or whenever, settled in minutes.</p>
+        <div class="hero-actions">
+          <a class="btn btn-solid" href="/app/host">Host a room</a>
+          <a class="btn btn-outline-green" href="/app/join">Join with a code</a>
+          <a class="btn btn-link" href="/app">Try it as a guest</a>
+        </div>
+        <div class="stores" aria-label="Store apps">
+          <span class="store">App Store · Coming soon</span>
+          <span class="store">Google Play · Coming soon</span>
+        </div>
+
+        <div class="stage" role="img" aria-label="The app's home screen on a phone, between photos of friends deciding where to eat">
+          <span class="crop crop-left" aria-hidden="true"></span>
+          <span class="crop crop-right" aria-hidden="true"></span>
+          <span class="sticker s1" aria-hidden="true">Brunch spot?</span>
+          <span class="sticker s2" aria-hidden="true">Tacos?</span>
+          <span class="sticker s3" aria-hidden="true">Not sushi again</span>
+          <span class="sticker s4" aria-hidden="true">3 of 4 said yes</span>
+          <div class="phone" id="hero-phone" aria-hidden="true">
+            <div class="screen">
+              <div class="app-card">
+                <img src="/media/logo.png" alt="" width="40" height="40">
+                <strong class="app-title">What Do You Want?!</strong>
+                <ol class="app-steps">
+                  <li>Create a room and invite your friends, or join one with a code.</li>
+                  <li>Swipe through food options and vote on your favorites.</li>
+                  <li>When everyone matches on a spot, see where to eat!</li>
+                </ol>
+                <span class="app-art">
+                  <svg class="food" style="color: var(--yellow)"><use href="#burger"/></svg>
+                  <svg class="food" style="color: var(--blue)"><use href="#pizza"/></svg>
+                  <svg class="food" style="color: var(--green)"><use href="#sushi"/></svg>
+                </span>
+                <span class="app-btn">Create Room</span>
+                <span class="app-btn outline">Join Room</span>
+                <span class="app-note">Playing as a guest · <u>Sign in</u></span>
+              </div>
+            </div>
           </div>
-          <div class="stores" aria-label="Store apps">
-            <span class="store">App Store · Coming soon</span>
-            <span class="store">Google Play · Coming soon</span>
-          </div>
         </div>
       </div>
-      <div class="hero-photo" role="img" aria-label="Four friends on a couch deciding where to eat, a phone on the table"></div>
     </section>
 
-    <section class="steps-band" id="how-it-works" aria-labelledby="how-title">
+    <section class="story" aria-labelledby="story-title">
+      <svg class="food float f3" aria-hidden="true" style="color: var(--green)"><use href="#sushi"/></svg>
       <div class="wrap">
-        <h2 class="section-title" id="how-title">How it works</h2>
-        <ol class="steps">
-          <li><div class="bubble y" aria-hidden="true">1</div><h3>Start a room</h3><p>Pick how far to look and how many cards to swipe.</p></li>
-          <li><div class="bubble b" aria-hidden="true">2</div><h3>Share the code</h3><p>Friends join with the code, a link or a QR code. No account needed.</p></li>
-          <li><div class="bubble g" aria-hidden="true">3</div><h3>Everyone swipes</h3><p>Yes, no or never on the same nearby picks.</p></li>
-          <li><div class="bubble y" aria-hidden="true">4</div><h3>Go eat</h3><p>See the winner, a backup, and directions.</p></li>
-        </ol>
+        <h2 class="section-title" id="story-title">How a room works</h2>
+        <div class="story-grid">
+          <div class="scene-wrap" aria-hidden="true"><div class="scene-frame">
+            <div class="scene on" data-scene="1">
+              <span class="radius"></span><span class="me"></span>
+              <span class="pin p1"></span><span class="pin p2"></span><span class="pin p3"></span><span class="pin p4"></span>
+              <span class="tag solid bottom">5 mi · 10 spots</span>
+            </div>
+            <div class="scene" data-scene="2">
+              <span class="qr"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+              <span class="code">AB3 K7X</span>
+              <span class="tag outline">Copy join link</span>
+              <span class="faces"><b class="y">A</b><b class="b">J</b><b class="c">M</b><b class="g">S</b></span>
+            </div>
+            <div class="scene" data-scene="3">
+              <span class="tag no-tag">No</span><span class="tag yes-tag">Yes</span>
+              <span class="deck"></span>
+              <span class="swipe-card"><span class="photo"></span><strong>Taco Spot</strong><small>Mexican · 1.8 mi</small></span>
+            </div>
+            <div class="scene" data-scene="4">
+              <span class="winner"><span class="tag butter">The group picked</span><strong>Taco Spot</strong><small>3 of 4 said yes</small></span>
+              <span class="backup">Backup: Pho House</span>
+              <span class="tag solid bottom">Get directions</span>
+            </div>
+          </div></div>
+          <ol class="steps">
+            <li data-step="1"><div class="step-card"><span class="num y" aria-hidden="true">1</span><div><h3>Start a room</h3><p>Choose how far to look and how many spots to swipe.</p></div></div></li>
+            <li data-step="2"><div class="step-card"><span class="num b" aria-hidden="true">2</span><div><h3>Share the code</h3><p>Friends join with the code, a link or a QR code. No account needed.</p></div></div></li>
+            <li data-step="3"><div class="step-card"><span class="num g" aria-hidden="true">3</span><div><h3>Everyone swipes</h3><p>Swipe right for yes, left for no, each on your own phone.</p><p class="soon"><span class="soon-badge">Coming soon</span> Swipe up to rule a spot out for good or save it as a favorite.</p></div></div></li>
+            <li data-step="4"><div class="step-card"><span class="num c" aria-hidden="true">4</span><div><h3>Go eat</h3><p>See the winner, a backup and directions.</p></div></div></li>
+          </ol>
+        </div>
       </div>
     </section>
 
-    <section class="demo-band" aria-labelledby="demo-title">
-      <div class="wrap">
-        <h2 class="section-title" id="demo-title">See it in action</h2>
-        <p class="section-lede">A room from start to finish.</p>
-        <div class="demo">
-          <div class="chips" aria-hidden="true"><span class="chip">4 friends joined</span><span class="chip">A favorite made the deck</span></div>
-          <div class="phone-stage"><div class="phone" id="demo-phone"><div class="screen" id="demo-screen"></div></div></div>
-          <div class="chips right" aria-hidden="true"><span class="chip">3 of 4 said yes</span><span class="chip">Directions ready</span></div>
-        </div>
-        <div class="demo-controls">
-          <button class="btn btn-outline" id="demo-toggle" type="button">Pause demo</button>
-          <div class="dots" id="demo-dots" role="group" aria-label="Demo steps"></div>
-          <span id="demo-step" class="visually-hidden" aria-live="polite"></span>
-        </div>
-      </div>
-    </section>
-
-    <section aria-labelledby="why-title">
+    <section class="why" aria-labelledby="why-title">
+      <svg class="food float f4" aria-hidden="true" style="color: var(--coral)"><use href="#coffee"/></svg>
       <div class="wrap">
         <h2 class="section-title" id="why-title">Why you're going to want it</h2>
-        <div class="tiles">
-          <div class="tile"><div class="bubble g" aria-hidden="true">15</div><h3>Everyone gets a say</h3><p>Up to 15 people swipe the same picks, so no one person decides alone.</p></div>
-          <div class="tile"><div class="bubble y" aria-hidden="true">?!</div><h3>Fresh picks every time</h3><p>A new random draw from your whole distance, not the same nearest handful.</p></div>
-          <div class="tile"><div class="bubble b" aria-hidden="true">♥</div><h3>I know what I want</h3><p>Your favorites can make the deck, and your "never" places stay out.</p></div>
-          <div class="tile"><div class="bubble g" aria-hidden="true">→</div><h3>No download to join</h3><p>Friends join from their phone's browser with a code, a link or a QR code.</p></div>
+        <p class="section-lede js-only">Open any tile to learn more.</p>
+        <div class="tiles" id="tiles">
+          <div class="tile t-say">
+            <span class="big-num" aria-hidden="true">15</span>
+            <h3 id="t1">Everyone gets a say</h3>
+            <p>Up to 15 people swipe the same picks, so no one decides alone.</p>
+            <button class="tile-open js-only" type="button" aria-expanded="false" aria-controls="more-1" aria-describedby="t1"><span aria-hidden="true">+</span><span class="visually-hidden">More about this</span></button>
+            <div class="tile-more" id="more-1" role="region" aria-labelledby="t1" hidden>
+              <p>A room holds up to 15 people. Everyone gets the same set of nearby spots and votes on their own phone, at their own pace. When everyone is done, the group sees the spot most people said yes to, plus a backup in case it's closed or full.</p>
+            </div>
+          </div>
+          <div class="tile t-fresh">
+            <h3 id="t2">Fresh picks every time</h3>
+            <p>A new random draw from your whole distance.</p>
+            <button class="tile-open js-only" type="button" aria-expanded="false" aria-controls="more-2" aria-describedby="t2"><span aria-hidden="true">+</span><span class="visually-hidden">More about this</span></button>
+            <div class="tile-more" id="more-2" role="region" aria-labelledby="t2" hidden>
+              <p>Every room draws a new random set of spots from anywhere inside the distance you choose, not just the closest handful. Start another room and you get a different mix, so you find new places instead of the same ones every time.</p>
+            </div>
+          </div>
+          <div class="tile t-know">
+            <span class="soon-badge">Coming soon</span>
+            <h3 id="t3">I know what I want</h3>
+            <p>Save favorites, rule out nevers.</p>
+            <button class="tile-open js-only" type="button" aria-expanded="false" aria-controls="more-3" aria-describedby="t3"><span aria-hidden="true">+</span><span class="visually-hidden">More about this</span></button>
+            <div class="tile-more" id="more-3" role="region" aria-labelledby="t3" hidden>
+              <p>While you vote, mark a spot as a favorite: it counts as a yes and is saved to your account as one of your "I know what I want" spots. Turn favorites on and they can show up in your rooms more often. Vote never instead and it counts as a no, and that spot stays out of your future rooms. Saving favorites and nevers needs an account, so we can keep them for you.</p>
+              <p><span class="soon-badge">Coming soon</span> This arrives in an update after launch.</p>
+            </div>
+          </div>
+          <div class="tile t-join">
+            <h3 id="t4">No download to join</h3>
+            <p>Friends join from their browser with a code, a link or a QR code.</p>
+            <button class="tile-open js-only" type="button" aria-expanded="false" aria-controls="more-4" aria-describedby="t4"><span aria-hidden="true">+</span><span class="visually-hidden">More about this</span></button>
+            <div class="tile-more" id="more-4" role="region" aria-labelledby="t4" hidden>
+              <p>Friends scan the QR code, open the link or type the code, and join right in their phone's browser as a guest. No app and no account needed to join and vote. Only the host needs a verified account to start a room.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="closing" aria-labelledby="closing-title">
+      <div class="wrap">
+        <div class="closing-card">
+          <div>
+            <h2 id="closing-title">Hungry? Decide together.</h2>
+            <p>Breakfast, lunch, dinner or whenever.</p>
+          </div>
+          <a class="btn btn-solid" href="/app/host">Host a room</a>
         </div>
       </div>
     </section>
