@@ -1,6 +1,6 @@
 // Deploys the site, the web app and the room backend to production, and nowhere else.
 // Usage: node scripts/deploy-production.mjs --confirm what-do-you-want-8a404
-//          [--only site|backend] [--dry-run] [--skip-tests]
+//          [--only site|backend|functions] [--dry-run] [--skip-tests]
 // Every run needs the owner's approval. Uses the Firebase CLI login of whoever
 // runs it; no key files are involved.
 import { existsSync, readFileSync } from 'node:fs';
@@ -13,6 +13,10 @@ const PRODUCTION = 'what-do-you-want-8a404';
 const TARGETS = {
   site: 'hosting',
   backend: 'firestore:rules,firestore:indexes,functions:rooms',
+  // The room callables and TTLs without the rules: the live app still writes to
+  // Firestore directly until the cut-over replaces it, and the room rules would
+  // lock it out.
+  functions: 'firestore:indexes,functions:rooms',
 };
 const args = process.argv.slice(2);
 const valueOf = flag => (args.includes(flag) ? args[args.indexOf(flag) + 1] : undefined);
@@ -20,8 +24,8 @@ const confirm = valueOf('--confirm');
 const only = valueOf('--only');
 const dryRun = args.includes('--dry-run');
 const skipTests = args.includes('--skip-tests');
-const known = new Set(['--confirm', PRODUCTION, '--only', 'site', 'backend', '--dry-run', '--skip-tests']);
-const usage = `Usage: node scripts/deploy-production.mjs --confirm ${PRODUCTION} [--only site|backend] [--dry-run] [--skip-tests]`;
+const known = new Set(['--confirm', PRODUCTION, '--only', 'site', 'backend', 'functions', '--dry-run', '--skip-tests']);
+const usage = `Usage: node scripts/deploy-production.mjs --confirm ${PRODUCTION} [--only site|backend|functions] [--dry-run] [--skip-tests]`;
 if (confirm !== PRODUCTION || (args.includes('--only') && !TARGETS[only]) || args.some(arg => !known.has(arg))) {
   console.error(usage);
   process.exit(2);
@@ -44,7 +48,7 @@ function step(title, command, commandArgs) {
 }
 
 const deploysSite = !only || only === 'site';
-const deploysBackend = !only || only === 'backend';
+const deploysBackend = !only || only === 'backend' || only === 'functions';
 step('Configuration preflight', process.execPath, ['scripts/check-environments.mjs']);
 if (deploysBackend) {
   step('Restore rooms dependencies from the lockfile', 'npm', ['ci', '--prefix', 'rooms', '--no-audit', '--no-fund']);
