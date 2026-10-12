@@ -52,6 +52,14 @@ class AccountScreen extends StatefulWidget {
 class _AccountScreenState extends State<AccountScreen> {
   AccountService get accounts => widget.accounts;
   bool get local => accounts.usesEmulator;
+
+  // Test builds say where their accounts live; the live app says nothing.
+  String? get testNotice =>
+      local
+          ? 'Local test accounts (Auth emulator) and fictional restaurants only.'
+          : accounts.usesStaging
+          ? 'Staging test accounts, separate from the live app.'
+          : null;
   final email = TextEditingController();
   final password = TextEditingController();
   bool busy = false;
@@ -136,8 +144,8 @@ class _AccountScreenState extends State<AccountScreen> {
     }
   }
 
-  /// Goes back once the account can host, so whatever sent the user here (such
-  /// as Create Room) carries on. Unverified accounts stay to finish verifying.
+  /// Goes back once the account can host. Unverified accounts stay to finish
+  /// verifying.
   void returnIfReady() {
     final user = accounts.auth.currentUser;
     if (!mounted ||
@@ -242,13 +250,10 @@ class _AccountScreenState extends State<AccountScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(24),
                 children: [
-                  Text(
-                    local
-                        ? 'Local test accounts (Auth emulator) and fictional restaurants only.'
-                        : 'Test accounts in the staging project and fictional restaurants only.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: 16),
+                  if (testNotice case final notice?) ...[
+                    Text(notice, style: Theme.of(context).textTheme.bodySmall),
+                    const SizedBox(height: 16),
+                  ],
                   if (registered)
                     ..._signedIn(context, user)
                   else

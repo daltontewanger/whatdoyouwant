@@ -55,7 +55,7 @@ Future<void> main() async {
   runApp(
     MyApp(
       currentUid: FirebaseAuth.instance.currentUser!.uid,
-      backend: CallableRoomBackend(),
+      backend: CallableRoomBackend(usesFictionalRestaurants: true),
       accounts: accounts,
       activeRooms: PreferencesActiveRoomStore(),
     ),

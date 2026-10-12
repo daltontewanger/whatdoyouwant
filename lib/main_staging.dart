@@ -59,6 +59,7 @@ Future<void> main() async {
   }
   final accounts = AccountService(
     FirebaseAuth.instance,
+    usesStaging: true,
     googleEnabled: true,
     deleteOnServer:
         () => FirebaseFunctions.instance.httpsCallable('deleteAccount').call(),

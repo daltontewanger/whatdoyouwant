@@ -95,6 +95,7 @@ class CallableRoomBackend implements RoomBackend {
     FirebaseAuth? auth,
     Future<SearchOrigin> Function()? locate,
     DeviceLocator? locator,
+    this.usesFictionalRestaurants = false,
   }) : _db = firestore ?? FirebaseFirestore.instance,
        _functions = functions ?? FirebaseFunctions.instance,
        _auth = auth ?? FirebaseAuth.instance,
@@ -116,9 +117,9 @@ class CallableRoomBackend implements RoomBackend {
   bool get requiresVerifiedHost => true;
   @override
   bool get usesDeviceLocation => true;
-  // Local and staging decks come from the server's fake provider for now.
+  // Only the local emulators deal decks from the server's fake provider.
   @override
-  bool get usesFictionalRestaurants => true;
+  final bool usesFictionalRestaurants;
   @override
   bool get clientClosesRooms => false;
 

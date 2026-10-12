@@ -7,6 +7,9 @@ class AccountService {
   /// True when Auth is the local emulator, where no real email is ever sent.
   final bool usesEmulator;
 
+  /// True in the staging project, whose accounts are separate from the live app.
+  final bool usesStaging;
+
   /// Shows Google sign-in. Off where the Google provider is not configured.
   final bool googleEnabled;
 
@@ -20,6 +23,7 @@ class AccountService {
     this.auth, {
     this.deleteOnServer,
     this.usesEmulator = false,
+    this.usesStaging = false,
     this.googleEnabled = false,
     bool? web,
   }) : web = web ?? kIsWeb;
