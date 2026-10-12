@@ -1,11 +1,12 @@
-/* The public site. Colors follow the app: the brand green for accents, a
-   darker green wherever text or filled buttons need AA contrast, and the
-   banner's navy for the hero and footer. */
+/* The public site. Colors follow the app: the brand green for accents, the
+   app bar's darker green for the top bar, text and buttons (AA contrast), and
+   deeper greens from the same family for the hero and footer. */
 :root {
-  --navy: #0d1b3e;
-  --navy-soft: #c9d3e6;
   --green: #65b292;
   --green-text: #2f7a5c;
+  --green-deep: #1e5641;
+  --green-night: #143a2c;
+  --green-soft: #cfe6db;
   --yellow: #f7c948;
   --blue: #6fb7e9;
   --cream: #fff6de;
@@ -15,12 +16,15 @@
   --page: #ffffff;
   --line: #d5e3db;
   --radius: 16px;
-  --focus: 0 0 0 3px var(--yellow), 0 0 0 5px var(--navy);
+  --focus: 0 0 0 3px var(--yellow), 0 0 0 5px var(--green-night);
   /* The bands are the design: the site keeps this palette in dark mode too. */
   color-scheme: light;
 }
 
 * { box-sizing: border-box; }
+
+/* Buttons set their own display, which would otherwise override [hidden]. */
+[hidden] { display: none !important; }
 
 html { scroll-behavior: smooth; }
 
@@ -41,16 +45,23 @@ a { color: var(--green-text); font-weight: 700; }
 
 .skip-link {
   position: absolute; left: 1rem; top: -4rem; z-index: 10;
-  background: var(--yellow); color: var(--navy); padding: 0.5rem 1rem; border-radius: 999px;
+  background: var(--yellow); color: var(--green-night); padding: 0.5rem 1rem; border-radius: 999px;
 }
 .skip-link:focus { top: 1rem; }
 
 .wrap { width: min(1100px, 100% - 2rem); margin-inline: auto; }
 
-/* Top bar */
-.topbar { border-bottom: 1px solid var(--line); background: var(--page); position: sticky; top: 0; z-index: 5; }
-.topbar .wrap { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 64px; }
-.brand { display: inline-flex; white-space: nowrap; align-items: center; gap: 0.5rem; color: var(--ink); text-decoration: none; font-weight: 800; font-size: 1.2rem; }
+/* Top bar: the same green, height and title type as the app's bar, so moving
+   between the site and the app feels like one place. */
+.topbar {
+  background: var(--green-text); color: #fff; position: sticky; top: 0; z-index: 5;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.topbar .wrap { display: flex; align-items: center; justify-content: space-between; gap: 1rem; height: 64px; }
+.brand {
+  display: inline-flex; white-space: nowrap; align-items: center; gap: 0.5rem; color: #fff;
+  text-decoration: none; font-weight: 800; font-size: 22px; letter-spacing: 1px;
+}
 /* Larger than the bar's padding would suggest; the bar keeps its height. */
 .brand img { width: 52px; height: 52px; margin-block: -6px; }
 .topbar nav { display: flex; align-items: center; gap: 1rem; }
@@ -61,16 +72,17 @@ a { color: var(--green-text); font-weight: 700; }
   min-height: 44px; padding: 0.5rem 1.25rem; border-radius: 999px; border: 2px solid transparent;
   font: inherit; font-weight: 800; text-decoration: none; cursor: pointer;
 }
-.btn-primary { background: var(--green); color: var(--navy); }
+/* Filled buttons sit on green (the bar and the hero), so they are white. */
+.btn-primary { background: #fff; color: var(--green-text); }
 .btn-outline { border-color: currentColor; color: inherit; background: transparent; }
 .btn-link { color: inherit; text-decoration: underline; padding-inline: 0.5rem; }
 
 /* Account menu */
 .account { position: relative; }
-.account-button { background: transparent; color: var(--green-text); border-color: var(--green-text); padding: 0.25rem 0.75rem 0.25rem 0.25rem; }
+.account-button { background: transparent; color: #fff; border-color: #fff; padding: 0.25rem 0.75rem 0.25rem 0.25rem; }
 .avatar {
   width: 34px; height: 34px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
-  background: var(--green-text); color: #fff; font-size: 0.9rem;
+  background: #fff; color: var(--green-text); font-size: 0.9rem;
 }
 .account-menu {
   position: absolute; right: 0; top: calc(100% + 8px); width: 260px; padding: 0.75rem;
@@ -91,16 +103,34 @@ section { padding: 3.5rem 0; }
 .section-title { text-align: center; font-size: clamp(1.6rem, 4vw, 2.2rem); font-weight: 800; }
 .section-lede { text-align: center; color: var(--ink-soft); max-width: 40rem; margin: 0 auto 2rem; }
 
-.hero { background: var(--navy); color: #fff; padding: 0; overflow: hidden; }
-.hero .wrap { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); align-items: center; gap: 2rem; min-height: 440px; }
-.hero h1 { font-size: clamp(2rem, 5.5vw, 3.4rem); font-weight: 800; }
-.hero p { color: #dfe6f3; font-size: 1.15rem; max-width: 34rem; }
+/* The photo runs to the right edge of the screen and fades into the green on
+   its left, so there is no hard edge however wide the window is. */
+.hero {
+  position: relative; color: #fff; padding: 0; overflow: hidden;
+  background: linear-gradient(115deg, var(--green-night), var(--green-deep) 55%, var(--green-text));
+}
+.hero .wrap { position: relative; z-index: 1; display: flex; align-items: center; min-height: 480px; }
+.hero .wrap > div { width: 50%; padding: 2.5rem 2rem 2.5rem 0; }
+.hero h1 { font-size: clamp(2rem, 4.6vw, 3.4rem); font-weight: 800; }
+.hero p { color: #dcefe6; font-size: 1.15rem; max-width: 34rem; }
 .hero-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 1.5rem 0; }
 .stores { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-.store { border: 1px solid #9aa7c2; border-radius: 10px; padding: 0.35rem 0.85rem; font-size: 0.9rem; color: #fff; }
+.store { border: 1px solid rgba(255, 255, 255, 0.55); border-radius: 10px; padding: 0.35rem 0.85rem; font-size: 0.9rem; color: #fff; }
+/* The banner's left 40% is its own title panel; sizing the image to 1/0.6 of
+   the box and pinning it right keeps only the photo in view. */
 .hero-photo {
-  align-self: stretch; min-height: 320px; border-radius: 200px 0 0 200px;
-  background: url('media/banner.webp') 85% center / cover no-repeat;
+  position: absolute; top: 0; bottom: 0; left: 50%; right: 0;
+  background: url('media/banner.webp') right 30% / calc(100% / 0.6) auto no-repeat;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 35%);
+  mask-image: linear-gradient(to right, transparent, #000 35%);
+}
+/* Narrower windows make the box tall, so the image fills its height instead;
+   any sliver of the title panel this shows falls inside the faded edge. */
+@media (max-width: 1199px) {
+  .hero-photo { background-size: auto 100%; }
+}
+@media (min-aspect-ratio: 5/2) and (min-width: 761px) {
+  .hero-photo { background-size: cover; }
 }
 
 .steps-band { background: var(--cream); }
@@ -108,7 +138,7 @@ section { padding: 3.5rem 0; }
 .steps li { text-align: center; }
 .bubble {
   width: 52px; height: 52px; margin: 0 auto 0.5rem; display: flex; align-items: center; justify-content: center;
-  border-radius: 16px 16px 16px 4px; color: var(--navy); font-weight: 800; font-size: 1.4rem;
+  border-radius: 16px 16px 16px 4px; color: var(--green-night); font-weight: 800; font-size: 1.4rem;
 }
 .bubble.y { background: var(--yellow); }
 .bubble.b { background: var(--blue); }
@@ -126,21 +156,21 @@ section { padding: 3.5rem 0; }
 .phone-stage { perspective: 1100px; position: relative; padding-bottom: 28px; }
 .phone-stage::after {
   content: ''; position: absolute; left: 12%; right: 12%; bottom: 0; height: 24px;
-  border-radius: 50%; background: radial-gradient(closest-side, rgba(13, 27, 62, 0.35), transparent);
+  border-radius: 50%; background: radial-gradient(closest-side, rgba(20, 58, 44, 0.35), transparent);
 }
 .phone {
   --rx: 4deg; --ry: -10deg;
   position: relative; width: 260px; padding: 10px; border-radius: 46px;
-  background: linear-gradient(150deg, #39445e, #0b1222 45%, #1b2540);
-  box-shadow: inset 0 0 0 2px #4a5672, inset 0 0 0 7px #05080f,
-    0 40px 60px -30px rgba(13, 27, 62, 0.65), 0 20px 30px -20px rgba(0, 0, 0, 0.45);
+  background: linear-gradient(150deg, #474c52, #0e1012 45%, #26292d);
+  box-shadow: inset 0 0 0 2px #5b6168, inset 0 0 0 7px #050607,
+    0 40px 60px -30px rgba(20, 58, 44, 0.65), 0 20px 30px -20px rgba(0, 0, 0, 0.45);
   transform: rotateX(var(--rx)) rotateY(var(--ry));
   transform-style: preserve-3d; transition: transform 0.25s ease-out;
 }
 .phone::before, .phone::after {
-  content: ''; position: absolute; width: 4px; border-radius: 2px; background: #2a3450;
+  content: ''; position: absolute; width: 4px; border-radius: 2px; background: #33383d;
 }
-.phone::before { left: -3px; top: 110px; height: 56px; box-shadow: 0 -40px 0 -1px #2a3450; }
+.phone::before { left: -3px; top: 110px; height: 56px; box-shadow: 0 -40px 0 -1px #33383d; }
 .phone::after { right: -3px; top: 130px; height: 80px; }
 .screen {
   position: relative; background: #fff; color: #1f2a24; border-radius: 37px; height: 520px;
@@ -149,7 +179,7 @@ section { padding: 3.5rem 0; }
 }
 .screen::before {
   content: ''; position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
-  width: 86px; height: 24px; border-radius: 14px; background: #05080f;
+  width: 86px; height: 24px; border-radius: 14px; background: #050607;
 }
 .screen::after {
   content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
@@ -185,13 +215,13 @@ section { padding: 3.5rem 0; }
 .tile p { margin: 0; color: var(--ink-soft); }
 .tile .bubble { width: 42px; height: 42px; margin: 0; font-size: 1.1rem; }
 
-.footer { background: var(--navy); color: #fff; padding: 2rem 0; }
+.footer { background: var(--green-night); color: #fff; padding: 2rem 0; }
 .footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem; align-items: center; }
 .footer nav ul { list-style: none; display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; margin: 0; padding: 0; }
 .footer a { color: #fff; font-weight: 600; }
-.footer small { color: var(--navy-soft); }
+.footer small { color: var(--green-soft); }
 .socials { display: flex; gap: 0.5rem; }
-.socials span { border: 1px solid #9aa7c2; border-radius: 999px; padding: 0.15rem 0.6rem; font-size: 0.8rem; color: var(--navy-soft); }
+.socials span { border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 999px; padding: 0.15rem 0.6rem; font-size: 0.8rem; color: var(--green-soft); }
 
 /* Legal and help pages */
 .doc { max-width: 46rem; margin: 2.5rem auto; }
@@ -206,17 +236,18 @@ section { padding: 3.5rem 0; }
   .screen { transition: none; }
 }
 
-/* Phones: the hero stacks and the photo follows the words. */
+/* Phones: the hero stacks and the photo rises out of the green below the words. */
 @media (max-width: 760px) {
-  .hero .wrap { grid-template-columns: 1fr; gap: 0; padding: 2rem 0 0; }
-  /* The banner's left third carries its own title; show only the photo. */
+  .hero .wrap { min-height: 0; }
+  .hero .wrap > div { width: 100%; padding: 2rem 0 0.5rem; }
   .hero-photo {
-    min-height: 300px; border-radius: 120px 120px 0 0; margin-inline: -1rem;
-    background-size: 165% auto; background-position: right center;
+    position: relative; left: auto; height: 300px; background-size: calc(100% / 0.6) auto;
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 30%);
+    mask-image: linear-gradient(to bottom, transparent, #000 30%);
   }
   .topbar nav > a.nav-optional { display: none; }
-  .brand { font-size: 1rem; }
-  .brand img { width: 32px; height: 32px; }
+  .brand { font-size: 1.05rem; letter-spacing: 0.5px; }
+  .brand img { width: 40px; height: 40px; margin-block: 0; }
   .topbar .btn { min-height: 40px; padding: 0.25rem 0.9rem; white-space: nowrap; }
   .chips { display: none; }
   .demo { grid-template-columns: 1fr; justify-items: center; }
