@@ -31,6 +31,13 @@ void main() {
     }
   });
 
+  test('the launch link is acted on once', () {
+    final opened = Uri.parse('https://example.test/app/join/AB3K7X');
+    expect(takeLaunchLink(opened)?.joinCode, 'AB3K7X');
+    // Home is rebuilt when a room ends; the same address must not join again.
+    expect(takeLaunchLink(opened), isNull);
+  });
+
   test('installed apps link to their project site; the web app to itself', () {
     expect(
       siteOrigin('whatdoyouwant-staging'),

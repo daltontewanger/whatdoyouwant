@@ -34,6 +34,16 @@ class AppLink {
   final String? joinCode;
 }
 
+bool _launchLinkTaken = false;
+
+/// The link the web app was opened with, handed out only once. Home is built
+/// again when a room ends, and it must not rejoin the room it came from.
+AppLink? takeLaunchLink(Uri uri) {
+  if (_launchLinkTaken) return null;
+  _launchLinkTaken = true;
+  return appLinkFrom(uri);
+}
+
 /// Reads `/app/host`, `/app/join`, `/app/join/<code>` and `/app/account`. The
 /// app is served from `/app` on the site and from the root during local
 /// development.

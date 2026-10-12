@@ -48,7 +48,7 @@ class HomeScreenState extends State<HomeScreen>
     );
     _animationController.forward();
     // A shared join link or a button on the public site opened the app.
-    final link = kIsWeb ? appLinkFrom(Uri.base) : null;
+    final link = kIsWeb ? takeLaunchLink(Uri.base) : null;
     if (link != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -245,18 +245,17 @@ class HomeScreenState extends State<HomeScreen>
     final messenger = ScaffoldMessenger.of(context);
     if (scope.backend.requiresVerifiedHost && !_verifiedHost) {
       // Hosts need a verified account; guests can still join without one.
+      // Signing in lands back here on home rather than in a new room.
       await _openAccount();
-      if (!mounted) return;
-      if (!_verifiedHost) {
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Sign in with a verified email to create a room. Guests can join without an account.',
-            ),
+      if (!mounted || _verifiedHost) return;
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Sign in with a verified email to create a room. Guests can join without an account.',
           ),
-        );
-        return;
-      }
+        ),
+      );
+      return;
     }
     setState(() => _isLoading = true);
     try {
