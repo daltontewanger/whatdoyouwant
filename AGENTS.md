@@ -65,7 +65,7 @@ local scripts by default. The bypass applies only to that process.
 | Web build | `flutter build web --release --no-pub` (base path is set at build time: `--base-href /app/` for Hosting) |
 | Site + app hosting folder | `npm run build:hosting -- --env staging` (or `production`; `--skip-app` reuses the last web build) |
 | Preview the hosting folder locally | `npx firebase emulators:start --only hosting --config firebase.production.json --project demo-whatdoyouwant` (serves `build/hosting` on port 5000; build with `--env staging`, since a production build talks to the live project) |
-| Deploy to production (needs approval) | `npm run deploy:production -- --confirm what-do-you-want-8a404 --dry-run` (then without `--dry-run`; `--only site` or `--only backend`) |
+| Deploy to production (needs approval) | `npm run deploy:production -- --confirm what-do-you-want-8a404 --dry-run` (then without `--dry-run`; `--only site`, `--only backend`, or `--only functions` for the callables and TTLs without the rules) |
 | Android debug build | `flutter build apk --debug --no-pub --flavor production -t lib/main.dart` (staging: `--flavor staging -t lib/main_staging.dart`) |
 
 There are no Functions lint scripts yet. Emulator tests must run with no other
