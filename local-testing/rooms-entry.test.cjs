@@ -38,6 +38,7 @@ test('production runs as its own scoped identity, without local origins', () => 
     assert.equal(endpoint.account, 'rooms-runtime@what-do-you-want-8a404.iam.gserviceaccount.com', name);
   }
   assert.equal(endpoints.joinRoom.max, 10);
+  assert.ok(endpoints.cleanUpIdleGuests, 'production keeps the weekly guest cleanup');
   assert.deepEqual(endpoints.startRoom.secrets, ['HERE_API_KEY']);
   assert.deepEqual(endpoints.joinRoom.secrets, []);
   const source = require('node:fs').readFileSync(entry, 'utf8');
@@ -50,7 +51,8 @@ test('every staging callable runs as the scoped identity and requires App Check'
   delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
   const rooms = require(entry);
   const { CALLABLES } = require('../rooms/handlers.js');
-  assert.deepEqual(Object.keys(rooms).sort(), [...CALLABLES, 'cleanUpIdleGuests', 'sweepRooms', 'pauseLiveSearchOnBudget'].sort());
+  // Staging leaves out the weekly guest cleanup to stay within three scheduled jobs.
+  assert.deepEqual(Object.keys(rooms).sort(), [...CALLABLES, 'sweepRooms', 'pauseLiveSearchOnBudget'].sort());
   const budget = rooms.pauseLiveSearchOnBudget.__endpoint;
   assert.equal(budget.eventTrigger.eventFilters.topic, 'live-search-budget');
   assert.equal(budget.serviceAccountEmail, 'rooms-runtime@whatdoyouwant-staging.iam.gserviceaccount.com');
@@ -58,10 +60,6 @@ test('every staging callable runs as the scoped identity and requires App Check'
   assert.equal(sweep.serviceAccountEmail, 'rooms-runtime@whatdoyouwant-staging.iam.gserviceaccount.com');
   assert.equal(sweep.scheduleTrigger.schedule, 'every 15 minutes');
   assert.equal(sweep.maxInstances, 1);
-  const cleanup = rooms.cleanUpIdleGuests.__endpoint;
-  assert.equal(cleanup.serviceAccountEmail, 'rooms-runtime@whatdoyouwant-staging.iam.gserviceaccount.com');
-  assert.equal(cleanup.scheduleTrigger.schedule, 'every monday 04:00');
-  assert.equal(cleanup.maxInstances, 1);
   for (const name of CALLABLES) {
     const endpoint = rooms[name].__endpoint;
     assert.equal(endpoint.serviceAccountEmail, 'rooms-runtime@whatdoyouwant-staging.iam.gserviceaccount.com', name);

@@ -20,12 +20,16 @@ const PROJECTS = {
     origins: ['https://staging.getwhatdoyouwant.app', 'https://whatdoyouwant-staging.web.app',
       'https://whatdoyouwant-staging.firebaseapp.com', /^http:\/\/localhost:\d+$/],
     maxInstances: 5,
+    // The billing account's free tier covers three scheduled jobs. Staging's
+    // test guests can pile up, so it gives up the weekly cleanup.
+    guestCleanup: false,
   },
   'what-do-you-want-8a404': {
     // www and the .com redirect to the main address, so only it calls the backend.
     origins: ['https://getwhatdoyouwant.app', 'https://what-do-you-want-8a404.web.app',
       'https://what-do-you-want-8a404.firebaseapp.com'],
     maxInstances: 10,
+    guestCleanup: true,
   },
 };
 const project = process.env.GCLOUD_PROJECT || JSON.parse(process.env.FIREBASE_CONFIG || '{}').projectId;
@@ -74,7 +78,7 @@ for (const name of CALLABLES) {
 
 // Weekly removal of idle guest accounts; at this size weekly is plenty. No App Check or CORS: it runs as the scoped identity, which can manage
 // Auth users.
-exports.cleanUpIdleGuests = onSchedule({
+if (settings.guestCleanup) exports.cleanUpIdleGuests = onSchedule({
   schedule: 'every monday 04:00',
   timeZone: 'Etc/UTC',
   region: options.region,
