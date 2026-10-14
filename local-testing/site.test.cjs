@@ -21,10 +21,11 @@ test('every page has the basics assistive technology relies on', () => {
   }
 });
 
-test('no forms, and scripts only from the site itself', () => {
+test('no forms, no Google Fonts, and scripts only from the site itself', () => {
   for (const name of pages) {
     const html = read(name);
     assert.doesNotMatch(html, /<form/i, name);
+    assert.doesNotMatch(html, /fonts\.(googleapis|gstatic)\.com/, name);
     for (const script of html.match(/<script [^>]*src="[^"]+"/g) ?? []) {
       assert.match(script, /src="\/[^/]/, `${name}: ${script}`);
     }
@@ -42,12 +43,15 @@ test('the footer keeps legal and help links; account deletion lives in the accou
 
 test('the site policy blocks framing and inline scripts', () => {
   const config = JSON.parse(fs.readFileSync(path.join(__dirname, '../firebase.production.json'), 'utf8'));
-  const policies = config.hosting.headers.filter(rule => rule.source === '/' || rule.source.startsWith('/@('))
+  const policies = config.hosting.headers.filter(rule => rule.source === '/' || rule.source.startsWith('/@(privacy'))
     .map(rule => rule.headers.find(header => header.key === 'Content-Security-Policy').value);
   assert.equal(policies.length, 2);
   for (const policy of policies) {
     assert.match(policy, /frame-ancestors 'none'/);
     assert.match(policy, /script-src 'self' https:\/\/www\.gstatic\.com;/);
     assert.doesNotMatch(policy, /unsafe-eval/);
+    // Fonts come from the site itself, never Google Fonts.
+    assert.match(policy, /font-src 'self';/);
+    assert.doesNotMatch(policy, /fonts\.(googleapis|gstatic)\.com/);
   }
 });
