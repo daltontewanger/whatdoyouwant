@@ -387,6 +387,27 @@ section { position: relative; padding: 4rem 0; }
 /* Legal and help pages */
 .doc { max-width: 46rem; margin: 2.5rem auto; }
 .doc .notice { background: var(--butter-soft); border-radius: var(--radius); padding: 1rem 1.25rem; }
+/* Long legal text: readable spacing, a contents list, and a table that scrolls
+   sideways on phones instead of squeezing. */
+.legal h1 { font-size: clamp(2rem, 5vw, 2.6rem); font-weight: 800; margin-bottom: 0.25rem; }
+.legal .updated { color: var(--ink-soft); margin-bottom: 1.5rem; }
+.legal h2 { font-size: 1.35rem; font-weight: 800; margin: 2.25rem 0 0.6rem; scroll-margin-top: 80px; }
+.legal h3 { font-size: 1.1rem; margin: 1.5rem 0 0.4rem; }
+.legal p, .legal li { line-height: 1.65; }
+/* Long addresses and emails wrap rather than push the page sideways. */
+.legal a { overflow-wrap: anywhere; }
+.legal p { margin-bottom: 0.85rem; }
+.legal ul, .legal ol { padding-left: 1.4rem; margin: 0 0 1rem; }
+.legal li { margin-bottom: 0.35rem; }
+.legal [id] { scroll-margin-top: 80px; }
+.legal .toc { columns: 2; column-gap: 2rem; }
+.table-scroll { overflow-x: auto; margin: 0 0 1rem; }
+.legal table { border-collapse: collapse; width: 100%; min-width: 34rem; font-size: 0.95rem; }
+.legal th, .legal td { border: 1px solid var(--line); padding: 0.5rem 0.65rem; text-align: left; vertical-align: top; }
+.legal th { background: var(--mint-soft); }
+.legal td:last-child { font-weight: 800; white-space: nowrap; }
+.legal .attribution { margin-top: 2.5rem; color: var(--ink-soft); font-size: 0.9rem; }
+@media (max-width: 760px) { .legal .toc { columns: 1; } }
 
 @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
 @keyframes breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.6px); } }
