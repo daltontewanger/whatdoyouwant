@@ -48,12 +48,20 @@ function openTiles() {
   if (!grid) return;
   const stacked = matchMedia('(max-width: 760px)');
   const round = 'round 22px';
-  // The panel's closed shape: exactly the tile it came from.
+  // The panel's closed shape: exactly the tile it came from, measured inside
+  // the panel's own box.
   const tileShape = (tile, panel) => {
-    if (stacked.matches) return `inset(0 0 ${Math.max(0, panel.offsetHeight - tile.offsetHeight)}px 0 ${round})`;
-    const g = grid.getBoundingClientRect();
+    const p = panel.getBoundingClientRect();
     const t = tile.getBoundingClientRect();
-    return `inset(${t.top - g.top}px ${g.right - t.right}px ${g.bottom - t.bottom}px ${t.left - g.left}px ${round})`;
+    return `inset(${t.top - p.top}px ${p.right - t.right}px ${p.bottom - t.bottom}px ${t.left - p.left}px ${round})`;
+  };
+  // On phones the panel sits over the tile it came from, moved up just enough
+  // to stay inside the grid.
+  const placeOver = (tile, panel) => {
+    const height = panel.offsetHeight;
+    const room = Math.max(grid.offsetHeight, height);
+    if (height > grid.offsetHeight) grid.style.minHeight = `${height}px`;
+    panel.style.top = `${Math.max(0, Math.min(tile.offsetTop, room - height))}px`;
   };
   let current = null;
 
@@ -95,14 +103,17 @@ function openTiles() {
     button.addEventListener('click', () => {
       current = { button, panel, tile };
       button.setAttribute('aria-expanded', 'true');
-      if (stacked.matches) panel.style.top = `${tile.offsetTop}px`;
       panel.hidden = false;
-      // The grid grows if the explanation needs more room than the tiles took.
-      const needed = (stacked.matches ? tile.offsetTop : 0) + panel.scrollHeight;
-      if (needed > grid.offsetHeight) grid.style.minHeight = `${needed}px`;
+      if (stacked.matches) {
+        placeOver(tile, panel);
+      } else if (panel.scrollHeight > grid.offsetHeight) {
+        // The grid grows if the explanation needs more room than the tiles took.
+        grid.style.minHeight = `${panel.scrollHeight}px`;
+      }
       grid.classList.add('open');
-      const top = (stacked.matches ? tile : grid).getBoundingClientRect().top;
-      if (top < 72) window.scrollBy({ top: top - 80 });
+      const box = panel.getBoundingClientRect();
+      if (box.top < 72) window.scrollBy({ top: box.top - 80 });
+      else if (box.bottom > innerHeight) window.scrollBy({ top: Math.min(box.top - 80, box.bottom - innerHeight + 16) });
       done.focus({ preventScroll: true });
       if (reduceMotion) return panel.classList.add('shown');
       panel.style.clipPath = tileShape(tile, panel);

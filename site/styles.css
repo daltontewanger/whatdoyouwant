@@ -337,9 +337,9 @@ section { position: relative; padding: 4rem 0; }
 }
 .tile-more > * { opacity: 0; transition: opacity 0.2s; }
 .tile-more.shown > * { opacity: 1; transition-delay: 0.25s; }
-.tile-more-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 1rem; }
+.tile-more-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 1.25rem; }
 .tile-more-head h3 { font-size: 1.7rem; margin: 0; }
-.tile-more p { margin: 0 0 0.75rem; max-width: 46rem; }
+.tile-more p { margin: 0 0 0.75rem; }
 .tile-close {
   flex-shrink: 0; min-height: 40px; padding: 0.25rem 1.1rem; border-radius: 999px;
   border: 2px solid currentColor; background: transparent; color: inherit; font: inherit; font-weight: 800; cursor: pointer;
@@ -441,7 +441,7 @@ section { position: relative; padding: 4rem 0; }
   /* A strip of canvas behind the scene, fading out at its lower edge, so the
      steps slide softly beneath it instead of being cut off. */
   .scene-wrap {
-    top: 64px; z-index: 2; margin-inline: -1rem; padding: 0.5rem 0 1.75rem;
+    top: 64px; z-index: 2; margin-inline: -1rem; padding: 1.25rem 0 1.75rem;
     background: linear-gradient(to bottom, var(--canvas) 78%, rgba(255, 250, 240, 0));
   }
   .scene-frame { width: 176px; height: 176px; border-radius: 28px; }
