@@ -13,10 +13,11 @@ const PRODUCTION = 'what-do-you-want-8a404';
 const TARGETS = {
   site: 'hosting',
   backend: 'firestore:rules,firestore:indexes,functions:rooms',
-  // The room callables and TTLs without the rules: the live app still writes to
-  // Firestore directly until the cut-over replaces it, and the room rules would
-  // lock it out.
-  functions: 'firestore:indexes,functions:rooms',
+  // The room functions alone. The live app still writes to Firestore directly
+  // until the cut-over replaces it, and the room rules would lock it out; the
+  // Firestore step checks the rules even when only indexes are named, so the
+  // rules and TTLs go out together with the site.
+  functions: 'functions:rooms',
 };
 const args = process.argv.slice(2);
 const valueOf = flag => (args.includes(flag) ? args[args.indexOf(flag) + 1] : undefined);
