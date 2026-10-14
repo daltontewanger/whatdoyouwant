@@ -40,20 +40,21 @@ function followStory() {
   steps.forEach(step => observer.observe(step));
 }
 
-// ---- Why tiles: the opened tile grows to fill the grid with its fuller
-// explanation, and shrinks back into place when closed.
+// ---- Why tiles: the opened tile grows into a panel with its fuller
+// explanation, and shrinks back into place when closed. On wide screens the
+// panel fills the grid; on phones it opens downward from the tile.
 function openTiles() {
   const grid = document.getElementById('tiles');
   if (!grid) return;
   const stacked = matchMedia('(max-width: 760px)');
-  const radius = '22px';
-  // The panel's starting shape: the tile's own box inside the grid.
-  const shapeOf = tile => {
+  const round = 'round 22px';
+  // The panel's closed shape: exactly the tile it came from.
+  const tileShape = (tile, panel) => {
+    if (stacked.matches) return `inset(0 0 ${Math.max(0, panel.offsetHeight - tile.offsetHeight)}px 0 ${round})`;
     const g = grid.getBoundingClientRect();
     const t = tile.getBoundingClientRect();
-    return `inset(${t.top - g.top}px ${g.right - t.right}px ${g.bottom - t.bottom}px ${t.left - g.left}px round ${radius})`;
+    return `inset(${t.top - g.top}px ${g.right - t.right}px ${g.bottom - t.bottom}px ${t.left - g.left}px ${round})`;
   };
-  const animate = () => !reduceMotion && !stacked.matches;
   let current = null;
 
   const close = () => {
@@ -64,13 +65,14 @@ function openTiles() {
     const finish = () => {
       panel.hidden = true;
       panel.style.clipPath = '';
+      panel.style.top = '';
       grid.style.minHeight = '';
       button.focus();
     };
     panel.classList.remove('shown');
     grid.classList.remove('open');
-    if (!animate()) return finish();
-    panel.style.clipPath = shapeOf(tile);
+    if (reduceMotion) return finish();
+    panel.style.clipPath = tileShape(tile, panel);
     setTimeout(finish, 450);
   };
 
@@ -93,22 +95,22 @@ function openTiles() {
     button.addEventListener('click', () => {
       current = { button, panel, tile };
       button.setAttribute('aria-expanded', 'true');
-      if (animate()) panel.style.clipPath = shapeOf(tile);
+      if (stacked.matches) panel.style.top = `${tile.offsetTop}px`;
       panel.hidden = false;
-      // Longer explanations make the grid taller rather than scroll.
-      if (!stacked.matches && panel.scrollHeight > grid.offsetHeight) grid.style.minHeight = `${panel.scrollHeight}px`;
+      // The grid grows if the explanation needs more room than the tiles took.
+      const needed = (stacked.matches ? tile.offsetTop : 0) + panel.scrollHeight;
+      if (needed > grid.offsetHeight) grid.style.minHeight = `${needed}px`;
       grid.classList.add('open');
-      if (grid.getBoundingClientRect().top < 64) grid.scrollIntoView({ block: 'start' });
-      if (animate()) {
-        // Two frames: the browser must draw the starting shape before it can grow.
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-          panel.style.clipPath = `inset(0 round ${radius})`;
-          panel.classList.add('shown');
-        }));
-      } else {
-        panel.classList.add('shown');
-      }
+      const top = (stacked.matches ? tile : grid).getBoundingClientRect().top;
+      if (top < 72) window.scrollBy({ top: top - 80 });
       done.focus({ preventScroll: true });
+      if (reduceMotion) return panel.classList.add('shown');
+      panel.style.clipPath = tileShape(tile, panel);
+      // Two frames: the browser must draw the starting shape before it can grow.
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        panel.style.clipPath = `inset(0 ${round})`;
+        panel.classList.add('shown');
+      }));
     });
   }
   grid.addEventListener('keydown', event => { if (event.key === 'Escape') close(); });

@@ -119,7 +119,6 @@ section { position: relative; padding: 4rem 0; }
 .f2 { right: 5%; top: 14rem; animation-delay: 1s; }
 .f3 { right: 6%; top: 2.5rem; animation-delay: 0.5s; }
 .f4 { left: 6%; top: 2rem; animation-delay: 1.4s; }
-.f5 { right: 6%; top: -2.75rem; z-index: 2; animation-delay: 0.7s; }
 
 /* Hero */
 .hero { padding: 3.5rem 0 1rem; text-align: center; overflow-x: clip; }
@@ -173,7 +172,6 @@ section { position: relative; padding: 4rem 0; }
 .s1 { left: 22%; top: 10px; background: var(--yellow); color: #5a4300; }
 .s2 { right: 21%; top: 40px; background: var(--blue); color: #0c3a5c; border-radius: 18px 18px 5px 18px; animation-delay: 0.8s; }
 .s3 { left: 12%; top: 300px; background: var(--coral); color: #6a2a17; animation-delay: 1.6s; }
-.s4 { right: 10%; top: 370px; background: #fff; border: 2px solid var(--line); color: var(--green-text); animation-delay: 2.2s; }
 
 .phone {
   --rx: 0deg; --ry: 0deg;
@@ -391,7 +389,7 @@ section { position: relative; padding: 4rem 0; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .float, .sticker, .scene.on .swipe-card, .scene.on .yes-tag, .scene.on .no-tag { animation: none; }
-  .phone, .scene, .scene.on, .step-card, .tile, .tile-more, .tile-more > * { transition: none !important; }
+  .phone, .scene, .scene.on, .step-card, .tile, .tile-more, .tile-more > *, .tiles { transition: none !important; }
   .friends * { animation: none !important; }
   .tile:hover { transform: none; }
 }
@@ -417,19 +415,22 @@ section { position: relative; padding: 4rem 0; }
   .hero h1 { line-height: 1.25; }
   .lede { font-size: 1.1rem; }
   .hero-actions .btn-solid, .hero-actions .btn-outline-green { flex: 1 1 100%; }
-  .stage { height: 470px; margin-top: 1.75rem; }
-  .phone { width: 220px; padding: 8px; border-radius: 40px; }
-  .screen { height: 440px; border-radius: 33px; padding-top: 40px; }
-  .app-steps { font-size: 0.7rem; }
-  .app-art .bubble-icon { --s: 34px; }
-  /* The friends sit in front of the phone's lower half so their faces stay in view. */
-  .stage { height: 540px; }
-  .friends { z-index: 3; border-radius: 20px; }
-  .pair { left: -0.25rem; top: auto; bottom: 0; width: 172px; }
-  .solo { right: -0.25rem; top: auto; bottom: 44px; width: 140px; }
+  .stage { height: 420px; margin-top: 1.75rem; }
+  .phone { width: 196px; padding: 8px; border-radius: 38px; }
+  .screen { height: 392px; border-radius: 31px; padding: 38px 9px 9px; }
+  .app-card { padding: 10px 9px; gap: 4px; }
+  .app-title { font-size: 0.95rem; }
+  .app-steps { font-size: 0.64rem; }
+  .app-art .bubble-icon { --s: 30px; }
+  .app-btn { font-size: 0.8rem; padding: 0.3rem; }
+  /* The friends keep to the sides, tucked behind the phone, running off the
+     screen's edges like they do beside it on wider screens. */
+  .friends { border-radius: 18px; }
+  .pair { left: -1.5rem; top: 70px; width: 150px; }
+  .solo { right: -1.5rem; top: 200px; width: 124px; }
   .sticker { font-size: 0.85rem; }
-  .s1 { left: 0; top: 4px; } .s2 { right: 0; top: 150px; }
-  .s3, .s4 { display: none; }
+  .s1 { left: 0; top: 24px; } .s2 { right: 0; top: 150px; }
+  .s3 { display: none; }
   .topbar nav > a.nav-optional { display: none; }
   .brand { font-size: 1.05rem; letter-spacing: 0.5px; }
   .brand img { width: 40px; height: 40px; margin-block: 0; }
@@ -437,20 +438,24 @@ section { position: relative; padding: 4rem 0; }
 
   /* The scene sits under the bar while the steps scroll beneath it. */
   .story-grid { grid-template-columns: 1fr; gap: 1rem; }
-  /* A strip of canvas behind the scene keeps step text from showing around it. */
-  .scene-wrap { top: 64px; z-index: 2; margin-inline: -1rem; padding: 0.75rem 0; background: var(--canvas); }
-  .scene-frame { width: 220px; height: 220px; }
-  .scene, .scene.on { scale: 0.733; }
-  .steps li { min-height: 46vh; }
+  /* A strip of canvas behind the scene, fading out at its lower edge, so the
+     steps slide softly beneath it instead of being cut off. */
+  .scene-wrap {
+    top: 64px; z-index: 2; margin-inline: -1rem; padding: 0.5rem 0 1.75rem;
+    background: linear-gradient(to bottom, var(--canvas) 78%, rgba(255, 250, 240, 0));
+  }
+  .scene-frame { width: 176px; height: 176px; border-radius: 28px; }
+  .scene, .scene.on { scale: 0.595; }
+  .story .blob.sky { display: none; }
+  .steps li { min-height: 31vh; }
   .step-card { padding: 1rem; }
   .steps h3 { font-size: 1.3rem; }
 
   .tiles { grid-template-columns: 1fr; }
   .t-say, .t-join { grid-row: auto; grid-column: auto; }
   .t-say { min-height: 220px; }
-  /* One column: the panel takes the tiles' place in the flow. */
-  .tiles.open .tile { display: none; }
-  .tile-more { position: static; padding: 1.25rem; font-size: 1.05rem; }
+  /* One column: the panel opens downward from the tile that was tapped. */
+  .tile-more { bottom: auto; padding: 1.25rem; font-size: 1.05rem; }
   .tile-more-head h3 { font-size: 1.4rem; }
   .closing-card { padding: 1.5rem; }
   .closing-card .btn { flex: 1 1 100%; }
