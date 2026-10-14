@@ -18,6 +18,7 @@ import 'themes/main_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  useBundledFonts();
   checkFirebaseEnvironment(
     'production',
     DefaultFirebaseOptions.currentPlatform.projectId,

@@ -36,8 +36,9 @@ function flutterCommand() {
 const output = join(root, 'build/hosting');
 const appBuild = join(root, 'build/web');
 if (!skipApp) {
+  // CanvasKit ships with the build instead of loading from Google's CDN.
   const result = spawnSync(flutterCommand(), ['build', 'web', '--release', '--no-pub', '-t', ENTRIES[environment],
-    '--base-href', '/app/'], { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' });
+    '--base-href', '/app/', '--no-web-resources-cdn'], { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' });
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 if (!existsSync(join(appBuild, 'index.html'))) throw new Error('No web app build found; run without --skip-app.');
@@ -63,14 +64,46 @@ function webConfig() {
   return config;
 }
 
+// The web engine draws text it has no font for (emoji, other scripts) with
+// fallback fonts it normally downloads from fonts.gstatic.com, and loads
+// Roboto from there at start. Those files are copied next to the app and the
+// engine is pointed at them, so visitors' browsers never contact Google Fonts.
+// Downloads happen here, on the build machine, and are cached between builds.
+const FALLBACK_SOURCE = 'https://fonts.gstatic.com/s/';
+const fontCache = join(root, 'build/font-cache');
+async function mirrorFallbackFonts(appDir) {
+  const engine = readFileSync(join(appBuild, 'main.dart.js'), 'utf8');
+  const files = [...new Set(engine.match(/[a-z0-9]+\/v\d+\/[A-Za-z0-9_.-]+\.woff2/g) ?? [])];
+  if (files.length < 50) throw new Error(`Expected the engine's fallback font list; found ${files.length} files.`);
+  for (const file of files) {
+    const cached = join(fontCache, file);
+    if (!existsSync(cached)) {
+      const response = await fetch(FALLBACK_SOURCE + file);
+      if (!response.ok) throw new Error(`Could not fetch fallback font ${file}: ${response.status}`);
+      mkdirSync(dirname(cached), { recursive: true });
+      writeFileSync(cached, Buffer.from(await response.arrayBuffer()));
+    }
+    mkdirSync(dirname(join(appDir, 'fonts', file)), { recursive: true });
+    cpSync(cached, join(appDir, 'fonts', file));
+  }
+  const bootstrap = join(appDir, 'flutter_bootstrap.js');
+  const loader = readFileSync(bootstrap, 'utf8');
+  if (!loader.includes('_flutter.loader.load({')) throw new Error('Unexpected flutter_bootstrap.js; cannot set the font location.');
+  // Relative to the page's base address, so it resolves to /app/fonts/.
+  writeFileSync(bootstrap, loader.replace('_flutter.loader.load({',
+    '_flutter.loader.load({\n  config: { fontFallbackBaseUrl: "fonts/" },'));
+  return files.length;
+}
+
 rmSync(output, { recursive: true, force: true });
 mkdirSync(output, { recursive: true });
 cpSync(join(root, 'site'), output, { recursive: true });
 cpSync(appBuild, join(output, 'app'), { recursive: true });
+const mirrored = await mirrorFallbackFonts(join(output, 'app'));
 writeFileSync(join(output, 'firebase-config.js'), `window.wdywFirebaseConfig = ${JSON.stringify(webConfig())};\n`);
 // Link previews need absolute image addresses.
 for (const page of [...readdirSync(output).filter(name => name.endsWith('.html')), 'app/index.html']) {
   const path = join(output, page);
   writeFileSync(path, readFileSync(path, 'utf8').replaceAll('%SITE_ORIGIN%', ORIGINS[environment]));
 }
-console.log(`Hosting folder ready for ${environment}: build/hosting (site at /, app at /app).`);
+console.log(`Hosting folder ready for ${environment}: build/hosting (site at /, app at /app; ${mirrored} fallback fonts served locally).`);

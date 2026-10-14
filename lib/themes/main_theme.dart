@@ -1,5 +1,17 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+
+/// Baloo 2 ships inside the app (assets/google_fonts), so the app never
+/// downloads it from Google's servers at runtime.
+void useBundledFonts() {
+  GoogleFonts.config.allowRuntimeFetching = false;
+  LicenseRegistry.addLicense(() async* {
+    final license = await rootBundle.loadString('assets/google_fonts/OFL.txt');
+    yield LicenseEntryWithLineBreaks(['google_fonts'], license);
+  });
+}
 
 // The logo's green. White text on it is too faint to read comfortably, so it
 // stays on accents and tints.

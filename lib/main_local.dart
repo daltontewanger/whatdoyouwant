@@ -11,9 +11,11 @@ import 'firebase_options_local.dart';
 import 'services/account_service.dart';
 import 'services/active_room_store.dart';
 import 'services/callable_room_backend.dart';
+import 'themes/main_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  useBundledFonts();
   checkFirebaseEnvironment('local', 'demo-whatdoyouwant');
   if (!kDebugMode) {
     throw StateError('The local entry point must only run in debug mode.');

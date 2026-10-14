@@ -12,6 +12,7 @@ import 'main.dart' show MyApp;
 import 'services/account_service.dart';
 import 'services/active_room_store.dart';
 import 'services/callable_room_backend.dart';
+import 'themes/main_theme.dart';
 
 class _StagingDebugTokens {
   const _StagingDebugTokens(this.android, this.web)
@@ -28,6 +29,7 @@ class _StagingDebugTokens {
 // shows the connection check instead.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  useBundledFonts();
   final options = StagingFirebaseOptions.currentPlatform;
   checkFirebaseEnvironment('staging', options.projectId);
   if (options.projectId != 'whatdoyouwant-staging') {

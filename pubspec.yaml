@@ -75,6 +75,7 @@ flutter:
   assets:
     - assets/images/wdyw.png
     - assets/icon/wdywicon2.png
+    - assets/google_fonts/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
