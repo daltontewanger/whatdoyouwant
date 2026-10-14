@@ -40,37 +40,75 @@ function followStory() {
   steps.forEach(step => observer.observe(step));
 }
 
-// ---- Why tiles: opening one fills the grid with its fuller explanation.
+// ---- Why tiles: the opened tile grows to fill the grid with its fuller
+// explanation, and shrinks back into place when closed.
 function openTiles() {
   const grid = document.getElementById('tiles');
   if (!grid) return;
-  let opener = null;
-  const close = () => {
-    const panel = grid.querySelector('.tile-more:not([hidden])');
-    if (!panel) return;
-    panel.hidden = true;
-    panel.closest('.tile').classList.remove('current');
-    grid.classList.remove('open');
-    opener.setAttribute('aria-expanded', 'false');
-    opener.focus();
+  const stacked = matchMedia('(max-width: 760px)');
+  const radius = '22px';
+  // The panel's starting shape: the tile's own box inside the grid.
+  const shapeOf = tile => {
+    const g = grid.getBoundingClientRect();
+    const t = tile.getBoundingClientRect();
+    return `inset(${t.top - g.top}px ${g.right - t.right}px ${g.bottom - t.bottom}px ${t.left - g.left}px round ${radius})`;
   };
+  const animate = () => !reduceMotion && !stacked.matches;
+  let current = null;
+
+  const close = () => {
+    if (!current) return;
+    const { button, panel, tile } = current;
+    current = null;
+    button.setAttribute('aria-expanded', 'false');
+    const finish = () => {
+      panel.hidden = true;
+      panel.style.clipPath = '';
+      grid.style.minHeight = '';
+      button.focus();
+    };
+    panel.classList.remove('shown');
+    grid.classList.remove('open');
+    if (!animate()) return finish();
+    panel.style.clipPath = shapeOf(tile);
+    setTimeout(finish, 450);
+  };
+
   for (const button of grid.querySelectorAll('.tile-open')) {
+    const tile = button.closest('.tile');
     const panel = document.getElementById(button.getAttribute('aria-controls'));
-    const title = Object.assign(document.createElement('h3'), {
-      textContent: button.closest('.tile').querySelector('h3').textContent,
-    });
+    // Panels sit on the grid itself so they can cover every tile.
+    const colors = getComputedStyle(tile);
+    panel.style.background = colors.backgroundColor;
+    panel.style.color = colors.color;
+    grid.append(panel);
+    const head = Object.assign(document.createElement('div'), { className: 'tile-more-head' });
+    const title = Object.assign(document.createElement('h3'), { textContent: tile.querySelector('h3').textContent });
     title.setAttribute('aria-hidden', 'true');
     const done = Object.assign(document.createElement('button'), { type: 'button', className: 'tile-close', textContent: 'Close' });
     done.addEventListener('click', close);
-    panel.prepend(done, title);
+    head.append(title, done);
+    panel.prepend(head);
+
     button.addEventListener('click', () => {
-      opener = button;
-      grid.classList.add('open');
-      button.closest('.tile').classList.add('current');
-      panel.hidden = false;
+      current = { button, panel, tile };
       button.setAttribute('aria-expanded', 'true');
-      done.focus();
+      if (animate()) panel.style.clipPath = shapeOf(tile);
+      panel.hidden = false;
+      // Longer explanations make the grid taller rather than scroll.
+      if (!stacked.matches && panel.scrollHeight > grid.offsetHeight) grid.style.minHeight = `${panel.scrollHeight}px`;
+      grid.classList.add('open');
       if (grid.getBoundingClientRect().top < 64) grid.scrollIntoView({ block: 'start' });
+      if (animate()) {
+        // Two frames: the browser must draw the starting shape before it can grow.
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          panel.style.clipPath = `inset(0 round ${radius})`;
+          panel.classList.add('shown');
+        }));
+      } else {
+        panel.classList.add('shown');
+      }
+      done.focus({ preventScroll: true });
     });
   }
   grid.addEventListener('keydown', event => { if (event.key === 'Escape') close(); });
