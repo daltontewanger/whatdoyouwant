@@ -1,14 +1,28 @@
 import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../models/restaurant.dart';
 import '../models/user.dart';
-import '../services/room_service.dart';
+import '../services/result_nudges.dart';
+import '../services/room_backend.dart';
 import 'results_screen.dart';
 
 const Color cardSwipeBackground = Color(0xFFE7F8F3);
+
+/// What to tell someone whose vote was not saved. Ballots are written straight
+/// to Firestore, so a rejection usually means voting closed for this room.
+String voteErrorMessage(Object error) {
+  if (error is FirebaseException) {
+    switch (error.code) {
+      case 'permission-denied':
+        return 'That vote was not counted. Voting may have ended for this room.';
+      case 'unauthenticated':
+        return 'This device could not be verified. Restart the app and try again.';
+    }
+  }
+  return 'Your vote could not be saved. Check your connection.';
+}
 
 class SwipeScreen extends StatefulWidget {
   final String roomCode;
@@ -43,72 +57,68 @@ class SwipeScreenState extends State<SwipeScreen> {
   bool _navigated = false;
   bool _isLeaving = false;
 
-  StreamSubscription<DocumentSnapshot>? _roomSub;
+  StreamSubscription<RoomState>? _roomSub;
   Timer? _watchdogTimer;
-
-  String get _uid {
-    final u = FirebaseAuth.instance.currentUser;
-    return u?.uid ?? widget.currentUser.id;
-  }
+  ResultNudges? _nudges;
+  late RoomBackend _backend;
 
   @override
   void initState() {
     super.initState();
     swipeOptions = widget.restaurants;
+  }
 
-    _roomSub = RoomService().roomStream(widget.roomCode).listen(_onRoomUpdate);
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_roomSub != null) return;
+    _backend = RoomBackendScope.of(context).backend;
+    _roomSub = _backend
+        .watch(widget.roomCode)
+        .listen(_onRoomUpdate, onError: (_) {});
 
-    _watchdogTimer = Timer.periodic(_watchdogInterval, (_) {
-      RoomService().timeoutStaleByVote(roomCode: widget.roomCode).catchError((_) {});
-    });
+    if (_backend.clientClosesRooms) {
+      _watchdogTimer = Timer.periodic(_watchdogInterval, (_) {
+        _backend.nudge(widget.roomCode).catchError((_) {});
+      });
+    } else {
+      _nudges = ResultNudges(() => _backend.nudge(widget.roomCode));
+    }
   }
 
   @override
   void dispose() {
     _isLeaving = true;
     _watchdogTimer?.cancel();
+    _nudges?.stop();
     _roomSub?.cancel();
     _cardSwiperController.dispose();
     super.dispose();
   }
 
-  // Helpers for room state
-  int _restaurantsLenFromRoom(Map<String, dynamic> data) {
-    final restaurantsDoc =
-        List<Map<String, dynamic>>.from(data['restaurants'] ?? const []);
-    return restaurantsDoc.isNotEmpty ? restaurantsDoc.length : swipeOptions.length;
-  }
-
   // Room stream - navigate when this user is done and close when all are done
-  void _onRoomUpdate(DocumentSnapshot snap) {
-    if (_isLeaving || !mounted || !snap.exists) return;
+  void _onRoomUpdate(RoomState room) {
+    if (_isLeaving || !mounted) return;
 
-    final data = snap.data() as Map<String, dynamic>;
-    final status = (data['status'] ?? 'closed') as String;
-
-    final int restaurantsLen = _restaurantsLenFromRoom(data);
-    final participants = Map<String, dynamic>.from(data['participants'] ?? {});
-    final votes = Map<String, dynamic>.from(data['votes'] ?? {});
-
-    // Checks being done with server
-    final Map<String, dynamic> myVotes =
-        Map<String, dynamic>.from(votes[_uid] ?? {});
-    final bool iAmDone = restaurantsLen > 0 && myVotes.length >= restaurantsLen;
-    if (iAmDone && !_navigated) {
+    final int restaurantsLen =
+        room.restaurants.isNotEmpty
+            ? room.restaurants.length
+            : swipeOptions.length;
+    final bool iAmDone =
+        restaurantsLen > 0 && room.myVoteCount >= restaurantsLen;
+    // Someone has to close the room when time runs out, even if nobody has
+    // reached the results screen yet; once it closes, leftover cards are moot.
+    _nudges?.votingEndsAt(room.votingEndsAt);
+    if ((iAmDone || (_nudges != null && room.status == 'closed')) &&
+        !_navigated) {
       _goToResults();
     }
 
     // If everyone's done proactively close
-    bool allComplete = false;
-    if (participants.isNotEmpty && restaurantsLen > 0) {
-      allComplete = participants.keys.every((uid) {
-        final Map<String, dynamic> uVotes =
-            Map<String, dynamic>.from(votes[uid] ?? {});
-        return uVotes.length >= restaurantsLen;
-      });
-    }
-    if (status == 'voting' && allComplete) {
-      RoomService().closeRoom(widget.roomCode).catchError((_) {});
+    if (_backend.clientClosesRooms &&
+        room.status == 'voting' &&
+        room.everyoneDone) {
+      _backend.close(widget.roomCode).catchError((_) {});
     }
   }
 
@@ -117,6 +127,7 @@ class SwipeScreenState extends State<SwipeScreen> {
     _navigated = true;
     _isLeaving = true;
     _watchdogTimer?.cancel();
+    _nudges?.stop();
     _roomSub?.cancel();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -124,23 +135,27 @@ class SwipeScreenState extends State<SwipeScreen> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => ResultsScreen(
-            roomCode: widget.roomCode,
-            restaurants: swipeOptions,
-          ),
+          builder:
+              (_) => ResultsScreen(
+                roomCode: widget.roomCode,
+                restaurants: swipeOptions,
+              ),
         ),
       );
     });
   }
 
-  // Swiping and incremental write
-  void _simulateLeftSwipe() {
+  // Swiping and incremental write. The Yes and No buttons and the timeout
+  // swipe the card for the person, so every vote takes the same path.
+  void _swipe(CardSwiperDirection direction) {
     if (_isLeaving || !mounted) return;
     if (_currentIndex >= swipeOptions.length) return;
     try {
-      _cardSwiperController.swipe(CardSwiperDirection.left);
+      _cardSwiperController.swipe(direction);
     } catch (_) {}
   }
+
+  void _simulateLeftSwipe() => _swipe(CardSwiperDirection.left);
 
   bool _handleSwipe(
     int previousIndex,
@@ -153,32 +168,37 @@ class SwipeScreenState extends State<SwipeScreen> {
     if (_localVotes.length > previousIndex) return true; // de-dupe
 
     final bool liked = (direction == CardSwiperDirection.right);
-    final String restaurantId = swipeOptions[previousIndex].id;
+    final Restaurant restaurant = swipeOptions[previousIndex];
 
     _localVotes.add(liked);
     _currentIndex = previousIndex + 1;
 
     final bool finishedDeck = _currentIndex >= swipeOptions.length;
 
-    RoomService()
-        .submitIncrementalVote(
-          roomCode: widget.roomCode,
-          userId: _uid,
-          restaurantId: restaurantId,
+    _backend
+        .vote(
+          widget.roomCode,
+          restaurant,
           liked: liked,
-          currentIndex: previousIndex,
-          totalCount: swipeOptions.length,
+          index: previousIndex,
+          total: swipeOptions.length,
         )
         .then((_) async {
           if (finishedDeck && !_navigated) {
             _goToResults();
           }
-          await RoomService().timeoutStaleByVote(roomCode: widget.roomCode);
+          // Server-closed rooms only need asking once this person's last
+          // ballot is stored; earlier ones cannot complete the room.
+          if (_backend.clientClosesRooms || finishedDeck) {
+            // A failed nudge is not a failed vote; the next one retries.
+            await _backend.nudge(widget.roomCode).catchError((_) {});
+          }
         })
         .catchError((e) {
           if (!mounted || _isLeaving) return;
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text('Vote failed: $e')));
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(voteErrorMessage(e))));
         });
 
     if (mounted && !_isLeaving) setState(() {});
@@ -200,25 +220,28 @@ class SwipeScreenState extends State<SwipeScreen> {
               Text(
                 restaurant.name,
                 textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.headlineMedium!.copyWith(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 26,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 26,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
               const SizedBox(height: 14),
               Text(
                 restaurant.address,
                 textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
               const SizedBox(height: 14),
               Text(
                 'Distance: ${restaurant.distance.toStringAsFixed(2)} miles',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium!
-                    .copyWith(color: Colors.black54),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium!.copyWith(color: Colors.black54),
               ),
             ],
           ),
@@ -233,7 +256,7 @@ class SwipeScreenState extends State<SwipeScreen> {
 
     if (swipeOptions.isEmpty) {
       return Scaffold(
-        backgroundColor: theme.scaffoldBackgroundColor.withOpacity(0.10),
+        backgroundColor: theme.scaffoldBackgroundColor.withValues(alpha: 0.10),
         body: const Center(
           child: Text('No restaurants available within the selected radius.'),
         ),
@@ -243,7 +266,7 @@ class SwipeScreenState extends State<SwipeScreen> {
     final bool finishedDeck = _currentIndex >= swipeOptions.length;
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.primary.withOpacity(0.10),
+      backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.10),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -255,13 +278,18 @@ class SwipeScreenState extends State<SwipeScreen> {
                   minHeight: constraints.maxHeight,
                 ),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 30,
+                    horizontal: 20,
+                  ),
                   decoration: BoxDecoration(
                     color: theme.cardColor,
                     borderRadius: BorderRadius.circular(28),
                     boxShadow: [
                       BoxShadow(
-                        color: theme.colorScheme.primary.withOpacity(0.10),
+                        color: theme.colorScheme.primary.withValues(
+                          alpha: 0.10,
+                        ),
                         blurRadius: 18,
                         offset: const Offset(0, 8),
                       ),
@@ -271,7 +299,9 @@ class SwipeScreenState extends State<SwipeScreen> {
                     builder: (context, innerConstraints) {
                       return SingleChildScrollView(
                         child: ConstrainedBox(
-                          constraints: BoxConstraints(minHeight: innerConstraints.maxHeight),
+                          constraints: BoxConstraints(
+                            minHeight: innerConstraints.maxHeight,
+                          ),
                           child: IntrinsicHeight(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.center,
@@ -279,32 +309,39 @@ class SwipeScreenState extends State<SwipeScreen> {
                                 Text(
                                   "Swipe to Choose!",
                                   textAlign: TextAlign.center,
-                                  style: theme.textTheme.headlineMedium!.copyWith(
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 34,
-                                    letterSpacing: 1.2,
-                                    shadows: const [
-                                      Shadow(
-                                        color: Colors.black12,
-                                        blurRadius: 4,
-                                        offset: Offset(1, 2),
+                                  style: theme.textTheme.headlineMedium!
+                                      .copyWith(
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 34,
+                                        letterSpacing: 1.2,
+                                        shadows: const [
+                                          Shadow(
+                                            color: Colors.black12,
+                                            blurRadius: 4,
+                                            offset: Offset(1, 2),
+                                          ),
+                                        ],
                                       ),
-                                    ],
-                                  ),
                                 ),
 
                                 Expanded(
                                   child: Align(
                                     alignment: Alignment.center,
                                     child: Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 6,
+                                      ),
                                       child: Text(
-                                        "Swipe right to vote YES, left to vote NO.\nAuto NO after $swipeTimeoutSeconds seconds.",
+                                        "Swipe right or tap Yes to vote YES; swipe left or tap No to vote NO.\nAuto NO after $swipeTimeoutSeconds seconds.",
                                         textAlign: TextAlign.center,
-                                        style: theme.textTheme.bodyLarge!.copyWith(
-                                          fontSize: 16,
-                                          color: Colors.black.withOpacity(0.7),
-                                        ),
+                                        style: theme.textTheme.bodyLarge!
+                                            .copyWith(
+                                              fontSize: 16,
+                                              color: Colors.black.withValues(
+                                                alpha: 0.7,
+                                              ),
+                                            ),
                                       ),
                                     ),
                                   ),
@@ -313,13 +350,23 @@ class SwipeScreenState extends State<SwipeScreen> {
                                 Expanded(
                                   flex: 3,
                                   child: Center(
+                                    // The swiper sizes cards from these constraints; with
+                                    // a loose width every card shrinks to its own text
+                                    // and sits at the left edge.
                                     child: SizedBox(
+                                      width: double.infinity,
                                       height: 380,
                                       child: CardSwiper(
                                         controller: _cardSwiperController,
                                         cardsCount: _cardWidgets.length,
+                                        // The swiper shows two stacked cards by
+                                        // default and rejects a one-card deck.
+                                        numberOfCardsDisplayed:
+                                            _cardWidgets.length < 2 ? 1 : 2,
                                         cardBuilder: (context, index, h, v) {
-                                          if (index >= _cardWidgets.length) return null;
+                                          if (index >= _cardWidgets.length) {
+                                            return null;
+                                          }
                                           return _cardWidgets[index];
                                         },
                                         isLoop: false,
@@ -328,8 +375,8 @@ class SwipeScreenState extends State<SwipeScreen> {
                                           // Finished locally — navigate now (waiting screen if others not done)
                                           if (!_navigated) _goToResults();
                                           // Also nudge watchdog
-                                          await RoomService()
-                                              .timeoutStaleByVote(roomCode: widget.roomCode)
+                                          await _backend
+                                              .nudge(widget.roomCode)
                                               .catchError((_) {});
                                         },
                                       ),
@@ -339,49 +386,109 @@ class SwipeScreenState extends State<SwipeScreen> {
 
                                 if (!finishedDeck)
                                   Padding(
-                                    padding: const EdgeInsets.only(top: 20, bottom: 6),
-                                    child: TweenAnimationBuilder<double>(
-                                      key: ValueKey(_currentIndex),
-                                      duration: const Duration(seconds: swipeTimeoutSeconds),
-                                      tween: Tween(begin: 1.0, end: 0.0),
-                                      builder: (context, value, child) {
-                                        if (_isLeaving) return const SizedBox.shrink();
-                                        final secondsLeft = (swipeTimeoutSeconds * value).ceil();
-                                        return Column(
-                                          children: [
-                                            Text(
-                                              secondsLeft > 0 ? '$secondsLeft' : '',
-                                              style: theme.textTheme.headlineMedium!
-                                                  .copyWith(color: Colors.orange, fontSize: 38),
+                                    padding: const EdgeInsets.only(
+                                      top: 20,
+                                      bottom: 6,
+                                    ),
+                                    // Small thumbs either side of the countdown are
+                                    // a tap alternative to swiping, for anyone who
+                                    // cannot or would rather not drag a card.
+                                    child: Row(
+                                      children: [
+                                        if (!_isLeaving)
+                                          _VoteButton(
+                                            image: 'assets/images/vote-no.png',
+                                            label: 'No',
+                                            onTap:
+                                                () => _swipe(
+                                                  CardSwiperDirection.left,
+                                                ),
+                                          ),
+                                        Expanded(
+                                          child: TweenAnimationBuilder<double>(
+                                            key: ValueKey(_currentIndex),
+                                            duration: const Duration(
+                                              seconds: swipeTimeoutSeconds,
                                             ),
-                                            const SizedBox(height: 6),
-                                            LinearProgressIndicator(
-                                              value: value,
-                                              color: Colors.orange,
-                                              backgroundColor:
-                                                  theme.colorScheme.primary.withOpacity(0.13),
-                                              minHeight: 8,
-                                              borderRadius: BorderRadius.circular(7),
-                                            ),
-                                          ],
-                                        );
-                                      },
-                                      onEnd: () {
-                                        if (_isLeaving || finishedDeck) return;
-                                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                                          if (mounted && !_isLeaving && !finishedDeck) {
-                                            _simulateLeftSwipe();
-                                          }
-                                        });
-                                      },
+                                            tween: Tween(begin: 1.0, end: 0.0),
+                                            builder: (context, value, child) {
+                                              if (_isLeaving) {
+                                                return const SizedBox.shrink();
+                                              }
+                                              final secondsLeft =
+                                                  (swipeTimeoutSeconds * value)
+                                                      .ceil();
+                                              return Column(
+                                                children: [
+                                                  Text(
+                                                    secondsLeft > 0
+                                                        ? '$secondsLeft'
+                                                        : '',
+                                                    style: theme
+                                                        .textTheme
+                                                        .headlineMedium!
+                                                        .copyWith(
+                                                          color: Colors.orange,
+                                                          fontSize: 38,
+                                                        ),
+                                                  ),
+                                                  const SizedBox(height: 6),
+                                                  LinearProgressIndicator(
+                                                    value: value,
+                                                    color: Colors.orange,
+                                                    backgroundColor: theme
+                                                        .colorScheme
+                                                        .primary
+                                                        .withValues(
+                                                          alpha: 0.13,
+                                                        ),
+                                                    minHeight: 8,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          7,
+                                                        ),
+                                                  ),
+                                                ],
+                                              );
+                                            },
+                                            onEnd: () {
+                                              if (_isLeaving || finishedDeck) {
+                                                return;
+                                              }
+                                              WidgetsBinding.instance
+                                                  .addPostFrameCallback((_) {
+                                                    if (mounted &&
+                                                        !_isLeaving &&
+                                                        !finishedDeck) {
+                                                      _simulateLeftSwipe();
+                                                    }
+                                                  });
+                                            },
+                                          ),
+                                        ),
+                                        if (!_isLeaving)
+                                          _VoteButton(
+                                            image: 'assets/images/vote-yes.png',
+                                            label: 'Yes',
+                                            onTap:
+                                                () => _swipe(
+                                                  CardSwiperDirection.right,
+                                                ),
+                                          ),
+                                      ],
                                     ),
                                   ),
 
                                 Padding(
-                                  padding: const EdgeInsets.only(bottom: 8, top: 4),
+                                  padding: const EdgeInsets.only(
+                                    bottom: 8,
+                                    top: 4,
+                                  ),
                                   child: Text(
                                     'Option ${(_currentIndex + 1).clamp(1, swipeOptions.length)} of ${swipeOptions.length}',
-                                    style: theme.textTheme.bodyMedium!.copyWith(color: Colors.black54),
+                                    style: theme.textTheme.bodyMedium!.copyWith(
+                                      color: Colors.black54,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -399,4 +506,36 @@ class SwipeScreenState extends State<SwipeScreen> {
       ),
     );
   }
+}
+
+/// A small thumbs-up or thumbs-down bubble. Its name is in the tooltip and
+/// what screen readers announce.
+class _VoteButton extends StatelessWidget {
+  const _VoteButton({
+    required this.image,
+    required this.label,
+    required this.onTap,
+  });
+
+  final String image;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: 'Vote $label',
+    excludeSemantics: true,
+    child: Tooltip(
+      message: 'Vote $label',
+      child: InkResponse(
+        onTap: onTap,
+        radius: 30,
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Image.asset(image, width: 48, height: 48),
+        ),
+      ),
+    ),
+  );
 }

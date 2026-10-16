@@ -1,0 +1,46 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "rooms",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "votingEndsAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "deckGenerations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "leaseExpiresAt", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": [
+    { "collectionGroup": "rooms", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "members", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "candidates", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    {
+      "collectionGroup": "restaurantDecks",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    { "collectionGroup": "ballot", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "roomCodes", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "_requests", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "_limits", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "usageWeeks", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "deckGenerations", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "quickPicks", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    {
+      "collectionGroup": "members",
+      "fieldPath": "uid",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    }
+  ]
+}

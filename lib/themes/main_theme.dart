@@ -1,16 +1,33 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-final Color primaryGreen = Color(0xFF65B292); // #65b292
+/// Baloo 2 ships inside the app (assets/google_fonts), so the app never
+/// downloads it from Google's servers at runtime.
+void useBundledFonts() {
+  GoogleFonts.config.allowRuntimeFetching = false;
+  LicenseRegistry.addLicense(() async* {
+    final license = await rootBundle.loadString('assets/google_fonts/OFL.txt');
+    yield LicenseEntryWithLineBreaks(['google_fonts'], license);
+  });
+}
+
+// The logo's green. White text on it is too faint to read comfortably, so it
+// stays on accents and tints.
+final Color brandGreen = Color(0xFF65B292); // #65b292
+// A darker green for text, buttons and bars: white on it, and it on white,
+// meet the WCAG AA contrast ratio for normal text.
+final Color primaryGreen = Color(0xFF2F7A5C); // #2f7a5c
 final Color lightBackground = Color(0xFFFAFAFA);
 
 final ThemeData appTheme = ThemeData(
   brightness: Brightness.light,
   primaryColor: primaryGreen,
   colorScheme: ColorScheme.fromSeed(
-    seedColor: primaryGreen,
+    seedColor: brandGreen,
     primary: primaryGreen,
-    secondary: primaryGreen,
+    secondary: brandGreen,
     surface: Colors.white,
     onPrimary: Colors.white,
     onSurface: Color(0xFF222222),
@@ -60,12 +77,10 @@ final ThemeData appTheme = ThemeData(
   ),
   cardTheme: CardThemeData(
     color: lightBackground,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(24),
-    ),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
     elevation: 3,
     margin: EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-    shadowColor: Colors.black.withOpacity(0.08),
+    shadowColor: Colors.black.withValues(alpha: 0.08),
   ),
   inputDecorationTheme: InputDecorationTheme(
     filled: true,

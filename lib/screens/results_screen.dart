@@ -1,9 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/restaurant.dart';
-import '../services/room_service.dart';
-import 'home_screen.dart';
+import '../services/result_nudges.dart';
+import '../services/room_backend.dart';
 
 class ResultsScreen extends StatefulWidget {
   final String roomCode;
@@ -20,35 +19,43 @@ class ResultsScreen extends StatefulWidget {
 }
 
 class ResultsScreenState extends State<ResultsScreen> {
-  late final Stream<DocumentSnapshot> _roomStream;
+  Stream<RoomState>? _roomStream;
+  late RoomBackend _backend;
   bool _closedOnce = false;
   Timer? _kickTimer;
+  ResultNudges? _nudges;
 
   @override
-  void initState() {
-    super.initState();
-    _roomStream = RoomService().roomStream(widget.roomCode);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_roomStream != null) return;
+    _backend = RoomBackendScope.of(context).backend;
+    _roomStream = _backend.watch(widget.roomCode);
 
-    // Starts a kicker and stops once throttled in RoomService, then cancels as soon as results are ready
-    _kickTimer = Timer.periodic(const Duration(seconds: 6), (_) async {
-      try {
-        await RoomService().timeoutStaleByVote(roomCode: widget.roomCode);
-      } catch (_) {
-      }
-    });
+    if (_backend.clientClosesRooms) {
+      // Client-closed rooms also time out idle voters on each nudge, so they
+      // keep the frequent kick until results are ready.
+      _kickTimer = Timer.periodic(const Duration(seconds: 6), (_) async {
+        try {
+          await _backend.nudge(widget.roomCode);
+        } catch (_) {}
+      });
+    } else {
+      _nudges = ResultNudges(() => _backend.nudge(widget.roomCode))..start();
+    }
   }
 
   @override
   void dispose() {
     _kickTimer?.cancel();
+    _nudges?.stop();
     super.dispose();
   }
 
+  // Back to the app's own first screen, which keeps its bottom bar and
+  // notices that the room is over.
   void _returnToHome() {
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const HomeScreen(currentUid: '')),
-      (route) => false,
-    );
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   void _closeRoomOnce() {
@@ -56,9 +63,8 @@ class ResultsScreenState extends State<ResultsScreen> {
     _closedOnce = true;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
-        await RoomService().closeRoom(widget.roomCode);
-      } catch (_) {
-      }
+        await _backend.close(widget.roomCode);
+      } catch (_) {}
     });
   }
 
@@ -68,154 +74,87 @@ class ResultsScreenState extends State<ResultsScreen> {
 
     return PopScope(
       canPop: false,
-      onPopInvokedWithResult: (didPop, result) => _returnToHome(),
+      // A back gesture or button goes home too. When Back to Home pops this
+      // screen itself, didPop is true and there is nothing left to do.
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _returnToHome();
+      },
       child: Scaffold(
-        backgroundColor: theme.colorScheme.primary.withOpacity(0.10),
+        backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.10),
         body: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
               return Center(
                 child: SingleChildScrollView(
                   child: ConstrainedBox(
-                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                    ),
                     child: Container(
                       constraints: const BoxConstraints(maxWidth: 420),
-                      padding: const EdgeInsets.symmetric(vertical: 38, horizontal: 18),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 38,
+                        horizontal: 18,
+                      ),
                       decoration: BoxDecoration(
                         color: theme.cardColor,
                         borderRadius: BorderRadius.circular(28),
                         boxShadow: [
                           BoxShadow(
-                            color: theme.colorScheme.primary.withOpacity(0.10),
+                            color: theme.colorScheme.primary.withValues(
+                              alpha: 0.10,
+                            ),
                             blurRadius: 18,
                             offset: const Offset(0, 8),
                           ),
                         ],
                       ),
-                      child: StreamBuilder<DocumentSnapshot>(
+                      child: StreamBuilder<RoomState>(
                         stream: _roomStream,
                         builder: (context, snapshot) {
-                          if (snapshot.connectionState == ConnectionState.waiting) {
-                            return const Center(child: _ResultsLoader());
+                          if (!snapshot.hasData) {
+                            return Center(
+                              child:
+                                  snapshot.hasError
+                                      ? const Text('No result data.')
+                                      : const _ResultsLoader(),
+                            );
                           }
+                          final room = snapshot.data!;
 
-                          final rawData = snapshot.data?.data();
-                          if (rawData == null) {
-                            return const Center(child: Text('No result data.'));
-                          }
-
-                          final data = rawData as Map<String, dynamic>;
-
-                          final Map<String, dynamic> participants =
-                              Map<String, dynamic>.from(data['participants'] ?? {});
-                          final Map<String, dynamic> votesRaw =
-                              Map<String, dynamic>.from(data['votes'] ?? {});
-                          final Map<String, dynamic> stats =
-                              Map<String, dynamic>.from(data['stats'] ?? {});
-                          final List<dynamic> restaurantsDoc =
-                              List<dynamic>.from(data['restaurants'] ?? const []);
-
-                          final String status = (data['status'] ?? 'closed') as String;
-
-                          // Count with fallbacks
-                          final int participantsCount =
-                              (stats['participantsCount'] ?? participants.length) is int
-                                  ? (stats['participantsCount'] ?? participants.length) as int
-                                  : participants.length;
-
-                          final int restaurantsCount =
-                              (stats['restaurantsCount'] ?? restaurantsDoc.length) is int
-                                  ? (stats['restaurantsCount'] ?? restaurantsDoc.length) as int
-                                  : restaurantsDoc.length;
-
-                          int doneCount = (stats['doneCount'] ?? 0) is int
-                              ? stats['doneCount'] as int
-                              : 0;
-
-                          // Fallback compute if doneCount is missing
-                          if (doneCount == 0 && participantsCount > 0 && restaurantsCount > 0) {
-                            int computed = 0;
-                            for (final uid in participants.keys) {
-                              final mv = Map<String, dynamic>.from(votesRaw[uid] ?? {});
-                              if (mv.length >= restaurantsCount) computed++;
-                            }
-                            doneCount = computed;
-                          }
-
-                          // Ensure the kicker is running if still waiting
-                          final bool waitingForOthers =
-                              (status == 'voting') &&
-                              (participantsCount > 0) &&
-                              (restaurantsCount > 0) &&
-                              (doneCount < participantsCount);
-
-                          if (waitingForOthers) {
-                            // Extra nudge right here just in case
-                            RoomService().timeoutStaleByVote(roomCode: widget.roomCode)
-                              .catchError((_) {});
-                            final remaining = (participantsCount - doneCount).clamp(0, 9999);
-                            return Center(child: _ResultsLoader(remaining: remaining));
-                          }
-
-                          // Stop the kicker.
-                          _kickTimer?.cancel();
-
-                          final Map<String, Restaurant> byId = {
-                            for (final r in widget.restaurants) r.id: r
-                          };
-
-                          final Map<String, int> likeCounts = {};
-                          votesRaw.forEach((uid, userVotes) {
-                            if (userVotes is Map<String, dynamic>) {
-                              userVotes.forEach((resId, liked) {
-                                if (liked == true) {
-                                  likeCounts[resId] = (likeCounts[resId] ?? 0) + 1;
-                                }
-                              });
-                            }
-                          });
-
-                          Restaurant? winning;
-                          int winnerLikes = 0;
-
-                          if (likeCounts.isEmpty) {
-                            if (widget.restaurants.isNotEmpty) {
-                              final sorted = [...widget.restaurants]
-                                ..sort((a, b) => a.distance.compareTo(b.distance));
-                              winning = sorted.first;
-                              winnerLikes = 0;
-                            }
-                          } else {
-                            int maxLikes = -1;
-                            for (final c in likeCounts.values) {
-                              if (c > maxLikes) maxLikes = c;
-                            }
-                            final topIds = likeCounts.entries
-                                .where((e) => e.value == maxLikes)
-                                .map((e) => e.key)
-                                .toList();
-
-                            if (topIds.length == 1) {
-                              winning = byId[topIds.first];
-                              winnerLikes = maxLikes;
+                          if (!room.resultsReady) {
+                            if (_backend.clientClosesRooms) {
+                              _backend
+                                  .nudge(widget.roomCode)
+                                  .catchError((_) {});
                             } else {
-                              final candidates = <Restaurant>[];
-                              for (final id in topIds) {
-                                final r = byId[id];
-                                if (r != null) candidates.add(r);
-                              }
-                              if (candidates.isEmpty && widget.restaurants.isNotEmpty) {
-                                candidates.addAll(widget.restaurants);
-                              }
-                              if (candidates.isNotEmpty) {
-                                candidates.sort((a, b) => a.distance.compareTo(b.distance));
-                                winning = candidates.first;
-                                winnerLikes = likeCounts[winning.id] ?? maxLikes;
-                              }
+                              _nudges?.votingEndsAt(room.votingEndsAt);
                             }
+                            return Center(
+                              child: _ResultsLoader(
+                                remaining: room.remainingVoters,
+                                waiting: true,
+                              ),
+                            );
                           }
 
-                          if (winning == null) {
+                          _kickTimer?.cancel();
+                          _nudges?.stop();
+                          // Finished rooms are no longer offered on Home.
+                          RoomBackendScope.of(context).activeRooms?.forget();
+
+                          final results = room.results;
+                          final Map<String, Restaurant> byId = {
+                            for (final r in widget.restaurants) r.id: r,
+                            for (final r in room.restaurants) r.id: r,
+                          };
+                          final Restaurant? winning =
+                              results == null
+                                  ? null
+                                  : byId[results.winnerId] ??
+                                      results.winnerCard;
+
+                          if (winning == null || results == null) {
                             return Center(
                               child: Text(
                                 'No results available.',
@@ -223,9 +162,11 @@ class ResultsScreenState extends State<ResultsScreen> {
                               ),
                             );
                           }
+                          final int winnerLikes = results.winnerLikes;
+                          final int participantsCount = results.participants;
 
                           // Close room once there are results
-                          _closeRoomOnce();
+                          if (_backend.clientClosesRooms) _closeRoomOnce();
 
                           return IntrinsicHeight(
                             child: Column(
@@ -235,19 +176,20 @@ class ResultsScreenState extends State<ResultsScreen> {
                                   child: Text(
                                     'Results',
                                     textAlign: TextAlign.center,
-                                    style: theme.textTheme.headlineMedium!.copyWith(
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 34,
-                                      letterSpacing: 1.2,
-                                      color: theme.colorScheme.primary,
-                                      shadows: const [
-                                        Shadow(
-                                          color: Colors.black12,
-                                          blurRadius: 4,
-                                          offset: Offset(1, 2),
+                                    style: theme.textTheme.headlineMedium!
+                                        .copyWith(
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 34,
+                                          letterSpacing: 1.2,
+                                          color: theme.colorScheme.primary,
+                                          shadows: const [
+                                            Shadow(
+                                              color: Colors.black12,
+                                              blurRadius: 4,
+                                              offset: Offset(1, 2),
+                                            ),
+                                          ],
                                         ),
-                                      ],
-                                    ),
                                   ),
                                 ),
                                 const SizedBox(height: 12),
@@ -265,22 +207,32 @@ class ResultsScreenState extends State<ResultsScreen> {
                                 const SizedBox(height: 14),
                                 Container(
                                   decoration: BoxDecoration(
-                                    color: theme.colorScheme.primary.withOpacity(0.08),
+                                    color: theme.colorScheme.primary.withValues(
+                                      alpha: 0.08,
+                                    ),
                                     borderRadius: BorderRadius.circular(18),
                                   ),
-                                  padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 18),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 18,
+                                    horizontal: 18,
+                                  ),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         winning.name,
-                                        style: theme.textTheme.headlineSmall!.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 24,
-                                        ),
+                                        style: theme.textTheme.headlineSmall!
+                                            .copyWith(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 24,
+                                            ),
                                       ),
                                       const SizedBox(height: 8),
-                                      Text(winning.address, style: theme.textTheme.bodyLarge),
+                                      Text(
+                                        winning.address,
+                                        style: theme.textTheme.bodyLarge,
+                                      ),
                                       const SizedBox(height: 4),
                                       Text(
                                         'Distance: ${winning.distance.toStringAsFixed(2)} miles',
@@ -331,7 +283,8 @@ class ResultsScreenState extends State<ResultsScreen> {
 // Loader/waiting state
 class _ResultsLoader extends StatelessWidget {
   final int? remaining;
-  const _ResultsLoader({this.remaining});
+  final bool waiting;
+  const _ResultsLoader({this.remaining, this.waiting = false});
 
   @override
   Widget build(BuildContext context) {
@@ -342,9 +295,11 @@ class _ResultsLoader extends StatelessWidget {
         CircularProgressIndicator(color: Theme.of(context).colorScheme.primary),
         const SizedBox(height: 28),
         Text(
-          remaining == null
-              ? 'Loading results...'
-              : 'Waiting for $remaining more vote${remaining! > 1 ? 's' : ''}...',
+          remaining != null
+              ? 'Waiting for $remaining more vote${remaining! > 1 ? 's' : ''}...'
+              : waiting
+              ? 'Waiting for everyone to finish voting...'
+              : 'Loading results...',
           style: Theme.of(context).textTheme.bodyLarge!.copyWith(fontSize: 18),
           textAlign: TextAlign.center,
         ),

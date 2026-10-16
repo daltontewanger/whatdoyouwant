@@ -1,0 +1,184 @@
+{
+  "synthetic": true,
+  "description": "Browse answers 503; the fallback discover still produces a (thin) pool.",
+  "origin": {
+    "lat": 38.5,
+    "lng": -98.5
+  },
+  "radiusMeters": 5000,
+  "responses": [
+    {
+      "endpoint": "browse",
+      "status": 503,
+      "body": null
+    },
+    {
+      "endpoint": "discover",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "title": "Casa Ficticia",
+            "id": "here:pds:place:840synthetic0003",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Casa Ficticia, 103 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "103"
+            },
+            "position": {
+              "lat": 38.5,
+              "lng": -98.490817
+            },
+            "access": [
+              {
+                "lat": 38.5,
+                "lng": -98.490817
+              }
+            ],
+            "distance": 800,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "102-000",
+                "name": "Mexican",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100003"
+                  }
+                ]
+              }
+            ],
+            "openingHours": [
+              {
+                "text": [
+                  "Mon-Sun: 11:00 - 22:00"
+                ],
+                "isOpen": true
+              }
+            ]
+          },
+          {
+            "title": "Golden Placeholder",
+            "id": "here:pds:place:840synthetic-twin",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Golden Placeholder, 105 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "105"
+            },
+            "position": {
+              "lat": 38.49243,
+              "lng": -98.491884
+            },
+            "access": [
+              {
+                "lat": 38.49243,
+                "lng": -98.491884
+              }
+            ],
+            "distance": 1100,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "201-010",
+                "name": "Chinese-Cantonese",
+                "primary": true
+              }
+            ],
+            "openingHours": [
+              {
+                "text": [
+                  "Mon-Sun: 11:00 - 22:00"
+                ],
+                "isOpen": true
+              }
+            ]
+          },
+          {
+            "title": "Late Addition Cafe",
+            "id": "here:pds:place:840synthetic0020",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Late Addition Cafe, 120 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "120"
+            },
+            "position": {
+              "lat": 38.516883,
+              "lng": -98.492148
+            },
+            "access": [
+              {
+                "lat": 38.516883,
+                "lng": -98.492148
+              }
+            ],
+            "distance": 2000,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "800-069",
+                "name": "Pastries",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100020"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

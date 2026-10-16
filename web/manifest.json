@@ -1,11 +1,13 @@
 {
-    "name": "whatdoyouwant",
-    "short_name": "whatdoyouwant",
+    "name": "What Do You Want?!",
+    "short_name": "What Do You Want?!",
+    "id": "/app/",
     "start_url": ".",
+    "scope": ".",
     "display": "standalone",
-    "background_color": "#hexcode",
-    "theme_color": "#hexcode",
-    "description": "A new Flutter project.",
+    "background_color": "#0D1B3E",
+    "theme_color": "#2F7A5C",
+    "description": "Decide where to eat together: everyone swipes the same nearby picks and the group settles it in minutes.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -1,0 +1,78 @@
+// Room data rules, used by the local emulators and the staging deployment.
+// Rooms, memberships, decks, join codes, receipts and limits are written only
+// by the room callables. Clients write nothing but their own immutable ballots.
+// Live-search config, weekly usage, the provider ledger, entitlements and deck
+// generation leases are server-only and fall to the final deny.
+//
+// rooms/{id}: creator, status (lobby | voting | closed), memberCount, joinCode
+//   (lobby only), deckId, candidateCount, votingEndsAt (from start), expiresAt,
+//   results (after close)
+// rooms/{id}/members/{uid}: uid, active, expiresAt
+// rooms/{id}/votes/{uid}/ballot/{candidateId}: liked, at, expiresAt
+// restaurantDecks/{id}: ownerUid, targetType (room | quickPick), targetId,
+//   candidateIds, candidates, filter summary and pool report, expiresAt. Immutable.
+// quickPicks/{id}: ownerUid, deckId, order, position, rerollsUsed, expiresAt.
+// Every document carries expiresAt for TTL cleanup; reads check it as well
+// because TTL deletion can lag.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function roomDoc(room) {
+      return get(/databases/$(database)/documents/rooms/$(room));
+    }
+    function member(room) {
+      return request.auth != null &&
+        get(/databases/$(database)/documents/rooms/$(room)/members/$(request.auth.uid)).data.active == true;
+    }
+    function live(room) {
+      return roomDoc(room).data.expiresAt > request.time;
+    }
+    function deckOf(room) {
+      return get(/databases/$(database)/documents/restaurantDecks/$(roomDoc(room).data.deckId));
+    }
+    // The room stays 'voting' until someone asks for results, so the deadline
+    // has to be checked here as well.
+    function votingOpen(room) {
+      let data = roomDoc(room).data;
+      return data.status == 'voting' && 'votingEndsAt' in data && request.time < data.votingEndsAt;
+    }
+    function validBallot(room, data) {
+      return data.keys().hasAll(['liked', 'at', 'expiresAt']) &&
+        data.keys().hasOnly(['liked', 'at', 'expiresAt']) &&
+        data.liked is bool && data.at is timestamp && data.at == request.time &&
+        data.expiresAt == roomDoc(room).data.expiresAt;
+    }
+    match /rooms/{room} {
+      allow get: if member(room) && live(room);
+      allow list, create, update, delete: if false;
+      match /members/{uid} {
+        allow get: if member(room) && live(room) && request.auth.uid == uid;
+        allow list, write: if false;
+      }
+      match /votes/{uid}/ballot/{candidateId} {
+        allow read: if member(room) && live(room) && request.auth.uid == uid;
+        allow create: if member(room) && live(room) && request.auth.uid == uid &&
+          votingOpen(room) &&
+          candidateId in deckOf(room).data.candidateIds &&
+          validBallot(room, request.resource.data);
+        // Votes are immutable; tallying and closing are server-owned.
+        allow update, delete: if false;
+      }
+    }
+    // Members of the room a deck was made for can read it while the room lives;
+    // a Quick Pick deck only its owner.
+    match /restaurantDecks/{deck} {
+      allow get: if resource.data.expiresAt > request.time && (
+        (resource.data.targetType == 'room' && member(resource.data.targetId) && live(resource.data.targetId)) ||
+        (resource.data.targetType == 'quickPick' && request.auth != null &&
+          resource.data.ownerUid == request.auth.uid));
+      allow list, write: if false;
+    }
+    match /quickPicks/{pick} {
+      allow get: if request.auth != null && resource.data.ownerUid == request.auth.uid &&
+        resource.data.expiresAt > request.time;
+      allow list, write: if false;
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

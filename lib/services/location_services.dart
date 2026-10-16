@@ -152,12 +152,7 @@ class LocationService {
         if (id.isEmpty || name.trim().isEmpty) continue;
 
         restaurants.add(
-          Restaurant(
-            id: id,
-            name: name,
-            address: address,
-            distance: distance,
-          ),
+          Restaurant(id: id, name: name, address: address, distance: distance),
         );
       }
 

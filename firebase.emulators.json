@@ -1,0 +1,11 @@
+{
+  "functions": [{ "source": "build/local-functions", "codebase": "local-test", "disallowLegacyRuntimeConfig": true }],
+  "firestore": { "rules": "local-testing/firestore.rules", "indexes": "local-testing/firestore.indexes.json" },
+  "emulators": {
+    "auth": { "host": "127.0.0.1", "port": 9099 },
+    "functions": { "host": "127.0.0.1", "port": 5001 },
+    "firestore": { "host": "127.0.0.1", "port": 8080 },
+    "ui": { "enabled": true, "host": "127.0.0.1", "port": 4000 },
+    "singleProjectMode": true
+  }
+}

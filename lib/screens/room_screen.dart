@@ -1,14 +1,71 @@
+import 'dart:async';
+
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../services/room_service.dart';
-import '../services/location_services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import '../services/live_search.dart';
+import '../services/room_backend.dart';
 import 'swipe_screen.dart';
 import '../models/user.dart';
 
+/// What to tell a host whose room could not be created. Covers both callable
+/// and Firestore errors; anything else gets the generic retry message.
+String createRoomErrorMessage(Object error) {
+  if (error is FirebaseException) {
+    switch (error.code) {
+      case 'permission-denied':
+        return 'Only verified accounts can host a room. Open Account to sign in or verify your email.';
+      case 'resource-exhausted':
+        return 'You have created several rooms recently. Wait a while and try again.';
+      case 'unauthenticated':
+        return 'This device could not be verified. Restart the app and try again.';
+    }
+  }
+  return 'Could not create the room. Check your connection and try again.';
+}
+
+/// What to tell a host whose room could not start voting.
+String startRoomErrorMessage(Object error) {
+  final limited = liveSearchErrorMessage(error);
+  if (limited != null) return limited;
+  if (error is TimeoutException) {
+    return 'Could not find your location in time. Check that location is on, then try again.';
+  }
+  if (error is PermissionDeniedException) {
+    return 'Location permission is required to find restaurants near you.';
+  }
+  if (error is LocationServiceDisabledException) {
+    return 'Location services are disabled. Please enable them in settings.';
+  }
+  if (error is FirebaseException) {
+    switch (error.code) {
+      case 'permission-denied':
+      case 'not-found':
+        return 'This room can no longer be started. It may have expired or been closed.';
+      case 'resource-exhausted':
+        return 'Restaurant search is busy right now. Wait a minute and try again.';
+      case 'failed-precondition':
+        return 'Not enough restaurants nearby match. Try a wider distance.';
+      case 'unavailable':
+        return 'Restaurant search is unavailable right now. Try again in a minute.';
+      case 'unauthenticated':
+        return 'This device could not be verified. Restart the app and try again.';
+    }
+  }
+  return 'Could not load restaurants. Check your connection and try again.';
+}
+
 class RoomScreen extends StatefulWidget {
   final bool isCreator;
+
+  /// The room's identifier for the backend.
   final String? roomCode;
+
+  /// What guests type to join, when it differs from [roomCode].
+  final String? joinCode;
   final AppUser currentUser;
 
   const RoomScreen({
@@ -16,6 +73,7 @@ class RoomScreen extends StatefulWidget {
     required this.currentUser,
     this.isCreator = true,
     this.roomCode,
+    this.joinCode,
   });
 
   @override
@@ -24,17 +82,30 @@ class RoomScreen extends StatefulWidget {
 
 class _RoomScreenState extends State<RoomScreen> {
   String? _roomCode;
+  String? _joinCode;
+  Stream<RoomState>? _roomStream;
   double _selectedRadius = 5.0;
   int _selectedMaxOptions = 5;
   final List<int> radiusOptions = [1, 3, 5, 10, 15];
   final List<int> optionCounts = [5, 10, 15, 25];
   bool _isLoading = false;
 
+  RoomBackend get _backend => RoomBackendScope.of(context).backend;
+
   @override
   void initState() {
     super.initState();
     _roomCode = widget.roomCode;
-    if (widget.isCreator && widget.roomCode == null) {
+    _joinCode = widget.joinCode;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_roomCode != null) {
+      _roomStream ??= _backend.watch(_roomCode!);
+      _prepareStart();
+    } else if (widget.isCreator && !_isLoading) {
       _createRoom();
     }
   }
@@ -42,19 +113,88 @@ class _RoomScreenState extends State<RoomScreen> {
   Future<void> _createRoom() async {
     setState(() => _isLoading = true);
     try {
-      final code = await RoomService().createRoom(widget.currentUser.id);
+      final room = await _backend.createRoom();
       if (!mounted) return;
       setState(() {
-        _roomCode = code;
+        _roomCode = room.id;
+        _joinCode = room.joinCode;
+        _roomStream = _backend.watch(room.id);
         _isLoading = false;
       });
+      _prepareStart();
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error creating room: $e')));
+      ).showSnackBar(SnackBar(content: Text(createRoomErrorMessage(e))));
     }
+  }
+
+  bool _prepared = false;
+
+  /// Lets the backend find the location while the host waits for guests.
+  void _prepareStart() {
+    if (_prepared || !widget.isCreator || !_backend.usesDeviceLocation) return;
+    _prepared = true;
+    unawaited(_backend.prepareStart().catchError((_) {}));
+  }
+
+  /// Location permission for backends that search around the device.
+  Future<bool> _locationReady() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      setState(() => _isLoading = false);
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Location services are disabled. Please enable them in settings.',
+          ),
+        ),
+      );
+      return false;
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    // On the web, asking for permission means taking a full location fix just
+    // to learn the answer. The search's own request prompts instead.
+    if (kIsWeb && permission == LocationPermission.denied) return true;
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        setState(() => _isLoading = false);
+        if (!mounted) return false;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Location permission is required to use this feature.',
+            ),
+          ),
+        );
+        return false;
+      }
+    }
+    if (permission == LocationPermission.deniedForever) {
+      setState(() => _isLoading = false);
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Location permissions are permanently denied. Please enable them in your device settings.',
+          ),
+          action: SnackBarAction(
+            label: 'Open Settings',
+            onPressed: () async {
+              await Geolocator.openAppSettings();
+            },
+          ),
+          duration: const Duration(seconds: 6),
+        ),
+      );
+      return false;
+    }
+    return true;
   }
 
   Future<void> _startSwiping() async {
@@ -62,70 +202,11 @@ class _RoomScreenState extends State<RoomScreen> {
     setState(() => _isLoading = true);
 
     try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        setState(() => _isLoading = false);
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Location services are disabled. Please enable them in settings.',
-            ),
-          ),
-        );
-        return;
-      }
-
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          setState(() => _isLoading = false);
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Location permission is required to use this feature.',
-              ),
-            ),
-          );
-          return;
-        }
-      }
-      if (permission == LocationPermission.deniedForever) {
-        setState(() => _isLoading = false);
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-              'Location permissions are permanently denied. Please enable them in your device settings.',
-            ),
-            action: SnackBarAction(
-              label: 'Open Settings',
-              onPressed: () async {
-                await Geolocator.openAppSettings();
-              },
-            ),
-            duration: const Duration(seconds: 6),
-          ),
-        );
-        return;
-      }
-
-      final fetched = await LocationService.fetchNearbyRestaurantsTiled(
-        radiusMiles: _selectedRadius,
-      );
-      final finalRestaurants = LocationService.filterAndRandomizeRestaurants(
-        allRestaurants: fetched,
+      if (_backend.usesDeviceLocation && !await _locationReady()) return;
+      final finalRestaurants = await _backend.start(
+        _roomCode!,
         radiusMiles: _selectedRadius,
         maxOptions: _selectedMaxOptions,
-      );
-
-      await RoomService().setRoomOptionsAndStart(
-        roomCode: _roomCode!,
-        radius: _selectedRadius,
-        maxOptions: _selectedMaxOptions,
-        options: finalRestaurants,
       );
 
       if (!mounted) return;
@@ -149,7 +230,7 @@ class _RoomScreenState extends State<RoomScreen> {
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error fetching restaurants: $e')));
+      ).showSnackBar(SnackBar(content: Text(startRoomErrorMessage(e))));
     }
   }
 
@@ -158,7 +239,7 @@ class _RoomScreenState extends State<RoomScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.primary.withOpacity(0.10),
+      backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.10),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -180,35 +261,21 @@ class _RoomScreenState extends State<RoomScreen> {
                     borderRadius: BorderRadius.circular(28),
                     boxShadow: [
                       BoxShadow(
-                        color: theme.colorScheme.primary.withOpacity(0.10),
+                        color: theme.colorScheme.primary.withValues(
+                          alpha: 0.10,
+                        ),
                         blurRadius: 18,
                         offset: const Offset(0, 8),
                       ),
                     ],
                   ),
-                  child: StreamBuilder<DocumentSnapshot>(
-                    stream:
-                        _roomCode == null
-                            ? null
-                            : FirebaseFirestore.instance
-                                .collection('rooms')
-                                .doc(_roomCode)
-                                .snapshots(),
+                  child: StreamBuilder<RoomState>(
+                    stream: _roomStream,
                     builder: (context, snapshot) {
-                      int participantCount = 1;
-                      if (snapshot.hasData && snapshot.data!.exists) {
-                        final data =
-                            snapshot.data!.data() as Map<String, dynamic>;
-                        if (data['participants'] != null) {
-                          if (data['participants'] is List) {
-                            participantCount =
-                                (data['participants'] as List).length;
-                          } else if (data['participants'] is Map) {
-                            participantCount =
-                                (data['participants'] as Map).length;
-                          }
-                        }
-                      }
+                      final int participantCount =
+                          snapshot.data?.memberCount ?? 1;
+                      final String? shownCode =
+                          snapshot.data?.joinCode ?? _joinCode ?? _roomCode;
 
                       return LayoutBuilder(
                         builder: (context, innerConstraints) {
@@ -235,14 +302,14 @@ class _RoomScreenState extends State<RoomScreen> {
                                         ),
                                       ],
                                     ),
-                                    if (_roomCode != null) ...[
+                                    if (shownCode != null) ...[
                                       Text(
                                         'Room Code',
                                         style: theme.textTheme.titleLarge,
                                       ),
                                       const SizedBox(height: 6),
                                       SelectableText(
-                                        _roomCode!,
+                                        shownCode,
                                         style: const TextStyle(
                                           fontSize: 30,
                                           color: Colors.black,
@@ -250,6 +317,10 @@ class _RoomScreenState extends State<RoomScreen> {
                                           letterSpacing: 3,
                                         ),
                                       ),
+                                      if (_backend.joinLinkFor(shownCode)
+                                          case final link?
+                                          when snapshot.data?.status == 'lobby')
+                                        _JoinLink(link: link),
                                     ],
 
                                     // Instructional text
@@ -262,7 +333,8 @@ class _RoomScreenState extends State<RoomScreen> {
                                             horizontal: 10.0,
                                           ),
                                           child: Text(
-                                            "Provide this code to those intending to join in on the fun. Once they are all confirmed to be in your lobby, you can start swiping!",
+                                            "Provide this code to those intending to join in on the fun. Once they are all confirmed to be in your lobby, you can start swiping!"
+                                            "${_backend.usesFictionalRestaurants ? '\n\nThis build uses fictional test restaurants.' : ''}",
                                             style: TextStyle(
                                               fontSize: 15,
                                               color: Colors.grey[800],
@@ -276,7 +348,7 @@ class _RoomScreenState extends State<RoomScreen> {
 
                                     // Search Options
                                     Expanded(
-                                      flex: 2, 
+                                      flex: 2,
                                       child: Column(
                                         mainAxisAlignment:
                                             MainAxisAlignment.center,
@@ -415,6 +487,53 @@ class _RoomScreenState extends State<RoomScreen> {
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+/// A QR code and a copyable link, so people at the same table can join by
+/// pointing a camera instead of typing the code.
+class _JoinLink extends StatelessWidget {
+  const _JoinLink({required this.link});
+
+  final Uri link;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        children: [
+          Semantics(
+            label: 'QR code that opens the join link for this room',
+            image: true,
+            // A fixed-size painter: the lobby measures its own height, which
+            // QrImageView's layout builder cannot report.
+            child: Container(
+              color: Colors.white,
+              padding: const EdgeInsets.all(8),
+              child: CustomPaint(
+                size: const Size.square(132),
+                painter: QrPainter(
+                  data: link.toString(),
+                  version: QrVersions.auto,
+                ),
+              ),
+            ),
+          ),
+          TextButton.icon(
+            icon: const Icon(Icons.link),
+            label: const Text('Copy join link'),
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              await Clipboard.setData(ClipboardData(text: link.toString()));
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Join link copied')),
+              );
+            },
+          ),
+        ],
       ),
     );
   }

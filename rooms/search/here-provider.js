@@ -1,0 +1,181 @@
+// HERE Geocoding & Search v7 behind the RestaurantProvider contract. The
+// adapter builds requests and normalizes responses; a transport does the HTTP,
+// so tests replay recorded or synthetic responses and only the real transport
+// ever sees the API key.
+const { createHash } = require('node:crypto');
+const { normalizedRestaurant, ProviderUnavailable } = require('./provider');
+const { cuisinesFromHere, dietaryHintsFromHere } = require('./cuisines');
+const { distanceMeters } = require('./deck');
+
+const ENDPOINTS = Object.freeze({
+  browse: 'https://browse.search.hereapi.com/v1/browse',
+  discover: 'https://discover.search.hereapi.com/v1/discover',
+});
+// Level-2 category: every restaurant subcategory (casual, fast food, deli...).
+const RESTAURANTS = '100-1000';
+const LIMIT = 100;
+// Placeholder until the plan's attribution terms are confirmed.
+const ATTRIBUTION = 'Restaurant data © HERE';
+// The production function's layout: four centers about five miles out.
+const MULTI_CENTER_OFFSET_METERS = 8047;
+// Response headers worth keeping: HERE's terms tie caching to its caching
+// headers, and rate limiting shows up as 429 with these.
+const KEPT_HEADERS = ['cache-control', 'expires', 'retry-after', 'x-ratelimit-limit', 'x-ratelimit-remaining',
+  'x-ratelimit-reset'];
+
+const STRATEGIES = Object.freeze({
+  // One circle-constrained browse. The optional discover fallback (worst case
+  // two calls) is off by default: the 2026-10 benchmark showed it never grew a
+  // thin pool, so a deck costs exactly one call.
+  'one-circle': { maxCalls: 2 },
+  // Today's production search, kept for the benchmark comparison.
+  'multi-center': { maxCalls: 4 },
+});
+
+const fixed = value => Number(value.toFixed(6));
+
+// HERE returns the places nearest `at`, up to the limit, and `in` keeps them
+// inside the person's circle. Centering `at` on the origin would always return
+// the same nearest hundred in a busy area, so each deck centers it on a point
+// drawn from its seed, spread evenly over the circle's area.
+function searchPoint(request, seed) {
+  if (!seed) return request.origin;
+  const digest = createHash('sha256').update(`here-at:${seed}`).digest();
+  const angle = (digest.readUInt32BE(0) / 2 ** 32) * 2 * Math.PI;
+  const meters = request.radiusMeters * Math.sqrt(digest.readUInt32BE(4) / 2 ** 32);
+  const dLat = (meters * Math.cos(angle)) / 111320;
+  const dLng = (meters * Math.sin(angle)) / (111320 * Math.cos((request.origin.lat * Math.PI) / 180));
+  return { lat: request.origin.lat + dLat, lng: request.origin.lng + dLng };
+}
+
+function circle(request) {
+  return `circle:${fixed(request.origin.lat)},${fixed(request.origin.lng)};r=${request.radiusMeters}`;
+}
+
+function centersAround(origin) {
+  const dLat = MULTI_CENTER_OFFSET_METERS / 111320;
+  const dLng = MULTI_CENTER_OFFSET_METERS / (111320 * Math.cos((origin.lat * Math.PI) / 180));
+  return [[dLat, 0], [-dLat, 0], [0, dLng], [0, -dLng]]
+    .map(([lat, lng]) => ({ lat: fixed(origin.lat + lat), lng: fixed(origin.lng + lng) }));
+}
+
+function openStatusOf(item) {
+  const hours = Array.isArray(item.openingHours) ? item.openingHours : [];
+  if (hours.some(entry => entry?.isOpen === true)) return 'open';
+  if (hours.some(entry => entry?.isOpen === false)) return 'closed';
+  return 'unknown';
+}
+
+// HERE address labels usually start with the place's own name; drop it so
+// the card does not repeat itself.
+function addressOf(item) {
+  const label = item.address?.label;
+  if (typeof label !== 'string') return null;
+  const prefix = `${item.title}, `;
+  return label.startsWith(prefix) ? label.slice(prefix.length) : label;
+}
+
+function normalizeHereItem(item) {
+  if (!item || item.resultType !== 'place' || !item.position) return null;
+  const foodTypes = (item.foodTypes ?? []).map(type => type?.id).filter(id => typeof id === 'string');
+  const categories = (item.categories ?? []).map(category => category?.id).filter(id => typeof id === 'string');
+  const contact = item.contacts?.[0] ?? {};
+  const chain = item.chains?.[0]?.id;
+  return normalizedRestaurant({
+    provider: 'here',
+    providerPlaceId: item.id,
+    name: item.title,
+    address: addressOf(item),
+    latitude: item.position.lat,
+    longitude: item.position.lng,
+    cuisineIds: cuisinesFromHere(foodTypes, categories),
+    categoryIds: categories,
+    dietaryHints: dietaryHintsFromHere(foodTypes),
+    openStatus: openStatusOf(item),
+    phone: contact.phone?.[0]?.value,
+    website: contact.www?.[0]?.value,
+    chainId: chain ? `here:${chain}` : null,
+  });
+}
+
+/**
+ * @param {object} options
+ * @param {(call: {endpoint: string, params: object}) => Promise<{status: number, body: any}>} options.transport
+ * @param {'one-circle'|'multi-center'} [options.strategy]
+ * @param {number} [options.fallbackBelow] Run the discover fallback when fewer in-radius places
+ *   come back; 0 (the default) never does.
+ */
+function createHereProvider({ transport, strategy = 'one-circle', fallbackBelow = 0 }) {
+  if (typeof transport !== 'function') throw new Error('The HERE provider needs a transport.');
+  if (!STRATEGIES[strategy]) throw new Error(`Unknown HERE strategy ${strategy}.`);
+
+  return {
+    id: 'here',
+    version: `2/${strategy}${strategy === 'one-circle' && fallbackBelow > 0 ? `+fallback${fallbackBelow}` : ''}`,
+    maxCallsPerSearch: strategy === 'one-circle' && fallbackBelow <= 0 ? 1 : STRATEGIES[strategy].maxCalls,
+
+    async searchNearby(request, { seed } = {}) {
+      let providerCalls = 0;
+      let failedCalls = 0;
+      const items = [];
+      // Every attempt counts against the budget, including failures and
+      // timeouts: the provider may have billed a request we never heard back from.
+      const call = async (endpoint, params) => {
+        providerCalls++;
+        try {
+          const response = await transport({ endpoint, params: { ...params, limit: LIMIT } });
+          if (response?.status !== 200 || !Array.isArray(response.body?.items)) throw new Error(`HTTP ${response?.status}`);
+          items.push(...response.body.items);
+          return true;
+        } catch {
+          failedCalls++;
+          return false;
+        }
+      };
+
+      if (strategy === 'one-circle') {
+        const point = searchPoint(request, seed);
+        const at = `${fixed(point.lat)},${fixed(point.lng)}`;
+        const primary = await call(ENDPOINTS.browse, { at, in: circle(request), categories: RESTAURANTS });
+        const inRadius = items.filter(item => item?.resultType === 'place' && item.position &&
+          distanceMeters(request.origin, item.position) <= request.radiusMeters).length;
+        if (fallbackBelow > 0 && (!primary || inRadius < fallbackBelow)) {
+          await call(ENDPOINTS.discover, { in: circle(request), q: 'restaurant' });
+        }
+      } else {
+        for (const center of centersAround(request.origin)) {
+          await call(ENDPOINTS.discover, { at: `${center.lat},${center.lng}`, q: 'restaurant' });
+        }
+      }
+
+      if (failedCalls === providerCalls) {
+        throw new ProviderUnavailable('HERE search failed.', { providerCalls });
+      }
+      const restaurants = items.map(normalizeHereItem).filter(Boolean);
+      return { restaurants, providerCalls, failedCalls, attribution: ATTRIBUTION };
+    },
+  };
+}
+
+/**
+ * The live transport. Not used by tests or the emulators; it exists so the
+ * adapter has one reviewed place where a key and the network meet.
+ */
+function createHereTransport({ apiKey, fetchImpl = fetch, timeoutMs = 4000 }) {
+  if (typeof apiKey !== 'string' || !apiKey) throw new Error('A HERE key is required.');
+  return async ({ endpoint, params }) => {
+    if (!Object.values(ENDPOINTS).includes(endpoint)) throw new Error('Unexpected HERE endpoint.');
+    const url = new URL(endpoint);
+    for (const [name, value] of Object.entries({ ...params, apiKey })) url.searchParams.set(name, String(value));
+    const response = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs) });
+    const headers = {};
+    for (const name of KEPT_HEADERS) {
+      const value = response.headers?.get?.(name);
+      if (value) headers[name] = value;
+    }
+    // Error bodies can echo the request URL, key included; never keep them.
+    return { status: response.status, headers, body: response.ok ? await response.json() : null };
+  };
+}
+
+module.exports = { createHereProvider, createHereTransport, normalizeHereItem, ENDPOINTS, STRATEGIES };

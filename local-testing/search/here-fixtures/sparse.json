@@ -1,0 +1,299 @@
+{
+  "synthetic": true,
+  "description": "Rural, 8 km: too few places, so the fallback runs and the pool is still below the minimum.",
+  "origin": {
+    "lat": 38.5,
+    "lng": -98.5
+  },
+  "radiusMeters": 8000,
+  "responses": [
+    {
+      "endpoint": "browse",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "title": "Lonely Placeholder Cafe",
+            "id": "here:pds:place:840synthetic0101",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Lonely Placeholder Cafe, 201 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "201"
+            },
+            "position": {
+              "lat": 38.51588,
+              "lng": -98.479709
+            },
+            "access": [
+              {
+                "lat": 38.51588,
+                "lng": -98.479709
+              }
+            ],
+            "distance": 2500,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "101-000",
+                "name": "American",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100101"
+                  }
+                ]
+              }
+            ],
+            "openingHours": [
+              {
+                "text": [
+                  "Mon-Sun: 11:00 - 22:00"
+                ],
+                "isOpen": true
+              }
+            ]
+          },
+          {
+            "title": "Crossroads Stub",
+            "id": "here:pds:place:840synthetic0102",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Crossroads Stub, 202 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "202"
+            },
+            "position": {
+              "lat": 38.445151,
+              "lng": -98.512358
+            },
+            "access": [
+              {
+                "lat": 38.445151,
+                "lng": -98.512358
+              }
+            ],
+            "distance": 6200,
+            "categories": [
+              {
+                "id": "100-1000-0009",
+                "name": "Fast Food",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "800-062",
+                "name": "Chicken",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100102"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Prairie Example",
+            "id": "here:pds:place:840synthetic0103",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Prairie Example, 203 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "203"
+            },
+            "position": {
+              "lat": 38.511543,
+              "lng": -98.58365
+            },
+            "access": [
+              {
+                "lat": 38.511543,
+                "lng": -98.58365
+              }
+            ],
+            "distance": 7400,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100103"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "endpoint": "discover",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "title": "Lonely Placeholder Cafe",
+            "id": "here:pds:place:840synthetic0101",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Lonely Placeholder Cafe, 201 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "201"
+            },
+            "position": {
+              "lat": 38.51588,
+              "lng": -98.479709
+            },
+            "access": [
+              {
+                "lat": 38.51588,
+                "lng": -98.479709
+              }
+            ],
+            "distance": 2500,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "101-000",
+                "name": "American",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100101"
+                  }
+                ]
+              }
+            ],
+            "openingHours": [
+              {
+                "text": [
+                  "Mon-Sun: 11:00 - 22:00"
+                ],
+                "isOpen": true
+              }
+            ]
+          },
+          {
+            "title": "Grain Elevator Grill",
+            "id": "here:pds:place:840synthetic0104",
+            "language": "en",
+            "resultType": "place",
+            "address": {
+              "label": "Grain Elevator Grill, 204 Synthetic Ave, Exampleton, KS 67000, United States",
+              "countryCode": "USA",
+              "countryName": "United States",
+              "stateCode": "KS",
+              "state": "Kansas",
+              "city": "Exampleton",
+              "street": "Synthetic Ave",
+              "postalCode": "67000",
+              "houseNumber": "204"
+            },
+            "position": {
+              "lat": 38.464517,
+              "lng": -98.421469
+            },
+            "access": [
+              {
+                "lat": 38.464517,
+                "lng": -98.421469
+              }
+            ],
+            "distance": 7900,
+            "categories": [
+              {
+                "id": "100-1000-0000",
+                "name": "Restaurant",
+                "primary": true
+              }
+            ],
+            "foodTypes": [
+              {
+                "id": "800-056",
+                "name": "Steak House",
+                "primary": true
+              }
+            ],
+            "contacts": [
+              {
+                "phone": [
+                  {
+                    "value": "+15550100104"
+                  }
+                ]
+              }
+            ],
+            "openingHours": [
+              {
+                "text": [
+                  "Mon-Sun: 11:00 - 22:00"
+                ],
+                "isOpen": false
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Local debug emulators use HTTP; this overlay never applies to staging/production. -->
+    <application android:usesCleartextTraffic="true">
+        <meta-data android:name="firebase_analytics_collection_deactivated" android:value="true" />
+    </application>
+</manifest>
