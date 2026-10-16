@@ -34,7 +34,7 @@ Repository files and verified console evidence describe actual state. The playbo
 - `firebase.json` (legacy production Functions, retired after cut-over), `firebase.production.json` (production Hosting with security headers, room rules/TTL, rooms Functions), `firebase.emulators.json` (baseline emulators), `firebase.phase1.emulators.json` (room emulators), `firebase.staging.json` (staging Firestore rules/TTL, Auth, rooms Functions).
 - `android/app`: flavors `local`, `staging`, `production`; one is always required.
 - `test/`: Flutter tests.
-- `.github/workflows/deploy.yml`: builds and publishes web to GitHub Pages (`/whatdoyouwant/`) on every push to `main`. Merging this branch publishes the new app there, so merge only after the production backend is deployed; the workflow is retired at cut-over.
+- `.github/workflows/checks.yml`: format, analyze, tests and a web build on pull requests and pushes to this branch.
 - `.github/workflows/deploy-staging.yml`: manual rooms deploy to staging (dry run by default; owner approves each run).
 - `docs/`: local-only, ignored.
 

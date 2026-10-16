@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -49,8 +49,6 @@ check(!JSON.stringify(productionConfig).includes(staging) && !JSON.stringify(sta
   'production and staging configs never name each other');
 check(readFileSync(resolve(root, 'web/index.html'), 'utf8').includes('<base href="$FLUTTER_BASE_HREF">'),
   'web base path is set at build time');
-check(readFileSync(resolve(root, '.github/workflows/deploy.yml'), 'utf8').includes('--base-href /whatdoyouwant/'),
-  'GitHub Pages build keeps its path');
 const rollback = readFileSync(resolve(root, 'staging/firestore.rules'), 'utf8');
 check((rollback.match(/allow /g) || []).length === 1 && rollback.includes('allow read, write: if false;'),
   'staging rollback rules deny everything');
@@ -71,5 +69,9 @@ const localLaunch = json('.vscode/launch.json').configurations.find(c => c.name 
 check(localLaunch?.program === 'lib/main_local.dart' && localLaunch.toolArgs[localLaunch.toolArgs.indexOf('--flavor') + 1] === 'local', 'local VS Code launch');
 check(!Object.hasOwn(json('firebase.json'), 'emulators'), 'emulators use dedicated local configurations');
 check(!/FIREBASE_APPCHECK_DEBUG_TOKEN\s*=/.test(readFileSync(resolve(root, 'web/index.html'), 'utf8')), 'web entry does not enable App Check debug');
-check(!readFileSync(resolve(root, '.github/workflows/deploy.yml'), 'utf8').includes('HERE_API_KEY'), 'HERE credential stays out of the browser build');
+// No workflow builds the app with the HERE credential; it lives only in the server secret.
+for (const workflow of readdirSync(resolve(root, '.github/workflows'))) {
+  check(!readFileSync(resolve(root, '.github/workflows', workflow), 'utf8').includes('HERE_API_KEY'),
+    'HERE credential stays out of the browser build');
+}
 console.log('PASS: local/staging/production configuration boundaries; values withheld.');
