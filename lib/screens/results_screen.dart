@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../models/restaurant.dart';
 import '../services/result_nudges.dart';
 import '../services/room_backend.dart';
-import 'home_screen.dart';
 
 class ResultsScreen extends StatefulWidget {
   final String roomCode;
@@ -53,11 +52,10 @@ class ResultsScreenState extends State<ResultsScreen> {
     super.dispose();
   }
 
+  // Back to the app's own first screen, which keeps its bottom bar and
+  // notices that the room is over.
   void _returnToHome() {
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const HomeScreen(currentUid: '')),
-      (route) => false,
-    );
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   void _closeRoomOnce() {
@@ -76,7 +74,11 @@ class ResultsScreenState extends State<ResultsScreen> {
 
     return PopScope(
       canPop: false,
-      onPopInvokedWithResult: (didPop, result) => _returnToHome(),
+      // A back gesture or button goes home too. When Back to Home pops this
+      // screen itself, didPop is true and there is nothing left to do.
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _returnToHome();
+      },
       child: Scaffold(
         backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.10),
         body: SafeArea(
