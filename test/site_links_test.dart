@@ -59,7 +59,7 @@ void main() {
       'https://whatdoyouwant.example/app/join/AB3K7X',
     );
     expect(
-      privacyLink('https://whatdoyouwant.example').toString(),
+      sitePageLink('https://whatdoyouwant.example', '/privacy').toString(),
       'https://whatdoyouwant.example/privacy',
     );
   });

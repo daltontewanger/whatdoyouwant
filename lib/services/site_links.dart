@@ -20,7 +20,8 @@ String siteOrigin(String projectId, {Uri? current}) {
 Uri joinLink(String origin, String joinCode) =>
     Uri.parse('$origin/app/join/$joinCode');
 
-Uri privacyLink(String origin) => Uri.parse('$origin/privacy');
+/// A page of the site, such as `/privacy`.
+Uri sitePageLink(String origin, String path) => Uri.parse('$origin$path');
 
 /// What an app address asks the app to open.
 enum AppLinkTarget { host, join, account }

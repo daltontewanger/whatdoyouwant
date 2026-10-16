@@ -109,8 +109,12 @@ class LegacyRoomBackend implements RoomBackend {
   Uri? joinLinkFor(String joinCode) => null;
 
   @override
-  Uri get privacyPolicy =>
-      Uri.parse('https://daltontewanger.github.io/whatdoyouwant/privacy.html');
+  Uri sitePage(String path) =>
+      path == '/privacy'
+          ? Uri.parse(
+            'https://daltontewanger.github.io/whatdoyouwant/privacy.html',
+          )
+          : Uri.parse('https://getwhatdoyouwant.app$path');
 
   // The original rooms have no weekly allowance.
   @override

@@ -145,14 +145,17 @@ class SwipeScreenState extends State<SwipeScreen> {
     });
   }
 
-  // Swiping and incremental write
-  void _simulateLeftSwipe() {
+  // Swiping and incremental write. The Yes and No buttons and the timeout
+  // swipe the card for the person, so every vote takes the same path.
+  void _swipe(CardSwiperDirection direction) {
     if (_isLeaving || !mounted) return;
     if (_currentIndex >= swipeOptions.length) return;
     try {
-      _cardSwiperController.swipe(CardSwiperDirection.left);
+      _cardSwiperController.swipe(direction);
     } catch (_) {}
   }
+
+  void _simulateLeftSwipe() => _swipe(CardSwiperDirection.left);
 
   bool _handleSwipe(
     int previousIndex,
@@ -330,7 +333,7 @@ class SwipeScreenState extends State<SwipeScreen> {
                                         vertical: 6,
                                       ),
                                       child: Text(
-                                        "Swipe right to vote YES, left to vote NO.\nAuto NO after $swipeTimeoutSeconds seconds.",
+                                        "Swipe right or tap Yes to vote YES; swipe left or tap No to vote NO.\nAuto NO after $swipeTimeoutSeconds seconds.",
                                         textAlign: TextAlign.center,
                                         style: theme.textTheme.bodyLarge!
                                             .copyWith(
@@ -387,59 +390,92 @@ class SwipeScreenState extends State<SwipeScreen> {
                                       top: 20,
                                       bottom: 6,
                                     ),
-                                    child: TweenAnimationBuilder<double>(
-                                      key: ValueKey(_currentIndex),
-                                      duration: const Duration(
-                                        seconds: swipeTimeoutSeconds,
-                                      ),
-                                      tween: Tween(begin: 1.0, end: 0.0),
-                                      builder: (context, value, child) {
-                                        if (_isLeaving) {
-                                          return const SizedBox.shrink();
-                                        }
-                                        final secondsLeft =
-                                            (swipeTimeoutSeconds * value)
-                                                .ceil();
-                                        return Column(
-                                          children: [
-                                            Text(
-                                              secondsLeft > 0
-                                                  ? '$secondsLeft'
-                                                  : '',
-                                              style: theme
-                                                  .textTheme
-                                                  .headlineMedium!
-                                                  .copyWith(
-                                                    color: Colors.orange,
-                                                    fontSize: 38,
-                                                  ),
+                                    // Small thumbs either side of the countdown are
+                                    // a tap alternative to swiping, for anyone who
+                                    // cannot or would rather not drag a card.
+                                    child: Row(
+                                      children: [
+                                        if (!_isLeaving)
+                                          _VoteButton(
+                                            image: 'assets/images/vote-no.png',
+                                            label: 'No',
+                                            onTap:
+                                                () => _swipe(
+                                                  CardSwiperDirection.left,
+                                                ),
+                                          ),
+                                        Expanded(
+                                          child: TweenAnimationBuilder<double>(
+                                            key: ValueKey(_currentIndex),
+                                            duration: const Duration(
+                                              seconds: swipeTimeoutSeconds,
                                             ),
-                                            const SizedBox(height: 6),
-                                            LinearProgressIndicator(
-                                              value: value,
-                                              color: Colors.orange,
-                                              backgroundColor: theme
-                                                  .colorScheme
-                                                  .primary
-                                                  .withValues(alpha: 0.13),
-                                              minHeight: 8,
-                                              borderRadius:
-                                                  BorderRadius.circular(7),
-                                            ),
-                                          ],
-                                        );
-                                      },
-                                      onEnd: () {
-                                        if (_isLeaving || finishedDeck) return;
-                                        WidgetsBinding.instance
-                                            .addPostFrameCallback((_) {
-                                              if (mounted &&
-                                                  !_isLeaving &&
-                                                  !finishedDeck) {
-                                                _simulateLeftSwipe();
+                                            tween: Tween(begin: 1.0, end: 0.0),
+                                            builder: (context, value, child) {
+                                              if (_isLeaving) {
+                                                return const SizedBox.shrink();
                                               }
-                                            });
-                                      },
+                                              final secondsLeft =
+                                                  (swipeTimeoutSeconds * value)
+                                                      .ceil();
+                                              return Column(
+                                                children: [
+                                                  Text(
+                                                    secondsLeft > 0
+                                                        ? '$secondsLeft'
+                                                        : '',
+                                                    style: theme
+                                                        .textTheme
+                                                        .headlineMedium!
+                                                        .copyWith(
+                                                          color: Colors.orange,
+                                                          fontSize: 38,
+                                                        ),
+                                                  ),
+                                                  const SizedBox(height: 6),
+                                                  LinearProgressIndicator(
+                                                    value: value,
+                                                    color: Colors.orange,
+                                                    backgroundColor: theme
+                                                        .colorScheme
+                                                        .primary
+                                                        .withValues(
+                                                          alpha: 0.13,
+                                                        ),
+                                                    minHeight: 8,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          7,
+                                                        ),
+                                                  ),
+                                                ],
+                                              );
+                                            },
+                                            onEnd: () {
+                                              if (_isLeaving || finishedDeck) {
+                                                return;
+                                              }
+                                              WidgetsBinding.instance
+                                                  .addPostFrameCallback((_) {
+                                                    if (mounted &&
+                                                        !_isLeaving &&
+                                                        !finishedDeck) {
+                                                      _simulateLeftSwipe();
+                                                    }
+                                                  });
+                                            },
+                                          ),
+                                        ),
+                                        if (!_isLeaving)
+                                          _VoteButton(
+                                            image: 'assets/images/vote-yes.png',
+                                            label: 'Yes',
+                                            onTap:
+                                                () => _swipe(
+                                                  CardSwiperDirection.right,
+                                                ),
+                                          ),
+                                      ],
                                     ),
                                   ),
 
@@ -470,4 +506,36 @@ class SwipeScreenState extends State<SwipeScreen> {
       ),
     );
   }
+}
+
+/// A small thumbs-up or thumbs-down bubble. Its name is in the tooltip and
+/// what screen readers announce.
+class _VoteButton extends StatelessWidget {
+  const _VoteButton({
+    required this.image,
+    required this.label,
+    required this.onTap,
+  });
+
+  final String image;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: 'Vote $label',
+    excludeSemantics: true,
+    child: Tooltip(
+      message: 'Vote $label',
+      child: InkResponse(
+        onTap: onTap,
+        radius: 30,
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Image.asset(image, width: 48, height: 48),
+        ),
+      ),
+    ),
+  );
 }

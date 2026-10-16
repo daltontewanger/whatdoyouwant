@@ -1,7 +1,9 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:whatdoyouwant/services/account_service.dart';
+import 'package:whatdoyouwant/screens/main_shell.dart';
 import 'dart:async';
 
 import 'package:cloud_functions/cloud_functions.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:whatdoyouwant/models/restaurant.dart';
@@ -9,6 +11,7 @@ import 'package:whatdoyouwant/models/user.dart';
 import 'package:whatdoyouwant/screens/join_screen.dart';
 import 'package:whatdoyouwant/screens/results_screen.dart';
 import 'package:whatdoyouwant/screens/room_screen.dart';
+import 'package:whatdoyouwant/screens/help_links.dart';
 import 'package:whatdoyouwant/screens/swipe_screen.dart';
 import 'package:whatdoyouwant/screens/update_gate.dart';
 import 'package:whatdoyouwant/services/active_room_store.dart';
@@ -54,7 +57,7 @@ class FakeRoomBackend implements RoomBackend {
   Uri? joinLinkFor(String joinCode) =>
       Uri.parse('https://example.test/app/join/$joinCode');
   @override
-  Uri get privacyPolicy => Uri.parse('https://example.test/privacy');
+  Uri sitePage(String path) => Uri.parse('https://example.test$path');
   bool tooOld = false;
   @override
   Future<bool> updateRequired(int build) async => tooOld;
@@ -79,7 +82,10 @@ class FakeRoomBackend implements RoomBackend {
     required int total,
   }) async {
     if (voteError != null) throw voteError!;
+    votes.add((index, liked));
   }
+
+  final votes = <(int, bool)>[];
 }
 
 final deck = [
@@ -127,6 +133,124 @@ Widget waiting(FakeRoomBackend backend, {ActiveRoomStore? rooms}) => app(
 );
 
 void main() {
+  for (final (button, liked) in [('Yes', true), ('No', false)]) {
+    testWidgets('the $button button votes without swiping', (tester) async {
+      // A phone-sized screen: the buttons must be reachable without scrolling.
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final backend = FakeRoomBackend();
+      await tester.pumpWidget(
+        app(
+          backend,
+          SwipeScreen(
+            roomCode: 'ROOM-ID',
+            currentUser: AppUser(id: 'guest', name: 'Guest'),
+            radius: 1,
+            maxOptions: 2,
+            restaurants: deck,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.bySemanticsLabel('Vote $button'));
+      // The countdown timer never settles; pump through the swipe animation.
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(backend.votes, [(0, liked)]);
+      expect(find.text('Option 2 of 2'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
+
+  testWidgets('the floating bar switches between Home and Account', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      RoomBackendScope(
+        backend: FakeRoomBackend(),
+        accounts: AccountService(ShellAuth()),
+        child: const MaterialApp(home: MainShell(currentUid: 'guest')),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('Create Room'), findsOneWidget);
+    await tester.tap(find.byTooltip('Account'));
+    await tester.pumpAndSettle();
+    expect(
+      find.widgetWithText(AppBar, 'Account').hitTestable(),
+      findsOneWidget,
+    );
+    await tester.tap(find.byTooltip('Home'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AppBar, 'Account').hitTestable(), findsNothing);
+  });
+
+  testWidgets('leaving results returns to the first screen, bar and all', (
+    tester,
+  ) async {
+    final backend = FakeRoomBackend();
+    final navigator = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(
+      RoomBackendScope(
+        backend: backend,
+        child: MaterialApp(
+          navigatorKey: navigator,
+          home: const Text('First screen'),
+        ),
+      ),
+    );
+    // As in a real room: the room screen is under the swiping screen, which
+    // hands over to results in its place.
+    navigator.currentState!.push(
+      MaterialPageRoute<void>(builder: (_) => const Text('Room screen')),
+    );
+    navigator.currentState!.push(
+      MaterialPageRoute<void>(builder: (_) => const Text('Swiping')),
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    navigator.currentState!.pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => ResultsScreen(roomCode: 'ROOM-ID', restaurants: deck),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    backend.room.add(
+      state(
+        status: 'closed',
+        ready: true,
+        results: const RoomResults(
+          winnerId: 'a',
+          backupId: 'b',
+          likes: {'a': 2, 'b': 1},
+          participants: 2,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    await tester.ensureVisible(find.text('Back to Home'));
+    await tester.tap(find.text('Back to Home'));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('First screen'), findsOneWidget);
+    expect(find.byType(ResultsScreen), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('help and legal pages are listed', (tester) async {
+    await tester.pumpWidget(
+      app(FakeRoomBackend(), const Scaffold(body: HelpList())),
+    );
+    for (final (_, label, _) in HelpList.pages) {
+      expect(
+        find.widgetWithText(ListTile, label),
+        findsOneWidget,
+        reason: label,
+      );
+    }
+  });
+
   testWidgets('a guest joins by code, waits, then reaches the deck', (
     tester,
   ) async {
@@ -720,4 +844,13 @@ extension on RoomState {
     remainingVoters: remainingVoters,
     results: results,
   );
+}
+
+/// Signed out, with nothing else needed to draw the Account tab.
+class ShellAuth extends Fake implements FirebaseAuth {
+  @override
+  User? get currentUser => null;
+
+  @override
+  Stream<User?> userChanges() => Stream.value(null);
 }

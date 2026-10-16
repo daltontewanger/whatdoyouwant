@@ -2,6 +2,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../services/account_service.dart';
 import 'create_account_screen.dart';
+import 'help_links.dart';
+import 'main_shell.dart';
 
 /// Turns Auth errors into guidance. Projects with email enumeration protection
 /// report an unknown email and a wrong password the same way, so the specific
@@ -248,7 +250,13 @@ class _AccountScreenState extends State<AccountScreen> {
             constraints: const BoxConstraints(maxWidth: 520),
             child: AutofillGroup(
               child: ListView(
-                padding: const EdgeInsets.all(24),
+                // Shown as a tab, the last rows scroll clear of the bar.
+                padding: EdgeInsets.fromLTRB(
+                  24,
+                  24,
+                  24,
+                  24 + FloatingBarInset.of(context),
+                ),
                 children: [
                   if (testNotice case final notice?) ...[
                     Text(notice, style: Theme.of(context).textTheme.bodySmall),
@@ -267,6 +275,15 @@ class _AccountScreenState extends State<AccountScreen> {
                       padding: const EdgeInsets.only(top: 16),
                       child: Text(message, textAlign: TextAlign.center),
                     ),
+                  const SizedBox(height: 32),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4, bottom: 8),
+                    child: Text(
+                      'Help and legal',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                  const HelpList(),
                 ],
               ),
             ),

@@ -293,7 +293,7 @@ class CallableRoomBackend implements RoomBackend {
   Uri? joinLinkFor(String joinCode) => joinLink(_siteOrigin, joinCode);
 
   @override
-  Uri get privacyPolicy => privacyLink(_siteOrigin);
+  Uri sitePage(String path) => sitePageLink(_siteOrigin, path);
 
   @override
   Future<bool> updateRequired(int build) async =>

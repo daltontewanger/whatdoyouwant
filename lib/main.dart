@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 
 import 'environment_guard.dart';
 import 'firebase_options.dart';
-import 'screens/home_screen.dart';
+import 'screens/main_shell.dart';
 import 'screens/update_gate.dart';
 import 'services/account_service.dart';
 import 'services/active_room_store.dart';
@@ -78,7 +78,7 @@ class MyApp extends StatelessWidget {
         title: 'What Do You Want?!',
         debugShowCheckedModeBanner: false,
         theme: appTheme,
-        home: UpdateGate(child: HomeScreen(currentUid: currentUid)),
+        home: UpdateGate(child: MainShell(currentUid: currentUid)),
       ),
     );
   }

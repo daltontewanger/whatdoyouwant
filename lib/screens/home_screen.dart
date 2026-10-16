@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../models/user.dart';
 import '../services/active_room_store.dart';
 import '../services/room_backend.dart';
@@ -9,6 +8,7 @@ import '../services/site_links.dart';
 import 'account_screen.dart';
 import 'room_screen.dart';
 import 'join_screen.dart';
+import 'main_shell.dart';
 
 class HomeScreen extends StatefulWidget {
   final String currentUid;
@@ -145,100 +145,60 @@ class HomeScreenState extends State<HomeScreen>
     }
   }
 
-  Widget _activeRoomBanner(ThemeData theme) => Card(
+  // The logo's butter yellow makes the room in progress stand out from the
+  // white card; dark brown text on it keeps AA contrast.
+  Widget _activeRoomBanner(ThemeData theme) => Container(
     margin: const EdgeInsets.only(bottom: 16),
-    child: Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'You have a room in progress.',
-            style: theme.textTheme.bodyLarge,
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFF1C9),
+      border: Border.all(color: const Color(0xFFF7C948), width: 1.5),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Stack(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(44, 14, 44, 16),
+          child: Column(
             children: [
-              TextButton(
-                onPressed:
-                    _isLoading
-                        ? null
-                        : () async {
-                          await RoomBackendScope.of(
-                            context,
-                          ).activeRooms?.forget();
-                          await _loadActiveRoom();
-                        },
-                child: const Text('Dismiss'),
+              Text(
+                'You have a room in progress.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyLarge!.copyWith(
+                  color: const Color(0xFF5A4300),
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-              ElevatedButton(
-                onPressed: _isLoading ? null : _returnToRoom,
-                child: const Text('Return to room'),
+              const SizedBox(height: 10),
+              SizedBox(
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _returnToRoom,
+                  child: const Text(
+                    'Return to room',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                ),
               ),
             ],
           ),
-        ],
-      ),
+        ),
+        Positioned(
+          top: 2,
+          right: 2,
+          child: IconButton(
+            tooltip: 'Dismiss',
+            icon: const Icon(Icons.close, color: Color(0xFF5A4300)),
+            onPressed:
+                _isLoading
+                    ? null
+                    : () async {
+                      await RoomBackendScope.of(context).activeRooms?.forget();
+                      await _loadActiveRoom();
+                    },
+          ),
+        ),
+      ],
     ),
   );
-
-  Widget _accountStatus(ThemeData theme) {
-    final accounts = RoomBackendScope.of(context).accounts!;
-    return StreamBuilder<User?>(
-      stream: accounts.auth.userChanges(),
-      initialData: accounts.auth.currentUser,
-      builder: (context, snapshot) {
-        final user = snapshot.data;
-        final registered = user != null && !user.isAnonymous;
-        return Column(
-          children: [
-            Text(
-              registered
-                  ? 'Signed in as ${user.email ?? user.displayName ?? 'your account'}'
-                  : 'Playing as a guest',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall,
-            ),
-            Wrap(
-              alignment: WrapAlignment.center,
-              children: [
-                TextButton(
-                  onPressed: _isLoading ? null : _openAccount,
-                  child: Text(registered ? 'Account' : 'Sign in'),
-                ),
-                if (registered)
-                  TextButton(
-                    onPressed:
-                        _isLoading
-                            ? null
-                            : () async {
-                              final messenger = ScaffoldMessenger.of(context);
-                              try {
-                                await accounts.signOut();
-                                messenger.showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Signed out. You are playing as a guest.',
-                                    ),
-                                  ),
-                                );
-                              } catch (_) {
-                                messenger.showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Could not sign out.'),
-                                  ),
-                                );
-                              }
-                            },
-                    child: const Text('Sign out'),
-                  ),
-              ],
-            ),
-          ],
-        );
-      },
-    );
-  }
 
   Future<void> _createRoom() async {
     final scope = RoomBackendScope.of(context);
@@ -315,9 +275,13 @@ class HomeScreenState extends State<HomeScreen>
                   minHeight: constraints.maxHeight,
                 ),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 20,
-                    horizontal: 20,
+                  // Room at the bottom for the floating bar, which sits
+                  // inside this card just under Join Room.
+                  padding: EdgeInsets.fromLTRB(
+                    20,
+                    20,
+                    20,
+                    20 + FloatingBarInset.of(context),
                   ),
                   decoration: BoxDecoration(
                     color: theme.colorScheme.surface,
@@ -512,53 +476,6 @@ class HomeScreenState extends State<HomeScreen>
                               child: const Text(
                                 'Join Room',
                                 style: TextStyle(fontSize: 16),
-                              ),
-                            ),
-                          ),
-                          if (RoomBackendScope.of(context).accounts !=
-                              null) ...[
-                            const SizedBox(height: 12),
-                            _accountStatus(theme),
-                          ],
-                          const SizedBox(height: 32),
-                          TextButton(
-                            onPressed: () async {
-                              final messenger = ScaffoldMessenger.of(context);
-                              final url =
-                                  RoomBackendScope.of(
-                                    context,
-                                  ).backend.privacyPolicy;
-                              try {
-                                final opened = await launchUrl(
-                                  url,
-                                  mode: LaunchMode.externalApplication,
-                                );
-                                if (!opened) {
-                                  messenger.showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Could not open the privacy policy.',
-                                      ),
-                                    ),
-                                  );
-                                }
-                              } catch (e) {
-                                messenger.showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Could not open the privacy policy.',
-                                    ),
-                                  ),
-                                );
-                              }
-                            },
-                            child: Text(
-                              'Privacy Policy',
-                              style: theme.textTheme.bodyLarge!.copyWith(
-                                decoration: TextDecoration.underline,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 16,
-                                color: theme.colorScheme.primary,
                               ),
                             ),
                           ),

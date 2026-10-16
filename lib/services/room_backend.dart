@@ -132,7 +132,8 @@ abstract class RoomBackend {
   /// The link that joins a room by its code, where rooms can be joined by link.
   Uri? joinLinkFor(String joinCode);
 
-  Uri get privacyPolicy;
+  /// A page of the public site, such as `/privacy`; `/` is its home.
+  Uri sitePage(String path);
 
   /// This week's live searches, or null where there is no allowance to show
   /// (guests, unverified accounts, and backends without one).
@@ -162,6 +163,10 @@ class RoomBackendScope extends InheritedWidget {
     assert(scope != null, 'No RoomBackendScope above this widget.');
     return scope!;
   }
+
+  /// The scope, where there is one; widgets shown outside the app return null.
+  static RoomBackendScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<RoomBackendScope>();
 
   @override
   bool updateShouldNotify(RoomBackendScope oldWidget) =>
