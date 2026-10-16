@@ -55,3 +55,17 @@ test('the site policy blocks framing and inline scripts', () => {
     assert.doesNotMatch(policy, /fonts\.(googleapis|gstatic)\.com/);
   }
 });
+
+test("the web app's files revalidate, so a new release never mixes with cached ones", () => {
+  // Flutter keeps the same names across releases (the icon font is trimmed to
+  // the icons in use), so a cached copy can be missing a new release's glyphs.
+  for (const file of ['firebase.production.json', 'firebase.staging.json']) {
+    const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'));
+    const appRules = config.hosting.headers.filter(rule => rule.source.startsWith('/app'));
+    assert.ok(appRules.length > 0, file);
+    for (const rule of appRules) {
+      const cache = rule.headers.find(header => header.key === 'Cache-Control');
+      if (cache) assert.equal(cache.value, 'no-cache', `${file}: ${rule.source}`);
+    }
+  }
+});
