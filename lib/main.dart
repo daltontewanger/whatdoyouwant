@@ -39,8 +39,10 @@ Future<void> main() async {
   );
   final accounts = AccountService(
     FirebaseAuth.instance,
-    // On once the production Google provider is set up.
-    googleEnabled: const bool.fromEnvironment('GOOGLE_SIGN_IN'),
+    // The web client is set up for the production domain. Installed apps
+    // also need their signing fingerprints registered, so there it stays
+    // behind a build flag until that is done.
+    googleEnabled: kIsWeb || const bool.fromEnvironment('GOOGLE_SIGN_IN'),
     deleteOnServer:
         () => FirebaseFunctions.instance.httpsCallable('deleteAccount').call(),
   );
