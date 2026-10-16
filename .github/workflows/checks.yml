@@ -2,9 +2,9 @@ name: Checks
 
 on:
   pull_request:
-    branches: [main, codex/v2-launch]
+    branches: [main, v2-launch]
   push:
-    branches: [codex/v2-launch]
+    branches: [v2-launch]
   workflow_dispatch:
 
 permissions:

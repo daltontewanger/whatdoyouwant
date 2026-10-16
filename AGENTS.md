@@ -84,7 +84,7 @@ environment.
 
 ## Git workflow
 
-- Work on `codex/v2-launch` unless told otherwise; never commit directly to `main`.
+- Work on `v2-launch` unless told otherwise; never commit directly to `main`.
 - Never force-push, rewrite history, or move or delete the `pre-codex-v2-baseline` tag.
 - Small commits, one logical change each, with clear messages.
 - If `git status` shows changes you didn't make, ask before touching those files.
