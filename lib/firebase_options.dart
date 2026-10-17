@@ -36,7 +36,9 @@ class DefaultFirebaseOptions {
     appId: '1:1086599505073:web:2e866f2b9731d18be02e90',
     messagingSenderId: '1086599505073',
     projectId: 'what-do-you-want-8a404',
-    authDomain: 'what-do-you-want-8a404.firebaseapp.com',
+    // Sign-in runs on the site's own domain, so Google's prompt names it and
+    // browsers that partition third-party storage keep the session.
+    authDomain: 'getwhatdoyouwant.app',
     storageBucket: 'what-do-you-want-8a404.firebasestorage.app',
     measurementId: 'G-ST9EVFYE6K',
   );

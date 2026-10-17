@@ -74,4 +74,7 @@ for (const workflow of readdirSync(resolve(root, '.github/workflows'))) {
   check(!readFileSync(resolve(root, '.github/workflows', workflow), 'utf8').includes('HERE_API_KEY'),
     'HERE credential stays out of the browser build');
 }
+// Google names the sign-in domain in its prompt, so production signs in on the site, not the project ID.
+check(readFileSync(resolve(root, 'lib/firebase_options.dart'), 'utf8').includes("authDomain: 'getwhatdoyouwant.app'"),
+  'production web signs in on its own domain');
 console.log('PASS: local/staging/production configuration boundaries; values withheld.');
