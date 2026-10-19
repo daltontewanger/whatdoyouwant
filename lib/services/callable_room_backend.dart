@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 import '../models/restaurant.dart';
 import 'device_location.dart';
 import 'live_search.dart';
+import 'lobby_backstop.dart';
 import 'room_backend.dart';
 import 'site_links.dart';
 
@@ -196,20 +197,43 @@ class CallableRoomBackend implements RoomBackend {
           });
     }
 
+    late final LobbyBackstop backstop;
+    void apply(Map<String, dynamic>? data) {
+      roomData = data;
+      if (data == null) return;
+      // The host starts the room, so only guests can be left behind waiting.
+      if (data['status'] == 'lobby' && data['creator'] != _uid) {
+        backstop.start();
+      } else {
+        backstop.stop();
+      }
+      _expiries[roomId] = data['expiresAt'] as Timestamp;
+      final deckId = data['deckId'] as String?;
+      // A closed room's deck is removed soon after; its results carry
+      // the winner and backup instead.
+      if (deckId != null && data['status'] != 'closed') loadDeck(deckId);
+      emit();
+    }
+
+    backstop = LobbyBackstop(
+      status:
+          () async =>
+              (await _call('roomResults', {'roomId': roomId}))['status']
+                  as String,
+      // Reconnecting makes Firestore resend the room as it is now.
+      onBehind: () async {
+        await _db.disableNetwork();
+        await _db.enableNetwork();
+      },
+    );
+
     controller = StreamController<RoomState>(
       onListen: () {
         subscriptions.add(
-          room.snapshots().listen((snapshot) {
-            roomData = snapshot.data();
-            final data = roomData;
-            if (data == null) return;
-            _expiries[roomId] = data['expiresAt'] as Timestamp;
-            final deckId = data['deckId'] as String?;
-            // A closed room's deck is removed soon after; its results carry
-            // the winner and backup instead.
-            if (deckId != null && data['status'] != 'closed') loadDeck(deckId);
-            emit();
-          }, onError: controller.addError),
+          room.snapshots().listen(
+            (snapshot) => apply(snapshot.data()),
+            onError: controller.addError,
+          ),
         );
         subscriptions.add(
           room.collection('votes/$_uid/ballot').snapshots().listen((snapshot) {
@@ -219,6 +243,7 @@ class CallableRoomBackend implements RoomBackend {
         );
       },
       onCancel: () async {
+        backstop.stop();
         for (final subscription in subscriptions) {
           await subscription.cancel();
         }
