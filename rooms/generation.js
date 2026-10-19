@@ -10,6 +10,9 @@ const { weekOf, monthOf, liveSearchConfig, weeklyCapFor, DAY_MS, WEEK_MS } = req
 // Longer than the callable timeout, so a lease only expires once its call is gone.
 const LEASE_MS = 90 * 1000;
 const RECONCILE_BATCH = 200;
+// Shares of the monthly stop that log a warning, so an alert can fire well
+// before live search pauses itself.
+const USAGE_WARNINGS = [0.5, 0.8];
 
 const digest = value => createHash('sha256').update(value).digest('hex');
 
@@ -63,6 +66,13 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
       if (spent + calls > settings.monthlyCallStop) {
         log({ event: 'live_search_paused', reason: 'monthly-stop', provider: provider.id });
         throw paused();
+      }
+      for (const share of USAGE_WARNINGS) {
+        const mark = settings.monthlyCallStop * share;
+        if (spent < mark && spent + calls >= mark) {
+          log({ event: 'live_search_usage', provider: provider.id, month, share, calls: spent + calls,
+            stop: settings.monthlyCallStop });
+        }
       }
       const updatedAt = FieldValue.serverTimestamp();
       tx.set(weekRef(uid, week), { uidHash: digest(uid), weekStartsAt: Timestamp.fromMillis(week.startsAt),
@@ -199,4 +209,4 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
   return { generateDeck, reconcile, allowance, digest };
 }
 
-module.exports = { createGeneration, LEASE_MS };
+module.exports = { USAGE_WARNINGS, createGeneration, LEASE_MS };

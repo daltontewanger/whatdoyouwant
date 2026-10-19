@@ -19,9 +19,9 @@ const db = new Firestore({ projectId: PROJECT, host: '127.0.0.1:8080', ssl: fals
 const SEARCH = Object.freeze({ origin: { lat: 38.5, lng: -98.5 }, radius: { value: 5, unit: 'mi' }, deckSize: 5 });
 
 let clock;
-function handlersWith(provider = createFakeProvider()) {
+function handlersWith(provider = createFakeProvider(), log = () => {}) {
   return createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, provider, now: () => clock,
-    deleteAuthUser: async () => {} });
+    deleteAuthUser: async () => {}, log });
 }
 const caller = (uid, provider = 'password', verified = true) => ({ auth: { uid, token: {
   firebase: { sign_in_provider: provider }, email_verified: verified, auth_time: Math.floor(clock / 1000) } } });
@@ -132,6 +132,16 @@ test('the monthly stop is per provider, counts the worst case, and resets with t
 
   clock = Date.parse('2026-11-01T00:00:01Z');
   await start(fake, 'host5-2', await lobby(fake, 'host5-2'));
+});
+
+test('usage logs a warning once at half and again at 80% of the monthly stop', async () => {
+  await configure({ monthlyCallStop: 10, weeklyCaps: { free: 20 } });
+  const logged = [];
+  const handlers = handlersWith(createFakeProvider({ simulatedCalls: 1 }), entry => logged.push(entry));
+  for (let i = 0; i < 9; i++) await start(handlers, `host8-${i}`, await lobby(handlers, `host8-${i}`));
+  const warnings = logged.filter(entry => entry.event === 'live_search_usage');
+  assert.deepEqual(warnings.map(entry => [entry.share, entry.calls, entry.stop]), [[0.5, 5, 10], [0.8, 8, 10]]);
+  assert.ok(warnings.every(entry => entry.uid === undefined && entry.month === monthOf(clock)));
 });
 
 test('failed searches are refunded, but provider calls that happened still count', async () => {
