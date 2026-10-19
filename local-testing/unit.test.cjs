@@ -55,3 +55,34 @@ test('app error reports are scrubbed, shape-checked and rate limited per caller'
   clock += 60 * 60 * 1000;
   assert.equal(report('u1', { message: 'later', build: 7 }).accepted, true, 'the limit resets after an hour');
 });
+
+test('email domains: mail records or an address pass; missing or null-MX domains fail; DNS trouble lets people through', async () => {
+  const { createMailDomainCheck } = require('../rooms/email-domain.js');
+  const failure = code => Promise.reject(Object.assign(new Error(code), { code }));
+  const zone = {
+    'gmail.com': { mx: [{ exchange: 'gmail-smtp-in.l.google.com', priority: 5 }] },
+    'nomx.example': { mx: 'ENODATA', address: { address: '192.0.2.1' } },
+    'parked.example': { mx: 'ENODATA', address: 'ENOTFOUND' },
+    'gmial.con': { mx: 'ENOTFOUND' },
+    'nullmx.example': { mx: [{ exchange: '', priority: 0 }] },
+    'slow.example': { mx: 'ETIMEOUT' },
+  };
+  let lookups = 0;
+  const check = createMailDomainCheck({
+    resolveMx: async name => { lookups++; const mx = zone[name]?.mx ?? 'ENOTFOUND'; return typeof mx === 'string' ? failure(mx) : mx; },
+    resolveAddress: async name => { const a = zone[name]?.address ?? 'ENOTFOUND'; return typeof a === 'string' ? failure(a) : a; },
+  });
+  assert.equal(await check('gmail.com'), true);
+  assert.equal(await check('GMAIL.com.'), true, 'case and a trailing dot are ignored');
+  assert.equal(await check('nomx.example'), true, 'falls back to the domain address');
+  assert.equal(await check('parked.example'), false);
+  assert.equal(await check('gmial.con'), false);
+  assert.equal(await check('nullmx.example'), false);
+  assert.equal(await check('slow.example'), true, 'a DNS problem never blocks a real person');
+  for (const bad of ['', 'localhost', 'a@b.com', 'no spaces.com', '-bad.com']) {
+    assert.equal(await check(bad), false, bad);
+  }
+  const before = lookups;
+  await check('gmail.com');
+  assert.equal(lookups, before, 'answers are cached');
+});

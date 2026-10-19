@@ -9,6 +9,7 @@ const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { onMessagePublished } = require('firebase-functions/v2/pubsub');
 const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
+const { createMailDomainCheck } = require('./email-domain');
 const { createRoomHandlers, CALLABLES } = require('./handlers');
 const { createGuestCleanup } = require('./cleanup');
 const { createBudgetGuard } = require('./budget');
@@ -62,6 +63,7 @@ const handlers = createRoomHandlers({
   log: entry => logger.info(entry),
   // Written as is: logger.error would replace the message with this server's own stack.
   logError: entry => logger.write({ ...entry, severity: 'ERROR' }),
+  canReceiveMail: createMailDomainCheck(),
 });
 
 const options = {
@@ -74,9 +76,9 @@ const options = {
   timeoutSeconds: 30,
 };
 
-// Error reports are cheap and rate limited per caller, so two instances
-// bound what a burst of them can cost.
-const LIMITED = { reportClientError: 2 };
+// Error reports and email-domain checks are cheap and rate limited per
+// caller, so two instances bound what a burst of them can cost.
+const LIMITED = { reportClientError: 2, checkEmailDomain: 2 };
 for (const name of CALLABLES) {
   const settingsFor = { ...options, ...(LIMITED[name] ? { maxInstances: LIMITED[name] } : {}) };
   exports[name] = onCall(SEARCHING.includes(name) ? { ...settingsFor, secrets: [hereKey] } : settingsFor, handlers[name]);

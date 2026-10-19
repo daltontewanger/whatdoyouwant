@@ -426,3 +426,14 @@ test('preview status identifies the local room worker', async () => {
   assert.equal(response.status, 200);
   assert.deepEqual(response.data.result, { project: PROJECT, policy: 'rooms' });
 });
+
+test('email domains: any session may ask about a bare domain; addresses and extra fields are refused', async () => {
+  const guest = await user();
+  // The emulator wiring accepts every domain, so this checks the contract, not DNS.
+  const answer = await call('checkEmailDomain', { domain: 'example.test' }, guest);
+  assert.equal(answer.status, 200);
+  assert.deepEqual(answer.data.result, { deliverable: true });
+  assert.equal((await call('checkEmailDomain', { domain: 'pat@example.test' }, guest)).status, 400);
+  assert.equal((await call('checkEmailDomain', { domain: 'example.test', email: 'x' }, guest)).status, 400);
+  assert.equal((await call('checkEmailDomain', { domain: 'example.test' })).status, 401);
+});
