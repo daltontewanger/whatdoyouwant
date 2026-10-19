@@ -94,3 +94,30 @@ test('characterization: failed HERE request currently retains all four reserved 
   assert.equal(state.count(), 4);
   assert.equal(state.calls(), 1);
 });
+
+test('app error reports are scrubbed, shape-checked and rate limited per caller', () => {
+  const { createClientErrorReporter, scrub, LIMIT_PER_HOUR } = require('../rooms/client-errors.js');
+  let clock = 0;
+  const logged = [];
+  const invalid = () => { throw new Error('invalid'); };
+  const report = createClientErrorReporter({ now: () => clock, log: entry => logged.push(entry), invalid });
+
+  report('u1', { message: 'Bad state for pat@example.com near 38.50123,-98.51234', build: 7,
+    stack: 'at main (https://getwhatdoyouwant.app/app/main.dart.js?v=1#x:10:5)' });
+  assert.deepEqual(logged[0], { event: 'client_error', build: 7, fatal: false,
+    message: 'Bad state for [email] near [number],[number]',
+    stack: 'at main (https://getwhatdoyouwant.app/app/main.dart.js)' });
+  assert.equal(logged[0].uid, undefined);
+  assert.equal(scrub('x'.repeat(900), 500).length, 500);
+
+  for (const bad of [null, [], { message: '', build: 1 }, { message: 'x', build: -1 }, { message: 'x', build: 1, uid: 'u' },
+    { message: 'x', build: 1, fatal: 'yes' }, { message: 1, build: 1 }]) {
+    assert.throws(() => report('u1', bad), /invalid/, JSON.stringify(bad));
+  }
+
+  for (let i = 1; i < LIMIT_PER_HOUR; i++) assert.equal(report('u1', { message: 'again', build: 7 }).accepted, true);
+  assert.equal(report('u1', { message: 'again', build: 7 }).accepted, false, 'the hourly limit holds');
+  assert.equal(report('u2', { message: 'other', build: 7 }).accepted, true, 'callers are limited separately');
+  clock += 60 * 60 * 1000;
+  assert.equal(report('u1', { message: 'later', build: 7 }).accepted, true, 'the limit resets after an hour');
+});

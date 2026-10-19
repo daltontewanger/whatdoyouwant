@@ -65,7 +65,7 @@ test('every staging callable runs as the scoped identity and requires App Check'
     assert.equal(endpoint.serviceAccountEmail, 'rooms-runtime@whatdoyouwant-staging.iam.gserviceaccount.com', name);
     assert.deepEqual(endpoint.region, ['us-central1'], name);
     assert.ok(endpoint.callableTrigger, name);
-    assert.equal(endpoint.maxInstances, 5, name);
+    assert.equal(endpoint.maxInstances, name === 'reportClientError' ? 2 : 5, name);
     // Only the two callables that search may read the HERE key.
     const secrets = (endpoint.secretEnvironmentVariables ?? []).map(secret => secret.key);
     assert.deepEqual(secrets, ['startRoom', 'createQuickPick'].includes(name) ? ['HERE_API_KEY'] : [], name);

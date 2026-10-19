@@ -5,7 +5,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../services/room_backend.dart';
 
-Future<int> _installedBuild() async =>
+/// The installed app's build number, or 0 where it cannot be read.
+Future<int> appBuildNumber() async =>
     int.tryParse((await PackageInfo.fromPlatform()).buildNumber) ?? 0;
 
 /// Shows [child] unless the backend says this build is too old to use. A
@@ -34,7 +35,7 @@ class _UpdateGateState extends State<UpdateGate> {
     final backend = RoomBackendScope.of(context).backend;
     () async {
       try {
-        final build = await (widget.installedBuild ?? _installedBuild)();
+        final build = await (widget.installedBuild ?? appBuildNumber)();
         final required = await backend.updateRequired(build);
         if (mounted && required) setState(() => _updateRequired = true);
       } catch (_) {}

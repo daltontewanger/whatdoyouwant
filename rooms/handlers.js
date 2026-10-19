@@ -6,6 +6,7 @@ const { parseSearchRequest, InvalidSearchRequest } = require('./search/request')
 const { assertProvider } = require('./search/provider');
 const { createFakeProvider } = require('./search/fake-provider');
 const { resultCard, storedCandidate } = require('./decks');
+const { createClientErrorReporter } = require('./client-errors');
 const { createGeneration } = require('./generation');
 
 const ROOM_TTL_MS = 24 * 3600000;
@@ -42,6 +43,7 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
   const deny = () => { throw new HttpsError('permission-denied', 'Room action unavailable.'); };
   const invalid = () => { throw new HttpsError('invalid-argument', 'Invalid request.'); };
   const expiry = ms => Timestamp.fromMillis(now() + ms);
+  const reportError = createClientErrorReporter({ now, log, invalid });
 
   function identity(request) {
     if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in first.');
@@ -334,6 +336,11 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
 
     // Whether this build of the app is too old to use. Purely a courtesy to
     // people on old installs; every callable still validates its own input.
+    // Any signed-in session, guests included, can report an app error.
+    async reportClientError(request) {
+      return reportError(identity(request).uid, request.data);
+    },
+
     async appStatus(request) {
       identity(request);
       const value = request.data ?? {};
@@ -530,6 +537,6 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
 
 const CALLABLES = ['createRoom', 'joinRoom', 'startRoom', 'closeRoom', 'roomResults',
   'revokeMember', 'rotateJoinCode', 'deleteAccount', 'liveSearchStatus', 'createQuickPick', 'rerollQuickPick',
-  'appStatus'];
+  'appStatus', 'reportClientError'];
 
 module.exports = { createRoomHandlers, CALLABLES, CODE_ALPHABET, CAPACITY };
