@@ -60,6 +60,8 @@ const handlers = createRoomHandlers({
     await auth.deleteUser(uid);
   },
   log: entry => logger.info(entry),
+  // Written as is: logger.error would replace the message with this server's own stack.
+  logError: entry => logger.write({ ...entry, severity: 'ERROR' }),
 });
 
 const options = {
@@ -72,8 +74,12 @@ const options = {
   timeoutSeconds: 30,
 };
 
+// Error reports are cheap and rate limited per caller, so two instances
+// bound what a burst of them can cost.
+const LIMITED = { reportClientError: 2 };
 for (const name of CALLABLES) {
-  exports[name] = onCall(SEARCHING.includes(name) ? { ...options, secrets: [hereKey] } : options, handlers[name]);
+  const settingsFor = { ...options, ...(LIMITED[name] ? { maxInstances: LIMITED[name] } : {}) };
+  exports[name] = onCall(SEARCHING.includes(name) ? { ...settingsFor, secrets: [hereKey] } : settingsFor, handlers[name]);
 }
 
 // Weekly removal of idle guest accounts; at this size weekly is plenty. No App Check or CORS: it runs as the scoped identity, which can manage

@@ -207,11 +207,11 @@ void main() {
     ) async {
       final auth = FakeAuth(FakeUser());
       final user = await open(tester, auth);
-      await fill(tester, '1234', '1234');
+      await fill(tester, 'short words', 'short words');
       await tester.tap(find.widgetWithText(ElevatedButton, 'Create account'));
       await tester.pumpAndSettle();
       expect(
-        find.text('Use a password with at least 6 characters.'),
+        find.text('Use a password with at least 12 characters.'),
         findsOneWidget,
       );
       expect(user.calls, isEmpty);
@@ -223,11 +223,40 @@ void main() {
     ) async {
       final auth = FakeAuth(FakeUser());
       final user = await open(tester, auth);
-      await fill(tester, 'secret123', 'secret124');
+      await fill(tester, 'blue kettle morning', 'blue kettle mornink');
       await tester.tap(find.widgetWithText(ElevatedButton, 'Create account'));
       await tester.pumpAndSettle();
       expect(find.text('The passwords do not match.'), findsOneWidget);
       expect(user.calls, isEmpty);
+    });
+
+    testWidgets('after a mismatch the repeat can be corrected and submitted', (
+      tester,
+    ) async {
+      final auth = FakeAuth(FakeUser());
+      final user = await open(tester, auth);
+      await fill(tester, 'blue kettle morning', 'blue kettle mornink');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Create account'));
+      await tester.pumpAndSettle();
+      expect(find.text('The passwords do not match.'), findsOneWidget);
+
+      final repeat = tester.widget<TextField>(find.byType(TextField).at(2));
+      expect(repeat.enabled, isNot(false));
+      expect(repeat.maxLength, isNull, reason: 'nothing is cut short');
+      expect(repeat.autofillHints, [AutofillHints.newPassword]);
+      await tester.enterText(
+        find.byType(TextField).at(2),
+        'blue kettle morning',
+      );
+      await tester.pump();
+      expect(
+        find.text('The passwords do not match.'),
+        findsNothing,
+        reason: 'the old complaint clears once the person edits',
+      );
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Create account'));
+      await tester.pumpAndSettle();
+      expect(user.calls, ['link', 'verify']);
     });
 
     testWidgets(
@@ -235,7 +264,7 @@ void main() {
       (tester) async {
         final auth = FakeAuth(FakeUser());
         final user = await open(tester, auth);
-        await fill(tester, 'secret123', 'secret123');
+        await fill(tester, 'blue kettle morning', 'blue kettle morning');
         await tester.testTextInput.receiveAction(TextInputAction.done);
         await tester.pumpAndSettle();
         expect(user.calls, ['link', 'verify']);

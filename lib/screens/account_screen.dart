@@ -24,7 +24,7 @@ String accountErrorMessage(FirebaseAuthException error) {
         'An account already uses this email. Sign in instead; your guest session is unchanged.',
     'credential-already-in-use':
         'This credential belongs to another account. Your guest session is unchanged.',
-    'weak-password': 'Use a password with at least 6 characters.',
+    'weak-password': 'That password is too weak. Use at least 12 characters.',
     'invalid-email': 'Enter a valid email address.',
     'user-disabled': 'This account has been disabled.',
     'too-many-requests': 'Too many attempts. Please wait and try again.',

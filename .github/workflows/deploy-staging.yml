@@ -22,7 +22,7 @@ concurrency:
 jobs:
   deploy:
     name: Rooms to whatdoyouwant-staging
-    if: github.ref == 'refs/heads/codex/v2-launch' || github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/v2-launch' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: staging
@@ -35,7 +35,6 @@ jobs:
           cache: npm
           cache-dependency-path: |
             package-lock.json
-            functions/package-lock.json
             rooms/package-lock.json
 
       # The deploy script runs the room emulator tests first; Firestore needs a JDK.

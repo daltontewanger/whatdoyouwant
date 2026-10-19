@@ -13,6 +13,7 @@ import 'screens/update_gate.dart';
 import 'services/account_service.dart';
 import 'services/active_room_store.dart';
 import 'services/callable_room_backend.dart';
+import 'services/error_reporter.dart';
 import 'services/room_backend.dart';
 import 'themes/main_theme.dart';
 
@@ -47,6 +48,15 @@ Future<void> main() async {
         () => FirebaseFunctions.instance.httpsCallable('deleteAccount').call(),
   );
   await accounts.guest();
+  // Release builds report uncaught errors; debug builds show them instead.
+  if (!kDebugMode) {
+    ErrorReporter(
+      (report) => FirebaseFunctions.instance
+          .httpsCallable('reportClientError')
+          .call(report),
+      build: await appBuildNumber(),
+    ).install();
+  }
   runApp(
     MyApp(
       currentUid: FirebaseAuth.instance.currentUser!.uid,

@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="/styles.css">
   <script src="/firebase-config.js" defer></script>
   <script src="/site.js" type="module"></script>
+  <script src="/avatars.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -49,7 +50,7 @@
       <span class="bubble-icon burger float f1" aria-hidden="true"></span>
       <span class="bubble-icon pizza float f2" aria-hidden="true"></span>
       <div class="wrap">
-        <h1 id="hero-title"><span class="first-line">You'll never have to ask</span> <span class="say">"What do you want?!"</span> again.</h1>
+        <h1 id="hero-title"><span class="first-line">You'll never have to ask</span> <span class="say">"What do you want?!"</span> to eat again.</h1>
         <p class="lede">We pull up spots to eat near you. Everyone in your group swipes through the same picks and votes, and the place you all agree on wins. Breakfast, lunch, dinner or whenever, settled in minutes.</p>
         <div class="hero-actions">
           <a class="btn btn-solid" href="/app/host">Host a room</a>
@@ -62,80 +63,19 @@
         </div>
 
         <div class="stage" role="img" aria-label="The app's home screen on a phone, between illustrated friends deciding where to eat on their phones">
-          <span class="friends pair" aria-hidden="true">
-            <svg viewBox="0 0 240 180" preserveAspectRatio="xMidYMid slice">
-              <rect width="240" height="180" fill="#dcefe5"/>
-              <rect y="132" width="240" height="48" fill="#cfe6db"/>
-              <g class="fr-breathe late">
-                <path d="M150 70c-6 30-4 62 6 92h58c6-30 2-60-6-86z" fill="#b8572a" stroke="#2a1f1a" stroke-width="2.5" stroke-linejoin="round"/>
-                <path d="M128 182c0-30 16-46 44-48c26 2 44 18 46 48z" fill="#9aa3a8" stroke="#2a1f1a" stroke-width="2.5"/>
-                <path d="M198 150c6 10 8 20 8 32h12c0-14-6-26-20-32z" fill="#828b90"/>
-                <path d="M162 116h20l2 22c-8 6-16 6-24 0z" fill="#e9b997" stroke="#2a1f1a" stroke-width="2.5"/>
-                <g class="fr-tilt back">
-                  <path d="M148 84c-2-26 12-42 30-42c20 0 32 16 30 40c-2 22-14 38-30 38c-16 0-28-14-30-36z" fill="#f0c4a2" stroke="#2a1f1a" stroke-width="2.5"/>
-                  <path d="M152 96c4 12 12 20 22 22c-12 2-22-8-22-22z" fill="#e2aa86"/>
-                  <path d="M144 86c-4-30 14-50 36-48c22 2 34 22 30 46c-4-12-8-20-16-26c-10 6-24 8-36 6c-6 6-10 14-14 22z" fill="#c4632f" stroke="#2a1f1a" stroke-width="2.5" stroke-linejoin="round"/>
-                  <path d="M168 50c-6 6-10 12-12 20M186 46c4 8 4 14 2 20" fill="none" stroke="#8f4320" stroke-width="2" stroke-linecap="round"/>
-                  <path d="M160 82q6-3 12 0M180 82q5-2 10 1" fill="none" stroke="#7a3a1c" stroke-width="2.2" stroke-linecap="round"/>
-                  <g class="fr-blink late"><ellipse cx="166" cy="90" rx="2.6" ry="3" fill="#2a1f1a"/><ellipse cx="185" cy="90" rx="2.4" ry="3" fill="#2a1f1a"/></g>
-                  <path d="M175 92q-2 8 1 10" fill="none" stroke="#c98c68" stroke-width="2" stroke-linecap="round"/>
-                  <path d="M168 108q7 4 14-1" fill="none" stroke="#a5503a" stroke-width="2.4" stroke-linecap="round"/>
-                  <circle cx="160" cy="100" r="5" fill="#f08a6c" opacity=".35"/>
-                </g>
-              </g>
-              <g class="fr-breathe">
-                <path d="M4 182c2-34 22-52 58-54c34 2 56 20 60 54z" fill="#5b7fa6" stroke="#2a1f1a" stroke-width="2.5"/>
-                <path d="M10 182c2-20 10-34 24-42c-8 12-10 26-10 42z" fill="#4a6a8f"/>
-                <path d="M46 128l16 18l16-18" fill="#6d91b8" stroke="#2a1f1a" stroke-width="2.5" stroke-linejoin="round"/>
-                <path d="M62 146v36" stroke="#2a1f1a" stroke-width="2"/><circle cx="62" cy="158" r="1.6" fill="#2a1f1a"/><circle cx="62" cy="172" r="1.6" fill="#2a1f1a"/>
-                <path d="M50 108h24l2 24c-8 8-20 8-28 0z" fill="#e3a982" stroke="#2a1f1a" stroke-width="2.5"/>
-                <g class="fr-tilt">
-                  <path d="M34 74c0-26 14-40 32-40s34 14 32 40c-2 26-16 44-34 44c-16 0-30-18-30-44z" fill="#ecb58f" stroke="#2a1f1a" stroke-width="2.5"/>
-                  <path d="M36 88c4 18 16 32 30 32c14 0 26-12 30-30c-6 8-16 14-30 14c-12 0-24-6-30-16z" fill="#a85f34" opacity=".85"/>
-                  <ellipse cx="35" cy="80" rx="6" ry="9" fill="#e3a982" stroke="#2a1f1a" stroke-width="2.5"/>
-                  <path d="M30 70c-6-24 10-44 34-44c22 0 40 16 36 40c-4-8-10-14-16-16c-2 8-12 10-20 8c-6 6-14 8-22 6c-4 2-8 4-12 6z" fill="#b5652f" stroke="#2a1f1a" stroke-width="2.5" stroke-linejoin="round"/>
-                  <path d="M46 34c4 6 4 12 0 18M62 30c6 6 6 14 2 20M80 34c2 6 0 10-4 14" fill="none" stroke="#8a4523" stroke-width="2" stroke-linecap="round"/>
-                  <path d="M60 70q7-4 14-1M80 70q6-2 12 1" fill="none" stroke="#7a3a1c" stroke-width="2.6" stroke-linecap="round"/>
-                  <g class="fr-blink"><ellipse cx="68" cy="79" rx="2.6" ry="3" fill="#2a1f1a"/><ellipse cx="86" cy="79" rx="2.4" ry="3" fill="#2a1f1a"/></g>
-                  <path d="M80 80q4 9 0 13l-4-1" fill="none" stroke="#c78a63" stroke-width="2.2" stroke-linecap="round"/>
-                  <path d="M68 100q8 5 16 0" fill="none" stroke="#2a1f1a" stroke-width="2.4" stroke-linecap="round"/>
-                </g>
-              </g>
-              <ellipse class="fr-glow" cx="120" cy="134" rx="42" ry="24" fill="#fff"/>
-              <rect x="105" y="136" width="30" height="50" rx="7" fill="#1d2b2c"/>
-              <rect x="109" y="141" width="22" height="38" rx="4" fill="#eaf3ee"/>
-              <rect x="109" y="141" width="22" height="7" rx="3" fill="#2f7a5c"/>
-            </svg>
-          </span>
-          <span class="friends solo" aria-hidden="true">
-            <svg viewBox="0 0 220 172" preserveAspectRatio="xMidYMid slice">
-              <rect width="220" height="172" fill="#dcebf7"/>
-              <g class="fr-breathe">
-                <path d="M30 174c2-36 30-54 80-56c50 2 78 20 80 56z" fill="#f59e84" stroke="#2a1f1a" stroke-width="2.5"/>
-                <path d="M36 174c2-22 12-36 28-46c-8 14-12 28-12 46z" fill="#e2826a"/>
-                <path d="M84 120c8 10 44 10 52 0" fill="none" stroke="#2a1f1a" stroke-width="2.5"/>
-                <path d="M98 100h24l2 22c-8 6-20 6-28 0z" fill="#b97a4e" stroke="#2a1f1a" stroke-width="2.5"/>
-                <g class="fr-tilt">
-                  <path d="M80 64c0-24 14-38 30-38s32 14 30 38c-2 24-14 40-30 40s-30-16-30-40z" fill="#c68a5c" stroke="#2a1f1a" stroke-width="2.5"/>
-                  <path d="M84 80c4 14 14 24 26 24c-14 0-24-10-26-24z" fill="#b07448"/>
-                  <path d="M76 66c-8-14-2-34 12-40c6-12 26-14 36-6c14 0 24 12 22 26c4 8 2 16-4 22c-2-10-6-18-12-22c-10 4-26 4-38-2c-6 6-12 14-16 22z" fill="#2b1d16" stroke="#2a1f1a" stroke-width="2.5" stroke-linejoin="round"/>
-                  <circle cx="88" cy="30" r="6" fill="#3a2a20"/><circle cx="106" cy="22" r="6" fill="#3a2a20"/><circle cx="126" cy="24" r="6" fill="#3a2a20"/><circle cx="140" cy="36" r="5" fill="#3a2a20"/>
-                  <path d="M96 66q6-3 11 0M114 66q6-3 11 0" fill="none" stroke="#2b1d16" stroke-width="2.6" stroke-linecap="round"/>
-                  <g class="fr-blink"><path d="M97 76q4-3 8 0M115 76q4-3 8 0" fill="none" stroke="#2a1f1a" stroke-width="2.8" stroke-linecap="round"/></g>
-                  <path d="M110 78q-2 8 2 10" fill="none" stroke="#9a6440" stroke-width="2" stroke-linecap="round"/>
-                  <path d="M100 92q10 9 20 0" fill="#fff" stroke="#2a1f1a" stroke-width="2.4" stroke-linejoin="round"/>
-                  <circle cx="95" cy="86" r="5" fill="#e0705a" opacity=".3"/><circle cx="126" cy="86" r="5" fill="#e0705a" opacity=".3"/>
-                </g>
-              </g>
-              <ellipse class="fr-glow" cx="110" cy="134" rx="40" ry="24" fill="#fff"/>
-              <rect x="96" y="130" width="28" height="48" rx="6" fill="#1d2b2c"/>
-              <rect x="100" y="135" width="20" height="38" rx="3" fill="#eaf3ee"/>
-              <path d="M104 143h12a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3h-7l-3 3v-3a3 3 0 0 1-3-3v-5a3 3 0 0 1 3-3z" fill="#6fb7e9" stroke="#1d2b2c" stroke-width="1.5"/>
-            </svg>
-          </span>
-          <span class="sticker s1" aria-hidden="true">Brunch spot?</span>
-          <span class="sticker s2" aria-hidden="true">Tacos?</span>
-          <span class="sticker s3" aria-hidden="true">Not sushi again</span>
+          <!-- The friends are filled by /avatars.js with a different pair and solo friend on each visit;
+               each group carries its own speech bubbles so they stay with the right person. -->
+          <div class="cast" aria-hidden="true">
+            <div class="cast-group pair-group">
+              <span class="sticker s1">Brunch spot?</span>
+              <span class="sticker s3">Not sushi again</span>
+              <span class="friends pair" data-wdyw-scene="duo"></span>
+            </div>
+            <div class="cast-group solo-group">
+              <span class="sticker s2">Tacos?</span>
+              <span class="friends solo" data-wdyw-scene="solo"></span>
+            </div>
+          </div>
           <div class="phone" id="hero-phone" aria-hidden="true">
             <div class="screen">
               <div class="app-card">
@@ -153,7 +93,7 @@
                 </span>
                 <span class="app-btn">Create Room</span>
                 <span class="app-btn outline">Join Room</span>
-                <span class="app-note">Playing as a guest · <u>Sign in</u></span>
+                <span class="app-bar"><svg class="on" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 4a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7zm0 14a8 8 0 0 1-6.14-2.88 9.95 9.95 0 0 1 12.28 0A8 8 0 0 1 12 20z"/></svg></span>
               </div>
             </div>
           </div>

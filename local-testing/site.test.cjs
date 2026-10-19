@@ -69,3 +69,30 @@ test("the web app's files revalidate, so a new release never mixes with cached o
     }
   }
 });
+
+test('the hero friends are three different people on every load', () => {
+  const html = read('index.html');
+  assert.match(html, /data-wdyw-scene="duo"/);
+  assert.match(html, /data-wdyw-scene="solo"/);
+  assert.match(html, /<script src="\/avatars.js" defer><\/script>/);
+
+  const avatars = require('../site/avatars.js');
+  const fakeElement = scene => ({ scene, getAttribute: name => (name === 'data-wdyw-scene' ? scene : null) });
+  // mountAll only runs where a document exists.
+  global.document = {};
+  try {
+    const seen = new Set();
+    for (let seed = 1; seed <= 200; seed++) {
+      const els = [fakeElement('duo'), fakeElement('solo')];
+      avatars.mountAll({ querySelectorAll: () => els }, { seed });
+      const [duo, solo] = els.map(el => /aria-label="([^"]+)"/.exec(el.innerHTML)[1]);
+      const [, a, b] = /^(\w+) and (\w+) /.exec(duo);
+      const [, c] = /^(\w+) /.exec(solo);
+      assert.equal(new Set([a, b, c]).size, 3, `seed ${seed}: ${duo} / ${solo}`);
+      seen.add(`${a}+${b}`);
+    }
+    assert.ok(seen.size > 40, `only ${seen.size} different pairs`);
+  } finally {
+    delete global.document;
+  }
+});

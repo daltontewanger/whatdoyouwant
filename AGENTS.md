@@ -20,18 +20,17 @@ Repository files and verified console evidence describe actual state. The playbo
 
 ## Repository map
 
-- `lib/main.dart`: production entry (accounts with a guest session, App Check, `CallableRoomBackend`; ships only at the production cut-over).
+- `lib/main.dart`: production entry (accounts with a guest session, App Check, `CallableRoomBackend`; live at getwhatdoyouwant.app/app).
 - `lib/main_staging.dart`: staging entry (app on the deployed room backend; `STAGING_CONNECTION_CHECK=true` for the connection check).
 - `lib/main_local.dart`: emulator-only entry (app on the room emulators; Google sign-in uses the Auth emulator's fake provider).
 - `lib/environment_guard.dart`, `lib/firebase_options.dart`, `lib/firebase_options_staging.dart`, `lib/firebase_options_local.dart`: per-environment config and guards.
-- `lib/screens/`, `lib/services/`, `lib/models/`, `lib/themes/`: app UI and services (`setState` + `Navigator`, no state-management package). Screens use `RoomBackend` (`services/room_backend.dart`): `CallableRoomBackend` everywhere on this branch; `LegacyRoomBackend` stays only until production is cut over. `services/site_links.dart` reads app links (`/app/host`, `/app/join[/<code>]`, `/app/account`); `screens/update_gate.dart` shows "please update" for builds below `config/liveSearch.minimumClientBuild`.
-- `functions/`: `fetchNearbyRestaurants` callable (`index.js`) and its handler (`search.js`), on Node 22 in production.
-- `rooms/`: room callables (create/join/start/close/results/revoke/rotate code/delete account), a weekly idle-guest cleanup (`cleanup.js`) and `sweepRooms` (every 15 minutes: closes rooms whose voting ran out, deletes expired decks). `handlers.js` holds the logic; `index.js` is the deployed entry for staging and production (each project listed with its own settings; runs as that project's `rooms-runtime`, App Check enforced); `firestore.rules` and `firestore.indexes.json` (TTL) serve both the emulators and staging. `search/` holds the restaurant search layer (request contract, cuisine whitelist, deck builder, fake provider, HERE adapter); `decks.js` shapes the stored `restaurantDecks`. `generation.js` is the one path for live decks (weekly cap, monthly provider ledger, `config/liveSearch` kill switch, lease, refunds); `quota.js` holds its week/month keys and config parsing. Separate from production `functions/`.
-- `local-testing/`: emulator harness and Node tests. `firestore.rules` is the open baseline copy; `phase1/` wires `rooms/` into the emulators (App Check off) and holds the rules, account and callable tests. `search/` holds synthetic HERE fixtures and the search benchmark (`benchmark/record-here.cjs` makes live recordings only for an approved run).
+- `lib/screens/`, `lib/services/`, `lib/models/`, `lib/themes/`: app UI and services (`setState` + `Navigator`, no state-management package). Screens use `RoomBackend` (`services/room_backend.dart`): `CallableRoomBackend` in every build. `services/site_links.dart` reads app links (`/app/host`, `/app/join[/<code>]`, `/app/account`); `screens/update_gate.dart` shows "please update" for builds below `config/liveSearch.minimumClientBuild`; `services/error_reporter.dart` sends uncaught errors in release builds to `reportClientError`.
+- `rooms/`: the only Functions codebase: room callables (create/join/start/close/results/revoke/rotate code/delete account, app status, client error reports in `client-errors.js`), a weekly idle-guest cleanup (`cleanup.js`) and `sweepRooms` (every 15 minutes: closes rooms whose voting ran out, deletes expired decks). `handlers.js` holds the logic; `index.js` is the deployed entry for staging and production (each project listed with its own settings; runs as that project's `rooms-runtime`, App Check enforced); `firestore.rules` and `firestore.indexes.json` (TTL) serve both the emulators and staging. `search/` holds the restaurant search layer (request contract, cuisine whitelist, deck builder, fake provider, HERE adapter); `decks.js` shapes the stored `restaurantDecks`. `generation.js` is the one path for live decks (weekly cap, monthly provider ledger, `config/liveSearch` kill switch, lease, refunds); `quota.js` holds its week/month keys and config parsing.
+- `local-testing/`: emulator harness and Node tests. `phase1/` wires `rooms/` into the emulators (App Check off) and holds the rules, account and callable tests. `search/` holds synthetic HERE fixtures and the search benchmark (`benchmark/record-here.cjs` makes live recordings only for an approved run).
 - `staging/`: staging client config, deny-all rollback rules, empty indexes. `app-check-debug.json` is a local secret and ignored.
 - `site/`: the public website (static HTML/CSS/JS: home page, legal and help pages, account menu). Built together with the web app by `scripts/build-hosting.mjs` into `build/hosting` (site at `/`, app at `/app`).
 - `scripts/`: `local.mjs` (emulator launcher), `check-environments.mjs` (config preflight), `build-hosting.mjs`, `deploy-staging.mjs`, `deploy-production.mjs`, PowerShell launchers.
-- `firebase.json` (legacy production Functions, retired after cut-over), `firebase.production.json` (production Hosting with security headers, room rules/TTL, rooms Functions), `firebase.emulators.json` (baseline emulators), `firebase.phase1.emulators.json` (room emulators), `firebase.staging.json` (staging Firestore rules/TTL, Auth, rooms Functions).
+- `firebase.production.json` (production Hosting with security headers, room rules/TTL, rooms Functions), `firebase.phase1.emulators.json` (room emulators), `firebase.staging.json` (staging Firestore rules/TTL, Auth, rooms Functions).
 - `android/app`: flavors `local`, `staging`, `production`; one is always required.
 - `test/`: Flutter tests.
 - `.github/workflows/checks.yml`: format, analyze, tests and a web build on pull requests and pushes to this branch.
@@ -48,17 +47,17 @@ local scripts by default. The bypass applies only to that process.
 
 | Purpose | Command |
 | --- | --- |
-| Restore tools | `npm ci` and `npm ci --prefix functions` |
+| Restore tools | `npm ci` and `npm ci --prefix rooms` |
 | Config preflight | `node scripts/check-environments.mjs` |
 | Format (check only) | `dart format --output=none --set-exit-if-changed lib test` |
 | Analyze | `flutter analyze --no-pub lib test` (root-wide analysis also scans a Dart template inside `node_modules`) |
 | Flutter tests | `flutter test --no-pub` |
-| Functions/emulator tests | `npm run test:unit`, `npm run test:local`, `npm run test:tooling` |
+| Functions/emulator tests | `npm run test:unit`, `npm run test:tooling` |
 | Firestore rules + callable tests | `npm run test:policy` |
 | Search benchmark (recorded or synthetic responses, no network) | `npm run benchmark:search` (`-- --recordings <dir>` for real recordings) |
 | Staging function logs | `npx firebase functions:log --project whatdoyouwant-staging --config firebase.staging.json -n 50` (`--only <name>` for one function) |
 | Deploy rooms to staging (needs approval) | `npm run deploy:staging -- --confirm whatdoyouwant-staging` (add `--dry-run` first) |
-| Start emulators | `npm run local:preview` (room rules and callables; used by the app) or `npm run local` (legacy open-rules baseline, tests only) |
+| Start emulators | `npm run local:preview` (room rules and callables; used by the app) |
 | Run the app locally (web) | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-local-app.ps1` (needs `npm run local:preview`; serves on `localhost:5080/` and opens the browser; `-WebPort` to change) |
 | Run the app locally (Android) | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-local-app.ps1 -Android -Device <device-id>` |
 | Run the app against staging | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-staging.ps1 -AppCheckDebugFile ./staging/app-check-debug.json` (`-Android -Device <id>`; web uses `localhost:7357`) |
@@ -84,7 +83,7 @@ environment.
 
 ## Git workflow
 
-- Work on `codex/v2-launch` unless told otherwise; never commit directly to `main`.
+- Work on `v2-launch` unless told otherwise; never commit directly to `main`.
 - Never force-push, rewrite history, or move or delete the `pre-codex-v2-baseline` tag.
 - Small commits, one logical change each, with clear messages.
 - If `git status` shows changes you didn't make, ask before touching those files.

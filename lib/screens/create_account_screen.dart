@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../services/account_service.dart';
+import '../services/password_policy.dart';
 import 'account_screen.dart';
 
 /// Sign-up on its own screen so it is clear an account is being made. A guest
@@ -22,6 +23,11 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   bool showPasswords = false;
   String message = '';
 
+  // An old complaint shouldn't linger once the person starts fixing it.
+  void edited(String _) {
+    if (message.isNotEmpty) setState(() => message = '');
+  }
+
   @override
   void dispose() {
     email.dispose();
@@ -32,9 +38,11 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
 
   String? problem() {
     if (email.text.trim().isEmpty) return 'Enter your email address.';
-    if (password.text.length < 6) {
-      return 'Use a password with at least 6 characters.';
-    }
+    final weak = PasswordPolicy.problem(
+      password.text,
+      email: email.text.trim(),
+    );
+    if (weak != null) return weak;
     if (password.text != repeat.text) return 'The passwords do not match.';
     return null;
   }
@@ -109,6 +117,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                 TextField(
                   controller: password,
                   enabled: !busy,
+                  onChanged: edited,
                   obscureText: !showPasswords,
                   autocorrect: false,
                   enableSuggestions: false,
@@ -116,7 +125,8 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                   autofillHints: const [AutofillHints.newPassword],
                   decoration: InputDecoration(
                     labelText: 'Password',
-                    helperText: 'At least 6 characters.',
+                    helperText: PasswordPolicy.hint,
+                    helperMaxLines: 2,
                     suffixIcon: visibility,
                   ),
                 ),
@@ -124,10 +134,16 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                 TextField(
                   controller: repeat,
                   enabled: !busy,
+                  onChanged: edited,
                   obscureText: !showPasswords,
                   autocorrect: false,
                   enableSuggestions: false,
                   textInputAction: TextInputAction.done,
+                  // On the web a field without a hint inside an autofill group
+                  // loses its input after the form rebuilds and stops taking
+                  // typing; password managers also expect the confirmation to
+                  // be marked as a new password.
+                  autofillHints: const [AutofillHints.newPassword],
                   onSubmitted: (_) {
                     if (!busy) create();
                   },

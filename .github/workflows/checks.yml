@@ -2,9 +2,9 @@ name: Checks
 
 on:
   pull_request:
-    branches: [main, codex/v2-launch]
+    branches: [main, v2-launch]
   push:
-    branches: [codex/v2-launch]
+    branches: [v2-launch]
   workflow_dispatch:
 
 permissions:
@@ -96,7 +96,6 @@ jobs:
           cache: npm
           cache-dependency-path: |
             package-lock.json
-            functions/package-lock.json
             rooms/package-lock.json
 
       # The Firestore emulator needs a JDK.
@@ -108,20 +107,16 @@ jobs:
       - name: Check environment configuration
         run: node scripts/check-environments.mjs
 
-      - name: Restore tools and Functions dependencies
+      - name: Restore tools and rooms dependencies
         run: |
           npm ci --no-audit --no-fund
-          npm ci --prefix functions --no-audit --no-fund
           npm ci --prefix rooms --no-audit --no-fund
 
-      - name: Functions unit tests
+      - name: Unit tests
         run: npm run test:unit
 
       - name: Tooling compatibility tests
         run: npm run test:tooling
-
-      - name: Baseline emulator tests
-        run: npm run test:local
 
       - name: Candidate rules and callable endpoint tests
         run: npm run test:policy

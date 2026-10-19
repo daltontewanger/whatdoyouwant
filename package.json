@@ -2,9 +2,7 @@
   "name": "whatdoyouwant-local-tools",
   "private": true,
   "scripts": {
-    "local": "node scripts/local.mjs start",
     "local:preview": "node scripts/local.mjs preview",
-    "test:local": "node scripts/local.mjs test",
     "test:unit": "node --test local-testing/unit.test.cjs local-testing/rooms-entry.test.cjs local-testing/search.test.cjs local-testing/benchmark.test.cjs local-testing/quota-config.test.cjs local-testing/site.test.cjs",
     "benchmark:search": "node local-testing/search/benchmark/run.cjs",
     "build:hosting": "node scripts/build-hosting.mjs",
