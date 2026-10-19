@@ -5,6 +5,7 @@ import '../models/user.dart';
 import '../services/active_room_store.dart';
 import '../services/room_backend.dart';
 import '../services/site_links.dart';
+import 'account_action_screen.dart';
 import 'account_screen.dart';
 import 'room_screen.dart';
 import 'join_screen.dart';
@@ -59,6 +60,8 @@ class HomeScreenState extends State<HomeScreen>
             _joinRoom(code: link.joinCode);
           case AppLinkTarget.account:
             _openAccount();
+          case AppLinkTarget.accountAction:
+            _finishAccountLink(link.mode!, link.code!);
         }
       });
     }
@@ -83,6 +86,21 @@ class HomeScreenState extends State<HomeScreen>
       context,
       MaterialPageRoute(builder: (_) => AccountScreen(accounts: accounts)),
     );
+  }
+
+  // A verification or reset email brought the person back to the app.
+  Future<void> _finishAccountLink(String mode, String code) async {
+    final accounts = RoomBackendScope.of(context).accounts;
+    if (accounts == null) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (_) =>
+                AccountActionScreen(accounts: accounts, mode: mode, code: code),
+      ),
+    );
+    if (mounted) setState(() {});
   }
 
   @override

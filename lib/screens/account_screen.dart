@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../services/account_service.dart';
 import 'create_account_screen.dart';
+import 'forgot_password_screen.dart';
 import 'help_links.dart';
 import 'main_shell.dart';
 
@@ -25,6 +26,11 @@ String accountErrorMessage(FirebaseAuthException error) {
     'credential-already-in-use':
         'This credential belongs to another account. Your guest session is unchanged.',
     'weak-password': 'That password is too weak. Use at least 12 characters.',
+    'password-does-not-meet-requirements':
+        'That password is too weak. Use at least 12 characters.',
+    'expired-action-code': 'This link has expired. Ask for a new one.',
+    'invalid-action-code':
+        'This link has already been used or is incomplete. Ask for a new one.',
     'invalid-email': 'Enter a valid email address.',
     'user-disabled': 'This account has been disabled.',
     'too-many-requests': 'Too many attempts. Please wait and try again.',
@@ -443,22 +449,16 @@ class _AccountScreenState extends State<AccountScreen> {
           onPressed:
               busy
                   ? null
-                  : () {
-                    if (email.text.trim().isEmpty) {
-                      setState(
-                        () =>
-                            message =
-                                'Enter your email above, then press Forgot password.',
-                      );
-                      return;
-                    }
-                    perform(
-                      () => accounts.resetPassword(email.text),
-                      local
-                          ? 'If an account exists, password reset instructions are available in the local Auth emulator.'
-                          : 'If an account exists for that email, a password reset email is on its way.',
-                    );
-                  },
+                  : () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder:
+                          (_) => ForgotPasswordScreen(
+                            accounts: accounts,
+                            email: email.text,
+                          ),
+                    ),
+                  ),
           child: const Text('Forgot password?'),
         ),
       ),

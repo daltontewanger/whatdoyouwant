@@ -14,6 +14,7 @@ import 'services/account_service.dart';
 import 'services/active_room_store.dart';
 import 'services/callable_room_backend.dart';
 import 'services/error_reporter.dart';
+import 'services/site_links.dart';
 import 'themes/main_theme.dart';
 
 class _StagingDebugTokens {
@@ -64,6 +65,16 @@ Future<void> main() async {
   final accounts = AccountService(
     FirebaseAuth.instance,
     usesStaging: true,
+    mailDomainCheck:
+        (domain) async =>
+            (await FirebaseFunctions.instance
+                .httpsCallable('checkEmailDomain')
+                .call({'domain': domain})).data['deliverable'] !=
+            false,
+    returnTo: accountReturnLink(
+      Firebase.app().options.projectId,
+      current: kIsWeb ? Uri.base : null,
+    ),
     googleEnabled: true,
     deleteOnServer:
         () => FirebaseFunctions.instance.httpsCallable('deleteAccount').call(),

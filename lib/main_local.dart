@@ -48,6 +48,14 @@ Future<void> main() async {
   final accounts = AccountService(
     FirebaseAuth.instance,
     usesEmulator: true,
+    mailDomainCheck:
+        (domain) async =>
+            (await FirebaseFunctions.instance
+                .httpsCallable('checkEmailDomain')
+                .call({'domain': domain})).data['deliverable'] !=
+            false,
+    // Served from the root during local development.
+    returnTo: kIsWeb ? Uri.parse('${Uri.base.origin}/account') : null,
     googleEnabled: true,
     deleteOnServer:
         () => FirebaseFunctions.instance.httpsCallable('deleteAccount').call(),

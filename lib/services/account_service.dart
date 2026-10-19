@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
+import 'password_policy.dart';
+
 class AccountService {
   final FirebaseAuth auth;
 
@@ -19,9 +21,19 @@ class AccountService {
   /// Removes the account's app data and Auth user on the server. Without it,
   /// deletion only removes the Auth user.
   final Future<void> Function()? deleteOnServer;
+
+  /// Where verification and reset links bring people back to: the app's
+  /// account page, which finishes the step in the app's own style. Without
+  /// it, Firebase's plain hosted pages handle the links.
+  final Uri? returnTo;
+
+  /// Asks the backend whether an email domain can receive mail at all.
+  final Future<bool> Function(String domain)? mailDomainCheck;
   AccountService(
     this.auth, {
     this.deleteOnServer,
+    this.returnTo,
+    this.mailDomainCheck,
     this.usesEmulator = false,
     this.usesStaging = false,
     this.googleEnabled = false,
@@ -56,6 +68,20 @@ class AccountService {
     }
   }
 
+  /// False only when the address's domain clearly can't receive mail, such as
+  /// a typo like "gmial.con". Any trouble asking lets the address through:
+  /// the verification email is the real test.
+  Future<bool> canReceiveMail(String email) async {
+    final check = mailDomainCheck;
+    final at = email.trim().lastIndexOf('@');
+    if (check == null || at < 0) return true;
+    try {
+      return await check(email.trim().substring(at + 1).toLowerCase());
+    } catch (_) {
+      return true;
+    }
+  }
+
   static bool usesPassword(User user) =>
       user.providerData.any((info) => info.providerId == 'password');
 
@@ -64,7 +90,7 @@ class AccountService {
     if (user != null && !user.isAnonymous) {
       throw StateError('Sign out before creating another account.');
     }
-    if (password.length < 6) {
+    if (PasswordPolicy.problem(password, email: email.trim()) != null) {
       throw FirebaseAuthException(code: 'weak-password');
     }
     if (user?.isAnonymous == true) {
@@ -92,7 +118,32 @@ class AccountService {
     if (user == null || user.isAnonymous) {
       throw StateError('Create an account first.');
     }
-    if (!user.emailVerified) await user.sendEmailVerification();
+    if (!user.emailVerified) await user.sendEmailVerification(_returnSettings);
+  }
+
+  ActionCodeSettings? get _returnSettings =>
+      returnTo == null
+          ? null
+          : ActionCodeSettings(
+            url: returnTo.toString(),
+            // Sends the link to the app with its code instead of finishing the
+            // step on Firebase's own page.
+            handleCodeInApp: true,
+          );
+
+  /// The email a reset link is for; throws when the link is invalid,
+  /// expired or already used.
+  Future<String> checkResetLink(String code) =>
+      auth.verifyPasswordResetCode(code);
+
+  Future<void> finishReset(String code, String newPassword) =>
+      auth.confirmPasswordReset(code: code, newPassword: newPassword);
+
+  /// Applies a verification or email-recovery link, then refreshes the
+  /// signed-in account so hosting unlocks straight away.
+  Future<void> applyLink(String code) async {
+    await auth.applyActionCode(code);
+    if (auth.currentUser != null) await refreshVerification();
   }
 
   Future<void> refreshVerification() async {
@@ -103,7 +154,10 @@ class AccountService {
 
   Future<void> resetPassword(String email) async {
     try {
-      await auth.sendPasswordResetEmail(email: email.trim());
+      await auth.sendPasswordResetEmail(
+        email: email.trim(),
+        actionCodeSettings: _returnSettings,
+      );
     } on FirebaseAuthException catch (error) {
       if (error.code != 'user-not-found') rethrow;
     }
