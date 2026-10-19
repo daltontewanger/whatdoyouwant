@@ -60,6 +60,8 @@ const handlers = createRoomHandlers({
     await auth.deleteUser(uid);
   },
   log: entry => logger.info(entry),
+  // Written as is: logger.error would replace the message with this server's own stack.
+  logError: entry => logger.write({ ...entry, severity: 'ERROR' }),
 });
 
 const options = {

@@ -38,12 +38,12 @@ const newJoinCode = () => Array.from({ length: 6 }, () => CODE_ALPHABET[randomIn
 
 function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthUser,
   now = () => Date.now(), provider = createFakeProvider(), newSeed = () => randomBytes(16).toString('hex'),
-  log = () => {} }) {
+  log = () => {}, logError = log }) {
   assertProvider(provider);
   const deny = () => { throw new HttpsError('permission-denied', 'Room action unavailable.'); };
   const invalid = () => { throw new HttpsError('invalid-argument', 'Invalid request.'); };
   const expiry = ms => Timestamp.fromMillis(now() + ms);
-  const reportError = createClientErrorReporter({ now, log, invalid });
+  const reportError = createClientErrorReporter({ now, logError, invalid });
 
   function identity(request) {
     if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in first.');

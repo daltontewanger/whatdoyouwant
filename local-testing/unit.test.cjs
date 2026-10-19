@@ -28,17 +28,19 @@ test('local mode rejects production IDs, remote endpoints, missing emulator flag
 });
 
 test('app error reports are scrubbed, shape-checked and rate limited per caller', () => {
-  const { createClientErrorReporter, scrub, LIMIT_PER_HOUR } = require('../rooms/client-errors.js');
+  const { createClientErrorReporter, scrub, LIMIT_PER_HOUR, REPORTED_ERROR_EVENT } = require('../rooms/client-errors.js');
   let clock = 0;
   const logged = [];
   const invalid = () => { throw new Error('invalid'); };
-  const report = createClientErrorReporter({ now: () => clock, log: entry => logged.push(entry), invalid });
+  const report = createClientErrorReporter({ now: () => clock, logError: entry => logged.push(entry), invalid });
 
   report('u1', { message: 'Bad state for pat@example.com near 38.50123,-98.51234', build: 7,
     stack: 'at main (https://getwhatdoyouwant.app/app/main.dart.js?v=1#x:10:5)' });
-  assert.deepEqual(logged[0], { event: 'client_error', build: 7, fatal: false,
-    message: 'Bad state for [email] near [number],[number]',
-    stack: 'at main (https://getwhatdoyouwant.app/app/main.dart.js)' });
+  assert.deepEqual(logged[0], { '@type': REPORTED_ERROR_EVENT, serviceContext: { service: 'app', version: '7' },
+    message: 'Bad state for [email] near [number],[number]\nat main (https://getwhatdoyouwant.app/app/main.dart.js)',
+    event: 'client_error', build: 7, fatal: false });
+  report('u3', { message: 'no trace', build: 7 });
+  assert.equal(logged.at(-1).message, 'no trace', 'without a stack the message stands alone');
   assert.equal(logged[0].uid, undefined);
   assert.equal(scrub('x'.repeat(900), 500).length, 500);
 

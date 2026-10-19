@@ -1,6 +1,10 @@
-// Errors the web app reports about itself. They are only logged, kept as long
-// as other server logs, and scrubbed first: no account ID, no query strings,
-// nothing that looks like an email address or a map coordinate.
+// Errors the app reports about itself. They are only logged, kept as long as
+// other server logs, and scrubbed first: no account ID, no query strings,
+// nothing that looks like an email address or a map coordinate. The entry is
+// shaped as an Error Reporting event, so reports are grouped there and new
+// kinds of error can send an email.
+const REPORTED_ERROR_EVENT = 'type.googleapis.com/google.devtools.clouderrorreporting.v1beta1.ReportedErrorEvent';
+const SERVICE = 'app';
 const LIMIT_PER_HOUR = 10;
 const HOUR_MS = 60 * 60 * 1000;
 const TRACKED_CALLERS = 5000;
@@ -13,7 +17,7 @@ function scrub(text, max) {
     .slice(0, max);
 }
 
-function createClientErrorReporter({ now, log, invalid }) {
+function createClientErrorReporter({ now, logError, invalid }) {
   // Per instance, which is enough to stop one browser stuck in an error loop
   // from filling the logs; the function's instance cap bounds the rest.
   const recent = new Map();
@@ -38,9 +42,17 @@ function createClientErrorReporter({ now, log, invalid }) {
       if (recent.size >= TRACKED_CALLERS) recent.clear();
       recent.set(uid, { since: at, count: 1 });
     }
-    log({ event: 'client_error', build, fatal, message: scrub(message, 500), stack: scrub(stack, 4000) });
+    const text = scrub(message, 500);
+    const trace = scrub(stack, 4000);
+    logError({
+      '@type': REPORTED_ERROR_EVENT,
+      serviceContext: { service: SERVICE, version: String(build) },
+      // Error Reporting groups by the message, which reads best with the stack after it.
+      message: trace ? `${text}\n${trace}` : text,
+      event: 'client_error', build, fatal,
+    });
     return { accepted: true };
   };
 }
 
-module.exports = { createClientErrorReporter, scrub, LIMIT_PER_HOUR };
+module.exports = { createClientErrorReporter, scrub, LIMIT_PER_HOUR, REPORTED_ERROR_EVENT };
