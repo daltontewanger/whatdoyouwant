@@ -4,11 +4,11 @@ const { createRequire } = require('node:module');
 const { PROJECT, assertLocalEnvironment } = require('../support.cjs');
 assertLocalEnvironment(process.env);
 require('../network-guard.cjs').installHttpGuard();
-const fromFunctions = createRequire(require.resolve('../../functions/package.json'));
-const { Firestore, Timestamp, FieldValue } = fromFunctions('firebase-admin/firestore');
-const { initializeApp } = fromFunctions('firebase-admin/app');
-const { getAuth } = fromFunctions('firebase-admin/auth');
-const { onCall, HttpsError } = fromFunctions('firebase-functions/v2/https');
+const fromRooms = createRequire(require.resolve('../../rooms/package.json'));
+const { Firestore, Timestamp, FieldValue } = fromRooms('firebase-admin/firestore');
+const { initializeApp } = fromRooms('firebase-admin/app');
+const { getAuth } = fromRooms('firebase-admin/auth');
+const { onCall, HttpsError } = fromRooms('firebase-functions/v2/https');
 const { createRoomHandlers, CALLABLES } = require('../../rooms/handlers.js');
 
 const db = new Firestore({ projectId: PROJECT, host: '127.0.0.1:8080', ssl: false });

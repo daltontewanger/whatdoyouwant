@@ -4,8 +4,8 @@ const { createRequire } = require('node:module');
 const { assertLocalEnvironment, PROJECT } = require('../support.cjs');
 const { authorize } = require('./authorization.cjs');
 assertLocalEnvironment(process.env);
-const fromFunctions = createRequire(require.resolve('../../functions/package.json'));
-const { Firestore, Timestamp, FieldValue } = fromFunctions('firebase-admin/firestore');
+const fromRooms = createRequire(require.resolve('../../rooms/package.json'));
+const { Firestore, Timestamp, FieldValue } = fromRooms('firebase-admin/firestore');
 const db = new Firestore({ projectId: PROJECT, host: '127.0.0.1:8080', ssl: false });
 const base = `http://127.0.0.1:8080/v1/projects/${PROJECT}/databases/(default)/documents`;
 // Unsigned claims are accepted ONLY by the emulator. They are not real logins.

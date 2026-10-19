@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -29,7 +29,6 @@ check(JSON.stringify(stagingConfig.functions) === JSON.stringify([{ source: 'roo
   disallowLegacyRuntimeConfig: true, ignore: ['node_modules', '.git', 'firebase-debug.log', '*.local'] }]),
   'staging deploys only the rooms codebase');
 // The room callables must never reach production through its config.
-check(!JSON.stringify(json('firebase.json')).includes('rooms'), 'production config excludes the rooms codebase');
 const roomsEntry = readFileSync(resolve(root, 'rooms/index.js'), 'utf8');
 const roomProjects = [...roomsEntry.slice(roomsEntry.indexOf('const PROJECTS = {'), roomsEntry.indexOf('const project ='))
   .matchAll(/^  '([a-z0-9-]+)': \{/gm)].map(match => match[1]);
@@ -67,7 +66,7 @@ for (const value of [local.project_info.project_id, local.project_info.project_n
 check(/^A[\w-]{38}$/.test(localClient.api_key[0].current_key), 'local Android API key format');
 const localLaunch = json('.vscode/launch.json').configurations.find(c => c.name === 'Local app - Android emulator');
 check(localLaunch?.program === 'lib/main_local.dart' && localLaunch.toolArgs[localLaunch.toolArgs.indexOf('--flavor') + 1] === 'local', 'local VS Code launch');
-check(!Object.hasOwn(json('firebase.json'), 'emulators'), 'emulators use dedicated local configurations');
+check(!existsSync(resolve(root, 'firebase.json')), 'no legacy default config for the CLI to pick up');
 check(!/FIREBASE_APPCHECK_DEBUG_TOKEN\s*=/.test(readFileSync(resolve(root, 'web/index.html'), 'utf8')), 'web entry does not enable App Check debug');
 // No workflow builds the app with the HERE credential; it lives only in the server secret.
 for (const workflow of readdirSync(resolve(root, '.github/workflows'))) {

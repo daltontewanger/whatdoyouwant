@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, mkdirSync, writeFileSync, symlinkSync, realpathSync } from 'node:fs';
+import { existsSync, readFileSync, mkdirSync, writeFileSync, symlinkSync, realpathSync, lstatSync, unlinkSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, delimiter, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,17 +7,17 @@ import net from 'node:net';
 import { createInterface } from 'node:readline';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const mode = process.argv[2] || 'start';
-if (!['start', 'test', 'unit', 'policy', 'preview'].includes(mode)) {
-  throw new Error('Usage: node scripts/local.mjs [start|test|unit|policy|preview]');
+const mode = process.argv[2] || 'preview';
+if (!['unit', 'policy', 'preview'].includes(mode)) {
+  throw new Error('Usage: node scripts/local.mjs [preview|policy|unit]');
 }
 if (![22, 24].includes(Number(process.versions.node.split('.')[0]))) {
   throw new Error('Local tooling requires Node 22 or 24. Use Node 22 to match the declared Functions runtime.');
 }
-const require = createRequire(join(root, 'functions/package.json'));
+const require = createRequire(join(root, 'rooms/package.json'));
 for (const dependency of ['firebase-functions', 'firebase-admin']) {
   try { require.resolve(dependency); } catch {
-    throw new Error(`Missing ${dependency}. Restore the existing Functions lockfile with npm ci --prefix functions first.`);
+    throw new Error(`Missing ${dependency}. Restore the rooms lockfile with npm ci --prefix rooms first.`);
   }
 }
 const env = { ...process.env };
@@ -57,8 +57,7 @@ function run(args) {
 if (mode === 'unit') {
   run(['--test', 'local-testing/unit.test.cjs']);
 } else {
-  const candidate = ['policy', 'preview'].includes(mode);
-  const configFile = candidate ? 'firebase.phase1.emulators.json' : 'firebase.emulators.json';
+  const configFile = 'firebase.phase1.emulators.json';
   const config = JSON.parse(readFileSync(join(root, configFile), 'utf8'));
   for (const [service, port] of Object.entries({ auth: 9099, firestore: 8080, functions: 5001 })) {
     if (config.emulators[service]?.host !== '127.0.0.1' || config.emulators[service]?.port !== port) {
@@ -88,26 +87,31 @@ if (mode === 'unit') {
   // Isolated discovery entry: never scan production index.js or its secret bindings.
   const generated = join(root, 'build/local-functions');
   mkdirSync(generated, { recursive: true });
-  const manifest = JSON.parse(readFileSync(join(root, 'functions/package.json'), 'utf8'));
+  const manifest = JSON.parse(readFileSync(join(root, 'rooms/package.json'), 'utf8'));
   writeFileSync(join(generated, 'package.json'), JSON.stringify({
     name: 'local-functions-only', private: true, main: 'index.js',
     engines: { node: process.versions.node.split('.')[0] }, dependencies: manifest.dependencies,
   }, null, 2));
-  writeFileSync(join(generated, 'index.js'), candidate
-    // CLI discovery may inject its own ADC file path. The local entry never needs it.
-    ? "delete process.env.GOOGLE_APPLICATION_CREDENTIALS;\nmodule.exports = require('../../local-testing/phase1/functions-entry.cjs');\n"
-    : "module.exports = require('../../local-testing/functions-entry.cjs');\n");
+  // CLI discovery may inject its own ADC file path. The local entry never needs it.
+  writeFileSync(join(generated, 'index.js'),
+    "delete process.env.GOOGLE_APPLICATION_CREDENTIALS;\nmodule.exports = require('../../local-testing/phase1/functions-entry.cjs');\n");
   const modules = join(generated, 'node_modules');
-  const sourceModules = join(root, 'functions/node_modules');
-  if (!existsSync(modules)) symlinkSync(sourceModules, modules, process.platform === 'win32' ? 'junction' : 'dir');
+  const sourceModules = join(root, 'rooms/node_modules');
+  // Older checkouts linked the retired functions/ packages here; relink to the rooms ones.
+  let link = null;
+  try { link = lstatSync(modules); } catch { /* not linked yet */ }
+  if (link?.isSymbolicLink() && (!existsSync(modules) || realpathSync(modules) !== realpathSync(sourceModules))) {
+    unlinkSync(modules);
+    link = null;
+  }
+  if (!link) symlinkSync(sourceModules, modules, process.platform === 'win32' ? 'junction' : 'dir');
   if (realpathSync(modules) !== realpathSync(sourceModules)) throw new Error('Unexpected local dependency link; inspect build/local-functions/node_modules.');
   console.log('Local demo project only; HERE fixtures; no production App Check or secret access.');
-  console.log(candidate ? 'LOCAL-ONLY Phase 1 permissions and callable endpoints; no cloud deployment.' : 'Owner-supplied room rules are OPEN. These tests characterize current behavior, not a release policy.');
-  console.log(`Functions declares Node ${manifest.engines.node}; local tests use Node ${process.versions.node}. No cloud runtime is changed.`);
-  const args = [cli, ['test', 'policy'].includes(mode) ? 'emulators:exec' : 'emulators:start',
+  console.log('LOCAL-ONLY room rules and callables; no cloud deployment.');
+  console.log(`Rooms declares Node ${manifest.engines.node}; local tests use Node ${process.versions.node}. No cloud runtime is changed.`);
+  const args = [cli, mode === 'policy' ? 'emulators:exec' : 'emulators:start',
     '--config', configFile, '--project', 'demo-whatdoyouwant',
     '--only', 'auth,firestore,functions'];
-  if (mode === 'test') args.push('node --test --test-concurrency=1 local-testing/unit.test.cjs local-testing/emulator.test.cjs');
   if (mode === 'policy') args.push('node --test --test-concurrency=1 local-testing/phase1/permissions.test.cjs local-testing/phase1/accounts.test.cjs local-testing/phase1/endpoints.test.cjs local-testing/phase1/quota.test.cjs');
   run(args);
 }

@@ -55,7 +55,6 @@ if (deploysBackend) {
   step('Restore rooms dependencies from the lockfile', 'npm', ['ci', '--prefix', 'rooms', '--no-audit', '--no-fund']);
 }
 if (!skipTests) {
-  step('Restore functions dependencies from the lockfile', 'npm', ['ci', '--prefix', 'functions', '--no-audit', '--no-fund']);
   step('Unit tests', 'npm', ['run', 'test:unit']);
   step('Room rules and callable tests (local emulators)', 'npm', ['run', 'test:policy']);
 }
