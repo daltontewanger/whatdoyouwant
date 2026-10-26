@@ -20,19 +20,38 @@ String siteOrigin(String projectId, {Uri? current}) {
 Uri joinLink(String origin, String joinCode) =>
     Uri.parse('$origin/app/join/$joinCode');
 
+/// Where verification and reset emails bring people back to: the account
+/// page of the app on this project's site.
+Uri accountReturnLink(String projectId, {Uri? current}) =>
+    Uri.parse('${siteOrigin(projectId, current: current)}/app/account');
+
 /// A page of the site, such as `/privacy`.
 Uri sitePageLink(String origin, String path) => Uri.parse('$origin$path');
 
 /// What an app address asks the app to open.
-enum AppLinkTarget { host, join, account }
+enum AppLinkTarget { host, join, account, accountAction }
+
+/// The account steps an emailed link can finish in the app. Every Firebase
+/// email links to the account page, so any other step still arrives there
+/// and gets a friendly page instead of being ignored.
+const accountActionModes = {
+  'verifyEmail',
+  'resetPassword',
+  'recoverEmail',
+  'verifyAndChangeEmail',
+};
 
 class AppLink {
-  const AppLink(this.target, {this.joinCode});
+  const AppLink(this.target, {this.joinCode, this.mode, this.code});
 
   final AppLinkTarget target;
 
   /// Set when a join link carries the room's code.
   final String? joinCode;
+
+  /// For an emailed account link: what it does and its one-time code.
+  final String? mode;
+  final String? code;
 }
 
 bool _launchLinkTaken = false;
@@ -45,12 +64,25 @@ AppLink? takeLaunchLink(Uri uri) {
   return appLinkFrom(uri);
 }
 
-/// Reads `/app/host`, `/app/join`, `/app/join/<code>` and `/app/account`. The
+/// Reads `/app/host`, `/app/join`, `/app/join/<code>`, `/app/account` and
+/// emailed account links (`/app/account?mode=…&oobCode=…`). The
 /// app is served from `/app` on the site and from the root during local
 /// development.
 AppLink? appLinkFrom(Uri uri) {
   final segments = [...uri.pathSegments.where((part) => part.isNotEmpty)];
   if (segments.isNotEmpty && segments.first == 'app') segments.removeAt(0);
+  // Verification and reset emails come back to the account page with the
+  // step and its one-time code.
+  final mode = uri.queryParameters['mode'];
+  final code = uri.queryParameters['oobCode'];
+  if ((segments.isEmpty ||
+          (segments.length == 1 && segments.first == 'account')) &&
+      mode != null &&
+      mode.isNotEmpty &&
+      code != null &&
+      code.isNotEmpty) {
+    return AppLink(AppLinkTarget.accountAction, mode: mode, code: code);
+  }
   if (segments.length == 2 && segments.first == 'join') {
     final code = segments[1].toUpperCase();
     if (RegExp(r'^[A-HJKMNP-Z2-9]{6}$').hasMatch(code)) {

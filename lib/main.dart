@@ -14,6 +14,7 @@ import 'services/account_service.dart';
 import 'services/active_room_store.dart';
 import 'services/callable_room_backend.dart';
 import 'services/error_reporter.dart';
+import 'services/site_links.dart';
 import 'services/room_backend.dart';
 import 'themes/main_theme.dart';
 
@@ -44,6 +45,16 @@ Future<void> main() async {
     // also need their signing fingerprints registered, so there it stays
     // behind a build flag until that is done.
     googleEnabled: kIsWeb || const bool.fromEnvironment('GOOGLE_SIGN_IN'),
+    mailDomainCheck:
+        (domain) async =>
+            (await FirebaseFunctions.instance
+                .httpsCallable('checkEmailDomain')
+                .call({'domain': domain})).data['deliverable'] !=
+            false,
+    returnTo: accountReturnLink(
+      Firebase.app().options.projectId,
+      current: kIsWeb ? Uri.base : null,
+    ),
     deleteOnServer:
         () => FirebaseFunctions.instance.httpsCallable('deleteAccount').call(),
   );

@@ -63,4 +63,47 @@ void main() {
       'https://whatdoyouwant.example/privacy',
     );
   });
+
+  test('emailed account links open the account step with their code', () {
+    final link = appLinkFrom(
+      Uri.parse(
+        'https://getwhatdoyouwant.app/app/account?mode=resetPassword&oobCode=abc123&apiKey=k&lang=en',
+      ),
+    );
+    expect(link?.target, AppLinkTarget.accountAction);
+    expect(link?.mode, 'resetPassword');
+    expect(link?.code, 'abc123');
+    expect(
+      appLinkFrom(
+        Uri.parse('http://localhost:5080/?mode=verifyEmail&oobCode=x'),
+      )?.mode,
+      'verifyEmail',
+    );
+    // Steps the app doesn't offer still reach the account step, which says
+    // the link can't be used here.
+    expect(
+      appLinkFrom(
+        Uri.parse(
+          'https://getwhatdoyouwant.app/app/account?mode=revertSecondFactorAddition&oobCode=x',
+        ),
+      )?.mode,
+      'revertSecondFactorAddition',
+    );
+    // Missing codes and other pages are left alone.
+    for (final address in [
+      'https://getwhatdoyouwant.app/app/account?mode=resetPassword',
+      'https://getwhatdoyouwant.app/app/account?oobCode=x',
+      'https://getwhatdoyouwant.app/app/join/AB3K7X?mode=verifyEmail&oobCode=x',
+    ]) {
+      expect(
+        appLinkFrom(Uri.parse(address))?.target,
+        isNot(AppLinkTarget.accountAction),
+        reason: address,
+      );
+    }
+    expect(
+      accountReturnLink('whatdoyouwant-staging').toString(),
+      'https://staging.getwhatdoyouwant.app/app/account',
+    );
+  });
 }

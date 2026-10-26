@@ -62,7 +62,10 @@ class FakeUser extends Fake implements User {
   @override
   Future<void> sendEmailVerification([ActionCodeSettings? settings]) async {
     calls.add('verify');
+    verifySettings = settings;
   }
+
+  ActionCodeSettings? verifySettings;
 
   @override
   Future<void> reload() async {
@@ -109,6 +112,12 @@ class FakeAuth extends Fake implements FirebaseAuth {
   int providerSignIns = 0;
   int emailSignIns = 0;
   String? resetError;
+  ActionCodeSettings? resetSettings;
+  String? resetSentTo;
+  // One-time codes from emailed links, and what they belong to.
+  final resetCodes = <String, String>{};
+  final applyCodes = <String>{};
+  final changedPasswords = <String, String>{};
   String? signInError;
   bool signInVerified = false;
   final _changes = StreamController<User?>.broadcast();
@@ -176,6 +185,32 @@ class FakeAuth extends Fake implements FirebaseAuth {
     ActionCodeSettings? actionCodeSettings,
   }) async {
     if (resetError != null) throw FirebaseAuthException(code: resetError!);
+    resetSentTo = email;
+    resetSettings = actionCodeSettings;
+  }
+
+  @override
+  Future<String> verifyPasswordResetCode(String code) async {
+    final email = resetCodes[code];
+    if (email == null) throw FirebaseAuthException(code: 'invalid-action-code');
+    return email;
+  }
+
+  @override
+  Future<void> confirmPasswordReset({
+    required String code,
+    required String newPassword,
+  }) async {
+    final email = resetCodes.remove(code);
+    if (email == null) throw FirebaseAuthException(code: 'expired-action-code');
+    changedPasswords[email] = newPassword;
+  }
+
+  @override
+  Future<void> applyActionCode(String code) async {
+    if (!applyCodes.remove(code)) {
+      throw FirebaseAuthException(code: 'invalid-action-code');
+    }
   }
 }
 
@@ -425,7 +460,7 @@ void main() {
     });
   });
   test(
-    'signed-out registration rejects short passwords and accepts six characters',
+    'signed-out registration rejects weak passwords and accepts a passphrase',
     () async {
       final auth = FakeAuth(null);
       await expectLater(
@@ -439,7 +474,17 @@ void main() {
         ),
       );
       expect(auth.creates, 0);
-      await AccountService(auth).register('fixture@example.test', '123456');
+      await expectLater(
+        AccountService(
+          auth,
+        ).register('fixture@example.test', 'fixture-2026-pass'),
+        throwsA(isA<FirebaseAuthException>()),
+        reason: "a password built on the email's name is refused",
+      );
+      expect(auth.creates, 0);
+      await AccountService(
+        auth,
+      ).register('fixture@example.test', 'blue kettle morning');
       expect(auth.creates, 1);
     },
   );
@@ -450,7 +495,7 @@ void main() {
       final auth = FakeAuth(user);
       await AccountService(
         auth,
-      ).register('fixture@example.test', 'local-fixture-only');
+      ).register('fixture@example.test', 'blue kettle morning');
       expect(user.calls, ['link']);
       expect(auth.creates, 0);
       expect(auth.currentUser, same(user));

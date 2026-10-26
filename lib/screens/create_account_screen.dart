@@ -1,8 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../services/account_service.dart';
+import '../services/email_address.dart';
 import '../services/password_policy.dart';
 import 'account_screen.dart';
+import 'checked_field.dart';
 
 /// Sign-up on its own screen so it is clear an account is being made. A guest
 /// keeps their identity: the new email account is linked to the guest session.
@@ -21,11 +23,31 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   final repeat = TextEditingController();
   bool busy = false;
   bool showPasswords = false;
+  // Set by a submit, so every field shows what still needs fixing.
+  bool submitted = false;
+  // What the server said, such as an address that is already registered.
   String message = '';
+  // An address whose domain the backend said can't receive mail.
+  String? undeliverable;
 
-  // An old complaint shouldn't linger once the person starts fixing it.
-  void edited(String _) {
-    if (message.isNotEmpty) setState(() => message = '');
+  String? emailCheck(String text) {
+    final shape = emailProblem(text);
+    if (shape != null) return shape;
+    return text.trim().toLowerCase() == undeliverable
+        ? "That email's domain can't receive mail. Check it for typos."
+        : null;
+  }
+
+  /// Asks whether the domain takes mail; returns false and flags the field
+  /// when it clearly doesn't.
+  Future<bool> checkDomain(String text) async {
+    if (emailProblem(text) != null) return true;
+    final address = text.trim().toLowerCase();
+    final ok = await widget.accounts.canReceiveMail(address);
+    if (mounted && email.text.trim().toLowerCase() == address) {
+      setState(() => undeliverable = ok ? null : address);
+    }
+    return ok;
   }
 
   @override
@@ -36,21 +58,26 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     super.dispose();
   }
 
-  String? problem() {
-    if (email.text.trim().isEmpty) return 'Enter your email address.';
-    final weak = PasswordPolicy.problem(
-      password.text,
-      email: email.text.trim(),
-    );
-    if (weak != null) return weak;
-    if (password.text != repeat.text) return 'The passwords do not match.';
-    return null;
+  String? passwordProblem(String text) =>
+      PasswordPolicy.problem(text, email: email.text.trim());
+
+  String? repeatProblem(String text) {
+    if (text.isEmpty) return 'Enter the password again.';
+    return text == password.text ? null : 'The passwords do not match.';
   }
 
+  // Any edit can change another field's verdict (the email name inside the
+  // password, or the repeat against the password), and an old server
+  // complaint shouldn't linger once the person starts fixing things.
+  void edited(String _) => setState(() => message = '');
+
   Future<void> create() async {
-    final issue = problem();
-    if (issue != null) {
-      setState(() => message = issue);
+    // A double click can land before the button disables itself.
+    if (busy) return;
+    if (emailCheck(email.text) != null ||
+        passwordProblem(password.text) != null ||
+        repeatProblem(repeat.text) != null) {
+      setState(() => submitted = true);
       return;
     }
     setState(() {
@@ -58,6 +85,10 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
       message = '';
     });
     try {
+      if (!await checkDomain(email.text)) {
+        if (mounted) setState(() => submitted = true);
+        return;
+      }
       await widget.accounts.register(email.text, password.text);
       try {
         await widget.accounts.sendVerification();
@@ -104,52 +135,50 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
-                TextField(
+                CheckedField(
                   controller: email,
+                  label: 'Email',
+                  check: emailCheck,
+                  showError: submitted,
                   enabled: !busy,
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
                   autofillHints: const [AutofillHints.email],
-                  autocorrect: false,
-                  decoration: const InputDecoration(labelText: 'Email'),
+                  onChanged: edited,
+                  onLeft: checkDomain,
                 ),
                 const SizedBox(height: 8),
-                TextField(
+                CheckedField(
                   controller: password,
+                  label: 'Password',
+                  check: passwordProblem,
+                  showError: submitted,
                   enabled: !busy,
-                  onChanged: edited,
                   obscureText: !showPasswords,
-                  autocorrect: false,
-                  enableSuggestions: false,
                   textInputAction: TextInputAction.next,
                   autofillHints: const [AutofillHints.newPassword],
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    helperText: PasswordPolicy.hint,
-                    helperMaxLines: 2,
-                    suffixIcon: visibility,
-                  ),
+                  helperText: PasswordPolicy.hint,
+                  suffixIcon: visibility,
+                  onChanged: edited,
                 ),
                 const SizedBox(height: 8),
-                TextField(
+                CheckedField(
                   controller: repeat,
+                  label: 'Re-enter password',
+                  check: repeatProblem,
+                  showError: submitted,
                   enabled: !busy,
-                  onChanged: edited,
                   obscureText: !showPasswords,
-                  autocorrect: false,
-                  enableSuggestions: false,
                   textInputAction: TextInputAction.done,
                   // On the web a field without a hint inside an autofill group
                   // loses its input after the form rebuilds and stops taking
                   // typing; password managers also expect the confirmation to
                   // be marked as a new password.
                   autofillHints: const [AutofillHints.newPassword],
+                  onChanged: edited,
                   onSubmitted: (_) {
                     if (!busy) create();
                   },
-                  decoration: const InputDecoration(
-                    labelText: 'Re-enter password',
-                  ),
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton(

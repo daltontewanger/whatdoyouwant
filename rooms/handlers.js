@@ -38,7 +38,10 @@ const newJoinCode = () => Array.from({ length: 6 }, () => CODE_ALPHABET[randomIn
 
 function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthUser,
   now = () => Date.now(), provider = createFakeProvider(), newSeed = () => randomBytes(16).toString('hex'),
-  log = () => {}, logError = log }) {
+  log = () => {}, logError = log,
+  // Emulators and tests accept every domain, so local sign-ups (example.test)
+  // work offline; the deployed entry supplies the real DNS check.
+  canReceiveMail = async () => true }) {
   assertProvider(provider);
   const deny = () => { throw new HttpsError('permission-denied', 'Room action unavailable.'); };
   const invalid = () => { throw new HttpsError('invalid-argument', 'Invalid request.'); };
@@ -336,6 +339,15 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
 
     // Whether this build of the app is too old to use. Purely a courtesy to
     // people on old installs; every callable still validates its own input.
+    // Asked before sign-up: can the address's domain receive mail at all?
+    // Takes only the domain, so the address itself never reaches the server.
+    async checkEmailDomain(request) {
+      const actor = identity(request);
+      const { domain } = input(request, { domain: /^[^\s@]{1,253}$/ });
+      await limit(actor.uid, 'email-domain', 30, 60000);
+      return { deliverable: await canReceiveMail(domain) };
+    },
+
     // Any signed-in session, guests included, can report an app error.
     async reportClientError(request) {
       return reportError(identity(request).uid, request.data);
@@ -537,6 +549,6 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
 
 const CALLABLES = ['createRoom', 'joinRoom', 'startRoom', 'closeRoom', 'roomResults',
   'revokeMember', 'rotateJoinCode', 'deleteAccount', 'liveSearchStatus', 'createQuickPick', 'rerollQuickPick',
-  'appStatus', 'reportClientError'];
+  'appStatus', 'reportClientError', 'checkEmailDomain'];
 
 module.exports = { createRoomHandlers, CALLABLES, CODE_ALPHABET, CAPACITY };
