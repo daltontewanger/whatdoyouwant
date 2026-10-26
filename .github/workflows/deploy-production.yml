@@ -1,0 +1,90 @@
+name: Deploy to production
+
+# Started by hand only, from main. The "production" environment holds the
+# deploy settings and requires the owner's approval before the job can run.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Dry run only (nothing is deployed)
+        type: boolean
+        default: true
+      only:
+        description: What to deploy
+        type: choice
+        default: all
+        options:
+          - all
+          - site
+          - backend
+          - functions
+
+permissions:
+  contents: read
+  # Lets the job exchange GitHub's short-lived token for Google credentials.
+  id-token: write
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: ${{ inputs.only }} to what-do-you-want-8a404
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            rooms/package-lock.json
+
+      # The deploy script runs the room emulator tests first; Firestore needs a JDK.
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # The site deploy builds the web app.
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        if: inputs.only == 'all' || inputs.only == 'site'
+        with:
+          flutter-version: 3.47.6
+          channel: stable
+          cache: true
+
+      - name: Restore packages from the lockfiles
+        run: |
+          npm ci --no-audit --no-fund
+          if [ "${{ inputs.only }}" = all ] || [ "${{ inputs.only }}" = site ]; then
+            flutter pub get --enforce-lockfile
+          fi
+
+      # The web engine's fallback fonts are mirrored into the app; keep them
+      # between runs instead of fetching all of them every time.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: inputs.only == 'all' || inputs.only == 'site'
+        with:
+          path: build/font-cache
+          key: fallback-fonts-flutter-3.47.6
+
+      # Workload Identity Federation: no service account key is stored anywhere.
+      # The production environment's variables override the repository's
+      # staging ones.
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Deploy (or dry run)
+        run: >-
+          npm run deploy:production -- --confirm what-do-you-want-8a404
+          ${{ inputs.only != 'all' && format('--only {0}', inputs.only) || '' }}
+          ${{ inputs.dry_run && '--dry-run' || '' }}
