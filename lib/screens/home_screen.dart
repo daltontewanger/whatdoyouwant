@@ -221,7 +221,7 @@ class HomeScreenState extends State<HomeScreen>
   Future<void> _createRoom() async {
     final scope = RoomBackendScope.of(context);
     final messenger = ScaffoldMessenger.of(context);
-    if (scope.backend.requiresVerifiedHost && !_verifiedHost) {
+    if (!_verifiedHost) {
       // Hosts need a verified account; guests can still join without one.
       // Signing in lands back here on home rather than in a new room.
       await _openAccount();

@@ -21,8 +21,6 @@ class ResultsScreen extends StatefulWidget {
 class ResultsScreenState extends State<ResultsScreen> {
   Stream<RoomState>? _roomStream;
   late RoomBackend _backend;
-  bool _closedOnce = false;
-  Timer? _kickTimer;
   ResultNudges? _nudges;
 
   @override
@@ -32,22 +30,11 @@ class ResultsScreenState extends State<ResultsScreen> {
     _backend = RoomBackendScope.of(context).backend;
     _roomStream = _backend.watch(widget.roomCode);
 
-    if (_backend.clientClosesRooms) {
-      // Client-closed rooms also time out idle voters on each nudge, so they
-      // keep the frequent kick until results are ready.
-      _kickTimer = Timer.periodic(const Duration(seconds: 6), (_) async {
-        try {
-          await _backend.nudge(widget.roomCode);
-        } catch (_) {}
-      });
-    } else {
-      _nudges = ResultNudges(() => _backend.nudge(widget.roomCode))..start();
-    }
+    _nudges = ResultNudges(() => _backend.nudge(widget.roomCode))..start();
   }
 
   @override
   void dispose() {
-    _kickTimer?.cancel();
     _nudges?.stop();
     super.dispose();
   }
@@ -56,16 +43,6 @@ class ResultsScreenState extends State<ResultsScreen> {
   // notices that the room is over.
   void _returnToHome() {
     Navigator.of(context).popUntil((route) => route.isFirst);
-  }
-
-  void _closeRoomOnce() {
-    if (_closedOnce) return;
-    _closedOnce = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      try {
-        await _backend.close(widget.roomCode);
-      } catch (_) {}
-    });
   }
 
   @override
@@ -123,13 +100,7 @@ class ResultsScreenState extends State<ResultsScreen> {
                           final room = snapshot.data!;
 
                           if (!room.resultsReady) {
-                            if (_backend.clientClosesRooms) {
-                              _backend
-                                  .nudge(widget.roomCode)
-                                  .catchError((_) {});
-                            } else {
-                              _nudges?.votingEndsAt(room.votingEndsAt);
-                            }
+                            _nudges?.votingEndsAt(room.votingEndsAt);
                             return Center(
                               child: _ResultsLoader(
                                 remaining: room.remainingVoters,
@@ -138,7 +109,6 @@ class ResultsScreenState extends State<ResultsScreen> {
                             );
                           }
 
-                          _kickTimer?.cancel();
                           _nudges?.stop();
                           // Finished rooms are no longer offered on Home.
                           RoomBackendScope.of(context).activeRooms?.forget();
@@ -164,9 +134,6 @@ class ResultsScreenState extends State<ResultsScreen> {
                           }
                           final int winnerLikes = results.winnerLikes;
                           final int participantsCount = results.participants;
-
-                          // Close room once there are results
-                          if (_backend.clientClosesRooms) _closeRoomOnce();
 
                           return IntrinsicHeight(
                             child: Column(
