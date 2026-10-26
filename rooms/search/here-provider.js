@@ -16,21 +16,15 @@ const RESTAURANTS = '100-1000';
 const LIMIT = 100;
 // Placeholder until the plan's attribution terms are confirmed.
 const ATTRIBUTION = 'Restaurant data © HERE';
-// The production function's layout: four centers about five miles out.
-const MULTI_CENTER_OFFSET_METERS = 8047;
 // Response headers worth keeping: HERE's terms tie caching to its caching
 // headers, and rate limiting shows up as 429 with these.
 const KEPT_HEADERS = ['cache-control', 'expires', 'retry-after', 'x-ratelimit-limit', 'x-ratelimit-remaining',
   'x-ratelimit-reset'];
 
-const STRATEGIES = Object.freeze({
-  // One circle-constrained browse. The optional discover fallback (worst case
-  // two calls) is off by default: the 2026-10 benchmark showed it never grew a
-  // thin pool, so a deck costs exactly one call.
-  'one-circle': { maxCalls: 2 },
-  // Today's production search, kept for the benchmark comparison.
-  'multi-center': { maxCalls: 4 },
-});
+// One circle-constrained browse. The optional discover fallback (worst case
+// two calls) is off by default: the 2026-10 benchmark showed it never grew a
+// thin pool, so a deck costs exactly one call.
+const MAX_CALLS_WITH_FALLBACK = 2;
 
 const fixed = value => Number(value.toFixed(6));
 
@@ -50,13 +44,6 @@ function searchPoint(request, seed) {
 
 function circle(request) {
   return `circle:${fixed(request.origin.lat)},${fixed(request.origin.lng)};r=${request.radiusMeters}`;
-}
-
-function centersAround(origin) {
-  const dLat = MULTI_CENTER_OFFSET_METERS / 111320;
-  const dLng = MULTI_CENTER_OFFSET_METERS / (111320 * Math.cos((origin.lat * Math.PI) / 180));
-  return [[dLat, 0], [-dLat, 0], [0, dLng], [0, -dLng]]
-    .map(([lat, lng]) => ({ lat: fixed(origin.lat + lat), lng: fixed(origin.lng + lng) }));
 }
 
 function openStatusOf(item) {
@@ -101,18 +88,16 @@ function normalizeHereItem(item) {
 /**
  * @param {object} options
  * @param {(call: {endpoint: string, params: object}) => Promise<{status: number, body: any}>} options.transport
- * @param {'one-circle'|'multi-center'} [options.strategy]
  * @param {number} [options.fallbackBelow] Run the discover fallback when fewer in-radius places
  *   come back; 0 (the default) never does.
  */
-function createHereProvider({ transport, strategy = 'one-circle', fallbackBelow = 0 }) {
+function createHereProvider({ transport, fallbackBelow = 0 }) {
   if (typeof transport !== 'function') throw new Error('The HERE provider needs a transport.');
-  if (!STRATEGIES[strategy]) throw new Error(`Unknown HERE strategy ${strategy}.`);
 
   return {
     id: 'here',
-    version: `2/${strategy}${strategy === 'one-circle' && fallbackBelow > 0 ? `+fallback${fallbackBelow}` : ''}`,
-    maxCallsPerSearch: strategy === 'one-circle' && fallbackBelow <= 0 ? 1 : STRATEGIES[strategy].maxCalls,
+    version: `2/one-circle${fallbackBelow > 0 ? `+fallback${fallbackBelow}` : ''}`,
+    maxCallsPerSearch: fallbackBelow > 0 ? MAX_CALLS_WITH_FALLBACK : 1,
 
     async searchNearby(request, { seed } = {}) {
       let providerCalls = 0;
@@ -133,19 +118,13 @@ function createHereProvider({ transport, strategy = 'one-circle', fallbackBelow 
         }
       };
 
-      if (strategy === 'one-circle') {
-        const point = searchPoint(request, seed);
-        const at = `${fixed(point.lat)},${fixed(point.lng)}`;
-        const primary = await call(ENDPOINTS.browse, { at, in: circle(request), categories: RESTAURANTS });
-        const inRadius = items.filter(item => item?.resultType === 'place' && item.position &&
-          distanceMeters(request.origin, item.position) <= request.radiusMeters).length;
-        if (fallbackBelow > 0 && (!primary || inRadius < fallbackBelow)) {
-          await call(ENDPOINTS.discover, { in: circle(request), q: 'restaurant' });
-        }
-      } else {
-        for (const center of centersAround(request.origin)) {
-          await call(ENDPOINTS.discover, { at: `${center.lat},${center.lng}`, q: 'restaurant' });
-        }
+      const point = searchPoint(request, seed);
+      const at = `${fixed(point.lat)},${fixed(point.lng)}`;
+      const primary = await call(ENDPOINTS.browse, { at, in: circle(request), categories: RESTAURANTS });
+      const inRadius = items.filter(item => item?.resultType === 'place' && item.position &&
+        distanceMeters(request.origin, item.position) <= request.radiusMeters).length;
+      if (fallbackBelow > 0 && (!primary || inRadius < fallbackBelow)) {
+        await call(ENDPOINTS.discover, { in: circle(request), q: 'restaurant' });
       }
 
       if (failedCalls === providerCalls) {
@@ -178,4 +157,4 @@ function createHereTransport({ apiKey, fetchImpl = fetch, timeoutMs = 4000 }) {
   };
 }
 
-module.exports = { createHereProvider, createHereTransport, normalizeHereItem, ENDPOINTS, STRATEGIES };
+module.exports = { createHereProvider, createHereTransport, normalizeHereItem, ENDPOINTS, MAX_CALLS_WITH_FALLBACK };

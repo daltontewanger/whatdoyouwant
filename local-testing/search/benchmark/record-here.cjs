@@ -5,16 +5,15 @@
 //   node local-testing/search/benchmark/record-here.cjs --locations <file> --max-calls 150
 //   HERE_BENCHMARK_API_KEY=... node ... --locations <file> --max-calls 150 --live
 //
-// Each location costs 6 calls: one-circle browse and its discover fallback
-// (always recorded, so any fallback threshold can be replayed later) and the
-// four production multi-center discovers. Recordings go to an ignored folder
-// and stay on this machine; HERE's storage terms decide how long they may be kept.
+// Each location costs 2 calls: the browse and its discover fallback (always
+// recorded, so any fallback threshold can be replayed later). Recordings go to
+// an ignored folder and stay on this machine; HERE's storage terms decide how long they may be kept.
 const { mkdirSync, readFileSync, writeFileSync } = require('node:fs');
 const path = require('node:path');
-const { createHereProvider, createHereTransport, STRATEGIES } = require('../../../rooms/search/here-provider');
+const { createHereProvider, createHereTransport, MAX_CALLS_WITH_FALLBACK } = require('../../../rooms/search/here-provider');
 const { parseSearchRequest } = require('../../../rooms/search/request');
 
-const CALLS_PER_LOCATION = STRATEGIES['one-circle'].maxCalls + STRATEGIES['multi-center'].maxCalls;
+const CALLS_PER_LOCATION = MAX_CALLS_WITH_FALLBACK;
 const LOCATION_TYPES = ['dense-urban', 'urban', 'suburb', 'small-town', 'rural', 'coastal', 'chain-heavy',
   'independent-heavy', 'boundary'];
 const MAX_LOCATIONS = 30;
@@ -91,13 +90,11 @@ async function record({ locations, maxCalls, live, out, apiKey, fetchImpl, pause
     const calls = [];
     const request = parseSearchRequest({ origin: location.origin, radius: location.radius });
     const recorder = recordingTransport(transport, calls, budget, pauseMs);
-    // An infinite threshold makes one-circle always run its fallback.
-    for (const options of [{ strategy: 'one-circle', fallbackBelow: Infinity }, { strategy: 'multi-center' }]) {
-      try {
-        await createHereProvider({ transport: recorder, ...options }).searchNearby(request);
-      } catch {
-        // Failures are part of the measurement; the recording keeps them.
-      }
+    try {
+      // An infinite threshold always runs the fallback.
+      await createHereProvider({ transport: recorder, fallbackBelow: Infinity }).searchNearby(request);
+    } catch {
+      // Failures are part of the measurement; the recording keeps them.
     }
     const file = path.join(out, `${location.id}.json`);
     writeFileSync(file, `${JSON.stringify({ synthetic: false, recordedAt: new Date().toISOString(),

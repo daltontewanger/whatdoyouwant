@@ -2,7 +2,8 @@
 // Usage: node scripts/deploy-production.mjs --confirm what-do-you-want-8a404
 //          [--only site|backend|functions] [--dry-run] [--skip-tests]
 // Every run needs the owner's approval. Uses the Firebase CLI login of whoever
-// runs it; no key files are involved.
+// runs it, or the "Deploy to production" workflow's federated identity; no key
+// files are involved.
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,10 +14,9 @@ const PRODUCTION = 'what-do-you-want-8a404';
 const TARGETS = {
   site: 'hosting',
   backend: 'firestore:rules,firestore:indexes,functions:rooms',
-  // The room functions alone. The live app still writes to Firestore directly
-  // until the cut-over replaces it, and the room rules would lock it out; the
-  // Firestore step checks the rules even when only indexes are named, so the
-  // rules and TTLs go out together with the site.
+  // The room functions alone, for a code-only change. A change that needs a
+  // new index or rule goes out with backend: functions that query before
+  // their index exists fail until it is built.
   functions: 'functions:rooms',
 };
 const args = process.argv.slice(2);
@@ -66,7 +66,7 @@ const expectedCli = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 const actualCli = JSON.parse(readFileSync(join(root, 'node_modules/firebase-tools/package.json'), 'utf8')).version;
 if (actualCli !== expectedCli) throw new Error(`Expected Firebase CLI ${expectedCli}; found ${actualCli}. Run npm ci.`);
 
-const targets = only ? TARGETS[only] : Object.values(TARGETS).join(',');
+const targets = only ? TARGETS[only] : `${TARGETS.site},${TARGETS.backend}`;
 step(dryRun ? `Dry run against ${PRODUCTION}` : `Deploy to ${PRODUCTION}`, process.execPath, [cli, 'deploy',
   '--config', 'firebase.production.json', '--project', PRODUCTION, '--only', targets, '--non-interactive',
   ...(dryRun ? ['--dry-run'] : [])]);

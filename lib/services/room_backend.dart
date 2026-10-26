@@ -16,7 +16,6 @@ class RoomState {
     required this.restaurants,
     required this.myVoteCount,
     required this.resultsReady,
-    this.everyoneDone = false,
     this.remainingVoters,
     this.results,
     this.votedIds = const {},
@@ -41,13 +40,11 @@ class RoomState {
   /// Restaurants this person already voted on, where the backend reports them;
   /// votes cannot be changed, so a returning voter skips these.
   final Set<String> votedIds;
-  final bool everyoneDone;
   final bool resultsReady;
   final int? remainingVoters;
   final RoomResults? results;
 
-  /// When the server stops taking votes, for backends that close rooms
-  /// themselves.
+  /// When the server stops taking votes.
   final DateTime? votingEndsAt;
 }
 
@@ -83,20 +80,14 @@ class CreatedRoom {
   final String joinCode;
 }
 
-/// Everything the room screens do, so the same UI can run on the original
-/// client-managed rooms or the server-managed room callables.
+/// Everything the room screens do, so they can run on the room callables or
+/// on a fake in tests.
 abstract class RoomBackend {
-  /// Creating rooms needs a signed-in account with a verified email.
-  bool get requiresVerifiedHost;
-
   /// Starting a room uses the device location to search nearby.
   bool get usesDeviceLocation;
 
   /// Decks come from made-up test restaurants rather than a real provider.
   bool get usesFictionalRestaurants;
-
-  /// Clients close finished rooms themselves rather than the server.
-  bool get clientClosesRooms;
 
   Future<CreatedRoom> createRoom();
 
@@ -124,7 +115,6 @@ abstract class RoomBackend {
 
   /// Lets the backend settle stragglers or close a finished room.
   Future<void> nudge(String roomId);
-  Future<void> close(String roomId);
 
   /// Whether the backend no longer serves this build of the app.
   Future<bool> updateRequired(int build);

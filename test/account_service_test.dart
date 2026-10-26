@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:whatdoyouwant/services/account_service.dart';
 import 'package:whatdoyouwant/screens/account_screen.dart';
-import 'package:whatdoyouwant/screens/create_account_screen.dart';
 
 class FakeUser extends Fake implements User {
   bool anonymous = true;
@@ -215,100 +214,6 @@ class FakeAuth extends Fake implements FirebaseAuth {
 }
 
 void main() {
-  group('create account screen', () {
-    Future<FakeUser> open(WidgetTester tester, FakeAuth auth) async {
-      await tester.pumpWidget(
-        MaterialApp(home: CreateAccountScreen(accounts: AccountService(auth))),
-      );
-      await tester.pumpAndSettle();
-      return auth.user as FakeUser;
-    }
-
-    Future<void> fill(
-      WidgetTester tester,
-      String password,
-      String repeat,
-    ) async {
-      await tester.enterText(
-        find.byType(TextField).at(0),
-        'fixture@example.test',
-      );
-      await tester.enterText(find.byType(TextField).at(1), password);
-      await tester.enterText(find.byType(TextField).at(2), repeat);
-    }
-
-    testWidgets('short passwords get guidance without contacting Auth', (
-      tester,
-    ) async {
-      final auth = FakeAuth(FakeUser());
-      final user = await open(tester, auth);
-      await fill(tester, 'short words', 'short words');
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Create account'));
-      await tester.pumpAndSettle();
-      expect(
-        find.text('Use a password with at least 12 characters.'),
-        findsOneWidget,
-      );
-      expect(user.calls, isEmpty);
-      expect(auth.creates, 0);
-    });
-
-    testWidgets('mismatched passwords are caught before contacting Auth', (
-      tester,
-    ) async {
-      final auth = FakeAuth(FakeUser());
-      final user = await open(tester, auth);
-      await fill(tester, 'blue kettle morning', 'blue kettle mornink');
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Create account'));
-      await tester.pumpAndSettle();
-      expect(find.text('The passwords do not match.'), findsOneWidget);
-      expect(user.calls, isEmpty);
-    });
-
-    testWidgets('after a mismatch the repeat can be corrected and submitted', (
-      tester,
-    ) async {
-      final auth = FakeAuth(FakeUser());
-      final user = await open(tester, auth);
-      await fill(tester, 'blue kettle morning', 'blue kettle mornink');
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Create account'));
-      await tester.pumpAndSettle();
-      expect(find.text('The passwords do not match.'), findsOneWidget);
-
-      final repeat = tester.widget<TextField>(find.byType(TextField).at(2));
-      expect(repeat.enabled, isNot(false));
-      expect(repeat.maxLength, isNull, reason: 'nothing is cut short');
-      expect(repeat.autofillHints, [AutofillHints.newPassword]);
-      await tester.enterText(
-        find.byType(TextField).at(2),
-        'blue kettle morning',
-      );
-      await tester.pump();
-      expect(
-        find.text('The passwords do not match.'),
-        findsNothing,
-        reason: 'the old complaint clears once the person edits',
-      );
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Create account'));
-      await tester.pumpAndSettle();
-      expect(user.calls, ['link', 'verify']);
-    });
-
-    testWidgets(
-      'submitting the repeated password links the guest and requests verification',
-      (tester) async {
-        final auth = FakeAuth(FakeUser());
-        final user = await open(tester, auth);
-        await fill(tester, 'blue kettle morning', 'blue kettle morning');
-        await tester.testTextInput.receiveAction(TextInputAction.done);
-        await tester.pumpAndSettle();
-        expect(user.calls, ['link', 'verify']);
-        expect(auth.currentUser, same(user), reason: 'the guest UID is kept');
-        expect(find.byType(CreateAccountScreen), findsNothing);
-      },
-    );
-  });
-
   group('sign in', () {
     Future<FakeAuth> openAsGuest(WidgetTester tester) async {
       final auth = FakeAuth(FakeUser());

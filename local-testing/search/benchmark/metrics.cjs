@@ -1,17 +1,16 @@
 // Replays recorded HERE calls for one location and measures what each search
-// strategy would have produced. No network: only recorded responses are read.
+// variant would have produced. No network: only recorded responses are read.
 const { createHereProvider, ENDPOINTS } = require('../../../rooms/search/here-provider');
 const { parseSearchRequest } = require('../../../rooms/search/request');
 const { buildDeck, eligiblePool } = require('../../../rooms/search/deck');
 
 const TARGET_POOL = 15;
 
-// One-circle with and without its fallback, and today's production layout.
+// The search with and without its discover fallback.
 function variants(fallbackBelow) {
   return [
-    { name: 'one-circle, no fallback', strategy: 'one-circle', fallbackBelow: 0 },
-    { name: `one-circle, fallback < ${fallbackBelow}`, strategy: 'one-circle', fallbackBelow },
-    { name: 'multi-center (production)', strategy: 'multi-center' },
+    { name: 'one-circle, no fallback', fallbackBelow: 0 },
+    { name: `one-circle, fallback < ${fallbackBelow}`, fallbackBelow },
   ];
 }
 
@@ -19,7 +18,7 @@ const endpointName = url => Object.keys(ENDPOINTS).find(key => ENDPOINTS[key] ==
 const sameParams = (a, b) => JSON.stringify(Object.entries(a).sort()) === JSON.stringify(Object.entries(b).sort());
 
 // Serves each call from the recording, matched on endpoint and parameters, so
-// a recording made once answers every strategy that asks the same question.
+// a recording made once answers every variant that asks the same question.
 function replayTransport(recording) {
   const used = [];
   const transport = async ({ endpoint, params }) => {
@@ -38,7 +37,7 @@ const share = (part, whole) => (whole ? part / whole : null);
 async function measure(recording, variant) {
   const request = parseSearchRequest({ origin: recording.origin, radius: recording.radius, deckSize: TARGET_POOL });
   const { transport, used } = replayTransport(recording);
-  const provider = createHereProvider({ transport, strategy: variant.strategy, fallbackBelow: variant.fallbackBelow });
+  const provider = createHereProvider({ transport, fallbackBelow: variant.fallbackBelow });
   let result;
   try {
     result = await provider.searchNearby(request);

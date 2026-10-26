@@ -49,7 +49,6 @@ class SwipeScreenState extends State<SwipeScreen> {
   final CardSwiperController _cardSwiperController = CardSwiperController();
 
   static const int swipeTimeoutSeconds = 15;
-  static const Duration _watchdogInterval = Duration(seconds: 10);
 
   final List<bool> _localVotes = [];
   int _currentIndex = 0;
@@ -58,7 +57,6 @@ class SwipeScreenState extends State<SwipeScreen> {
   bool _isLeaving = false;
 
   StreamSubscription<RoomState>? _roomSub;
-  Timer? _watchdogTimer;
   ResultNudges? _nudges;
   late RoomBackend _backend;
 
@@ -77,26 +75,19 @@ class SwipeScreenState extends State<SwipeScreen> {
         .watch(widget.roomCode)
         .listen(_onRoomUpdate, onError: (_) {});
 
-    if (_backend.clientClosesRooms) {
-      _watchdogTimer = Timer.periodic(_watchdogInterval, (_) {
-        _backend.nudge(widget.roomCode).catchError((_) {});
-      });
-    } else {
-      _nudges = ResultNudges(() => _backend.nudge(widget.roomCode));
-    }
+    _nudges = ResultNudges(() => _backend.nudge(widget.roomCode));
   }
 
   @override
   void dispose() {
     _isLeaving = true;
-    _watchdogTimer?.cancel();
     _nudges?.stop();
     _roomSub?.cancel();
     _cardSwiperController.dispose();
     super.dispose();
   }
 
-  // Room stream - navigate when this user is done and close when all are done
+  // Room stream: move on to results once this person is done or time is up.
   void _onRoomUpdate(RoomState room) {
     if (_isLeaving || !mounted) return;
 
@@ -109,16 +100,8 @@ class SwipeScreenState extends State<SwipeScreen> {
     // Someone has to close the room when time runs out, even if nobody has
     // reached the results screen yet; once it closes, leftover cards are moot.
     _nudges?.votingEndsAt(room.votingEndsAt);
-    if ((iAmDone || (_nudges != null && room.status == 'closed')) &&
-        !_navigated) {
+    if ((iAmDone || room.status == 'closed') && !_navigated) {
       _goToResults();
-    }
-
-    // If everyone's done proactively close
-    if (_backend.clientClosesRooms &&
-        room.status == 'voting' &&
-        room.everyoneDone) {
-      _backend.close(widget.roomCode).catchError((_) {});
     }
   }
 
@@ -126,7 +109,6 @@ class SwipeScreenState extends State<SwipeScreen> {
     if (_navigated || _isLeaving || !mounted) return;
     _navigated = true;
     _isLeaving = true;
-    _watchdogTimer?.cancel();
     _nudges?.stop();
     _roomSub?.cancel();
 
@@ -187,9 +169,9 @@ class SwipeScreenState extends State<SwipeScreen> {
           if (finishedDeck && !_navigated) {
             _goToResults();
           }
-          // Server-closed rooms only need asking once this person's last
-          // ballot is stored; earlier ones cannot complete the room.
-          if (_backend.clientClosesRooms || finishedDeck) {
+          // The server only needs asking once this person's last ballot is
+          // stored; earlier ones cannot complete the room.
+          if (finishedDeck) {
             // A failed nudge is not a failed vote; the next one retries.
             await _backend.nudge(widget.roomCode).catchError((_) {});
           }

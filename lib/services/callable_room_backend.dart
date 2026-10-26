@@ -115,15 +115,10 @@ class CallableRoomBackend implements RoomBackend {
   String get _uid => _auth.currentUser!.uid;
 
   @override
-  bool get requiresVerifiedHost => true;
-  @override
   bool get usesDeviceLocation => true;
   // Only the local emulators deal decks from the server's fake provider.
   @override
   final bool usesFictionalRestaurants;
-  @override
-  bool get clientClosesRooms => false;
-
   Future<Map<String, dynamic>> _call(
     String name,
     Map<String, Object?> data,
@@ -327,9 +322,4 @@ class CallableRoomBackend implements RoomBackend {
   @override
   Future<LiveSearchAllowance?> liveSearchAllowance() async =>
       LiveSearchAllowance.fromCallable(await _call('liveSearchStatus', {}));
-
-  @override
-  Future<void> close(String roomId) async {
-    await _call('closeRoom', {'roomId': roomId});
-  }
 }

@@ -302,17 +302,6 @@ test('HERE failures count every call; a total failure raises ProviderUnavailable
   await assert.rejects(malformed.searchNearby(request()), ProviderUnavailable);
 });
 
-test('HERE multi-center: the production layout costs four calls and mostly lands outside the circle', async () => {
-  const { transport, calls } = replay('multi-center');
-  const result = await createHereProvider({ transport, strategy: 'multi-center' }).searchNearby(request());
-  assert.equal(result.providerCalls, 4);
-  assert.ok(calls.every(call => call.kind === 'discover' && call.params.q === 'restaurant' && !call.params.in));
-  const { pool } = buildDeck(result.restaurants, request(), { seed: 'm' });
-  assert.equal(pool.outOfRadius, 8);
-  assert.equal(pool.duplicates, 18);
-  assert.equal(assertProvider(createHereProvider({ transport, strategy: 'multi-center' })).maxCallsPerSearch, 4);
-});
-
 test('HERE transport: key only in the outgoing URL, bounded by a timeout, error bodies dropped', async () => {
   const seen = [];
   const fetchImpl = async (url, options) => {
