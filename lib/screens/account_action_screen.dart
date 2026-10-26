@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../services/account_service.dart';
 import '../services/password_policy.dart';
+import '../services/site_links.dart';
 import 'account_screen.dart';
 import 'checked_field.dart';
 import 'forgot_password_screen.dart';
@@ -61,6 +62,12 @@ class _AccountActionScreenState extends State<AccountActionScreen> {
   }
 
   Future<void> _start() async {
+    // A kind of link the app doesn't offer yet, such as one for two-step
+    // sign-in, can't be finished here.
+    if (!accountActionModes.contains(widget.mode)) {
+      setState(() => stage = _Stage.failed);
+      return;
+    }
     try {
       if (resetting) {
         resetEmail = await widget.accounts.checkResetLink(widget.code);
@@ -218,6 +225,10 @@ class _AccountActionScreenState extends State<AccountActionScreen> {
       'resetPassword' => (
         'Password changed',
         'You can now sign in with your new password.',
+      ),
+      'verifyAndChangeEmail' => (
+        'Your new email is confirmed',
+        'Sign in with your new email from now on.',
       ),
       'recoverEmail' => (
         'Your email is restored',

@@ -283,6 +283,39 @@ void main() {
       expect(find.text('Password changed'), findsOneWidget);
     });
 
+    testWidgets('an email-change link confirms the new email', (tester) async {
+      final auth = FakeAuth(null)..applyCodes.add('c1');
+      await show(
+        tester,
+        AccountActionScreen(
+          accounts: AccountService(auth),
+          mode: 'verifyAndChangeEmail',
+          code: 'c1',
+        ),
+      );
+      expect(find.text('Your new email is confirmed'), findsOneWidget);
+    });
+
+    testWidgets('a link for a step the app does not offer is not applied', (
+      tester,
+    ) async {
+      final auth = FakeAuth(null)..applyCodes.add('m1');
+      await show(
+        tester,
+        AccountActionScreen(
+          accounts: AccountService(auth),
+          mode: 'revertSecondFactorAddition',
+          code: 'm1',
+        ),
+      );
+      expect(find.text('This link no longer works'), findsOneWidget);
+      expect(
+        auth.applyCodes,
+        contains('m1'),
+        reason: 'the code is left unused',
+      );
+    });
+
     testWidgets('a used or expired reset link offers a new one', (
       tester,
     ) async {

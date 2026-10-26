@@ -31,8 +31,15 @@ Uri sitePageLink(String origin, String path) => Uri.parse('$origin$path');
 /// What an app address asks the app to open.
 enum AppLinkTarget { host, join, account, accountAction }
 
-/// The account steps an emailed link can finish in the app.
-const accountActionModes = {'verifyEmail', 'resetPassword', 'recoverEmail'};
+/// The account steps an emailed link can finish in the app. Every Firebase
+/// email links to the account page, so any other step still arrives there
+/// and gets a friendly page instead of being ignored.
+const accountActionModes = {
+  'verifyEmail',
+  'resetPassword',
+  'recoverEmail',
+  'verifyAndChangeEmail',
+};
 
 class AppLink {
   const AppLink(this.target, {this.joinCode, this.mode, this.code});
@@ -70,7 +77,8 @@ AppLink? appLinkFrom(Uri uri) {
   final code = uri.queryParameters['oobCode'];
   if ((segments.isEmpty ||
           (segments.length == 1 && segments.first == 'account')) &&
-      accountActionModes.contains(mode) &&
+      mode != null &&
+      mode.isNotEmpty &&
       code != null &&
       code.isNotEmpty) {
     return AppLink(AppLinkTarget.accountAction, mode: mode, code: code);

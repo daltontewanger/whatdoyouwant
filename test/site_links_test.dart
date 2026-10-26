@@ -79,10 +79,20 @@ void main() {
       )?.mode,
       'verifyEmail',
     );
-    // Unknown steps, missing codes and other pages are left alone.
+    // Steps the app doesn't offer still reach the account step, which says
+    // the link can't be used here.
+    expect(
+      appLinkFrom(
+        Uri.parse(
+          'https://getwhatdoyouwant.app/app/account?mode=revertSecondFactorAddition&oobCode=x',
+        ),
+      )?.mode,
+      'revertSecondFactorAddition',
+    );
+    // Missing codes and other pages are left alone.
     for (final address in [
-      'https://getwhatdoyouwant.app/app/account?mode=signIn&oobCode=x',
       'https://getwhatdoyouwant.app/app/account?mode=resetPassword',
+      'https://getwhatdoyouwant.app/app/account?oobCode=x',
       'https://getwhatdoyouwant.app/app/join/AB3K7X?mode=verifyEmail&oobCode=x',
     ]) {
       expect(
