@@ -20,20 +20,13 @@ import 'package:whatdoyouwant/services/live_search.dart';
 import 'package:whatdoyouwant/services/room_backend.dart';
 
 class FakeRoomBackend implements RoomBackend {
-  FakeRoomBackend({this.clientClosesRooms = false});
-
   final room = StreamController<RoomState>.broadcast();
   final joined = <String>[];
-  int closes = 0;
   int nudges = 0;
   Object? createError;
   Object? startError;
   Object? voteError;
 
-  @override
-  final bool clientClosesRooms;
-  @override
-  bool get requiresVerifiedHost => true;
   @override
   bool usesDeviceLocation = false;
   @override
@@ -49,8 +42,6 @@ class FakeRoomBackend implements RoomBackend {
   Stream<RoomState> watch(String roomId) => room.stream;
   @override
   Future<void> nudge(String roomId) async => nudges++;
-  @override
-  Future<void> close(String roomId) async => closes++;
   @override
   Future<LiveSearchAllowance?> liveSearchAllowance() async => null;
   @override
@@ -249,6 +240,27 @@ void main() {
         reason: label,
       );
     }
+  });
+
+  testWidgets('joining with an empty code stays on the form and explains why', (
+    tester,
+  ) async {
+    // No Firebase initialization: invalid input must not reach the backend.
+    await tester.pumpWidget(
+      MaterialApp(
+        home: JoinRoomScreen(
+          currentUser: AppUser(id: 'fixture-guest', name: 'Guest'),
+        ),
+      ),
+    );
+    expect(find.text('Join a Room'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Join'));
+    await tester.pump();
+    expect(find.text('Please enter a room code.'), findsOneWidget);
+    expect(find.byType(JoinRoomScreen), findsOneWidget);
+    expect(find.byType(WaitingForOptionsScreen), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('a guest joins by code, waits, then reaches the deck', (
@@ -680,7 +692,6 @@ void main() {
     await tester.pump();
     expect(find.text('Demo Tacos'), findsOneWidget);
     expect(find.text('Votes: 2 of 3'), findsOneWidget);
-    expect(backend.closes, 0, reason: 'the server closes these rooms');
   });
 
   testWidgets(
@@ -750,18 +761,6 @@ void main() {
     expect(find.text('Demo Noodle House'), findsOneWidget);
   });
 
-  testWidgets('legacy rooms keep the frequent nudge for idle voters', (
-    tester,
-  ) async {
-    final backend = FakeRoomBackend(clientClosesRooms: true);
-    await tester.pumpWidget(
-      app(backend, ResultsScreen(roomCode: 'ROOM-ID', restaurants: deck)),
-    );
-    await tester.pump(const Duration(seconds: 18));
-    expect(backend.nudges, 3);
-    await tester.pumpWidget(const SizedBox());
-  });
-
   testWidgets('voters nudge only after their last card or when time is up', (
     tester,
   ) async {
@@ -802,32 +801,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.byType(ResultsScreen), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
-  });
-
-  testWidgets('legacy rooms are closed by the client once results show', (
-    tester,
-  ) async {
-    final backend = FakeRoomBackend(clientClosesRooms: true);
-    await tester.pumpWidget(
-      app(backend, ResultsScreen(roomCode: 'ROOM-ID', restaurants: deck)),
-    );
-    backend.room.add(state(remaining: 2));
-    await tester.pump();
-    expect(find.text('Waiting for 2 more votes...'), findsOneWidget);
-    backend.room.add(
-      state(
-        ready: true,
-        results: const RoomResults(
-          winnerId: 'a',
-          likes: {'a': 1},
-          participants: 2,
-        ),
-      ),
-    );
-    await tester.pump();
-    await tester.pump();
-    expect(find.text('Demo Pizza'), findsOneWidget);
-    expect(backend.closes, 1);
   });
 }
 

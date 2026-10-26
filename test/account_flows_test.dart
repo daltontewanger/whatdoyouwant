@@ -89,24 +89,62 @@ void main() {
     },
   );
 
-  testWidgets('verification emails ask to come back to the app', (
+  testWidgets('after a mismatch the repeat can be corrected and submitted', (
     tester,
   ) async {
     final user = FakeUser();
-    final auth = FakeAuth(user);
     await show(
       tester,
-      CreateAccountScreen(accounts: AccountService(auth, returnTo: returnTo)),
+      CreateAccountScreen(accounts: AccountService(FakeAuth(user))),
     );
     final fields = find.byType(TextField);
     await tester.enterText(fields.at(0), 'pat@example.com');
     await tester.enterText(fields.at(1), 'blue kettle morning');
-    await tester.enterText(fields.at(2), 'blue kettle morning');
+    await tester.enterText(fields.at(2), 'blue kettle mornink');
     await tester.tap(find.widgetWithText(ElevatedButton, 'Create account'));
     await tester.pumpAndSettle();
-    expect(user.verifySettings?.url, returnTo.toString());
-    expect(user.verifySettings?.handleCodeInApp, isTrue);
+    expect(find.text('The passwords do not match.'), findsOneWidget);
+    expect(user.calls, isEmpty);
+
+    final repeat = tester.widget<TextField>(fields.at(2));
+    expect(repeat.enabled, isNot(false));
+    expect(repeat.maxLength, isNull, reason: 'nothing is cut short');
+    // Without a hint the web autofill group dropped this field's text.
+    expect(repeat.autofillHints, [AutofillHints.newPassword]);
+    await tester.enterText(fields.at(2), 'blue kettle morning');
+    await tester.pump();
+    expect(
+      find.text('The passwords do not match.'),
+      findsNothing,
+      reason: 'the old complaint clears once the person edits',
+    );
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Create account'));
+    await tester.pumpAndSettle();
+    expect(user.calls, ['link', 'verify']);
   });
+
+  testWidgets(
+    'signing up keeps the guest and asks for a verification link back to the app',
+    (tester) async {
+      final user = FakeUser();
+      final auth = FakeAuth(user);
+      await show(
+        tester,
+        CreateAccountScreen(accounts: AccountService(auth, returnTo: returnTo)),
+      );
+      final fields = find.byType(TextField);
+      await tester.enterText(fields.at(0), 'pat@example.com');
+      await tester.enterText(fields.at(1), 'blue kettle morning');
+      await tester.enterText(fields.at(2), 'blue kettle morning');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(user.calls, ['link', 'verify']);
+      expect(auth.currentUser, same(user), reason: 'the guest UID is kept');
+      expect(user.verifySettings?.url, returnTo.toString());
+      expect(user.verifySettings?.handleCodeInApp, isTrue);
+      expect(find.byType(CreateAccountScreen), findsNothing);
+    },
+  );
 
   group('email domain check', () {
     Future<void> fillValid(WidgetTester tester, String address) async {
