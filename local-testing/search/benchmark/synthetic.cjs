@@ -136,8 +136,7 @@ async function recordSynthetic(spec, index) {
     return { status: 200, body };
   };
   const request = parseSearchRequest({ origin, radius: spec.radius });
-  await createHereProvider({ transport, strategy: 'one-circle', fallbackBelow: Infinity }).searchNearby(request);
-  await createHereProvider({ transport, strategy: 'multi-center' }).searchNearby(request);
+  await createHereProvider({ transport, fallbackBelow: Infinity }).searchNearby(request);
   return { synthetic: true, location: { id: spec.id, label: `Synthetic ${spec.type}`, type: spec.type }, origin,
     radius: spec.radius, calls };
 }

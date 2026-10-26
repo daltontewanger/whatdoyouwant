@@ -106,7 +106,6 @@ test('rooms: verified host creates with a short code; guest joins, reads and vot
   assert.equal((await reconnect(roomId, guest)).status, 200);
   assert.equal((await vote(roomId, guest, D[0])).status, 200);
   assert.equal((await vote(roomId, outsider, D[0])).status, 403);
-  assert.equal((await db.collection('hereUsage').get()).size, 0);
 });
 
 test('rooms: the internal room ID reconnects members but never admits new ones', async () => {

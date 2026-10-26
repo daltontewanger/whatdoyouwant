@@ -138,25 +138,6 @@ function browseFails() {
   };
 }
 
-function multiCenter() {
-  const base = suburb().responses[0].body.items;
-  serial = 200;
-  // The production layout searches around four points ~8 km out, so most of
-  // what comes back is outside a 5 km circle around the person.
-  const ring = bearing => [
-    ...base.slice(0, 6),
-    place(`Far Side Diner ${bearing}`, 8000, bearing, { foodTypes: [['101-000', 'American']] }),
-    place(`Far Side Pizza ${bearing}`, 9500, bearing + 10, { foodTypes: [['800-057', 'Pizza']] }),
-  ];
-  return {
-    synthetic: true,
-    description: 'Four discover calls in the production layout, heavy overlap and many places outside the circle.',
-    origin: ORIGIN,
-    radiusMeters: 5000,
-    responses: [0, 180, 90, 270].map(bearing => ({ endpoint: 'discover', status: 200, body: { items: ring(bearing) } })),
-  };
-}
-
-for (const [name, build] of Object.entries({ suburb, sparse, 'browse-fails': browseFails, 'multi-center': multiCenter })) {
+for (const [name, build] of Object.entries({ suburb, sparse, 'browse-fails': browseFails })) {
   writeFileSync(path.join(__dirname, `${name}.json`), `${JSON.stringify(build(), null, 2)}\n`);
 }

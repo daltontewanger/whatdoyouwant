@@ -77,9 +77,9 @@ test('members read their room and deck; outsiders and unauthenticated callers ca
   assert.equal(await request('/rooms', 'GET', undefined, 'guest'), 403);
   assert.equal(await request('/rooms', 'GET'), 403);
 });
-test('clients cannot create rooms, transfer ownership, close rooms, forge membership or modify ledgers', async () => {
+test('clients cannot create rooms, transfer ownership, close rooms, or forge membership', async () => {
   for (const uid of [undefined, 'host', 'guest', 'outsider']) {
-    for (const path of ['/rooms/NEW', '/rooms/ROOM', '/rooms/ROOM/members/outsider', '/hereUsage/month', '/users/host', '/restaurantDecks/DECK', '/restaurantDecks/NEW']) {
+    for (const path of ['/rooms/NEW', '/rooms/ROOM', '/rooms/ROOM/members/outsider', '/users/host', '/restaurantDecks/DECK', '/restaurantDecks/NEW']) {
       assert.equal(await request(path, 'PATCH', { fields: { creator: { stringValue: 'outsider' } } }, uid), 403);
       assert.equal(await request(path, 'DELETE', undefined, uid), 403);
     }

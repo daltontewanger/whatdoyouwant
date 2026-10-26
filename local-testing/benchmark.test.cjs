@@ -21,9 +21,8 @@ test('benchmark: every variant runs over every synthetic location and reports ca
   const report = await runBenchmark(recordings);
   assert.equal(report.synthetic, true);
   assert.deepEqual(report.results.map(result => result.summary.variant), variants(15).map(variant => variant.name));
-  const [single, fallback, multi] = report.results.map(result => result.summary);
+  const [single, fallback] = report.results.map(result => result.summary);
   assert.equal(single.totalCalls, recordings.length);
-  assert.equal(multi.totalCalls, recordings.length * 4);
   assert.ok(fallback.totalCalls > single.totalCalls && fallback.totalCalls <= recordings.length * 2);
   for (const result of report.results) assert.equal(result.rows.length, recordings.length);
 });
@@ -49,7 +48,7 @@ test('benchmark: pool, duplicate and metadata measures come from the normalized 
   assert.equal(row.missingPhoneRate, 0.5);
   assert.equal(row.unknownOpenRate, 0.5);
 
-  const missing = await measure(recording, variants(15)[2]);
+  const missing = await measure({ ...recording, calls: [] }, variants(15)[0]);
   assert.equal(missing.failed, true, 'a call absent from the recording counts as a failure, not a guess');
 });
 
@@ -85,14 +84,14 @@ test('recorder: dry run and over-ceiling plans make no calls; live runs stay und
   try {
     const dry = await record({ locations, maxCalls: 100, live: false, out, apiKey: 'test-key', fetchImpl, log: quiet });
     assert.deepEqual([dry.planned, dry.used, requested.length], [2 * CALLS_PER_LOCATION, 0, 0]);
-    await assert.rejects(record({ locations, maxCalls: 11, live: true, out, apiKey: 'test-key', fetchImpl, log: quiet }),
+    await assert.rejects(record({ locations, maxCalls: 3, live: true, out, apiKey: 'test-key', fetchImpl, log: quiet }),
       /exceeds the approved call ceiling/);
     assert.equal(requested.length, 0);
 
-    const live = await record({ locations, maxCalls: 12, live: true, out, apiKey: 'test-key', fetchImpl, pauseMs: 0,
+    const live = await record({ locations, maxCalls: 4, live: true, out, apiKey: 'test-key', fetchImpl, pauseMs: 0,
       log: quiet });
-    assert.equal(live.used, 12);
-    assert.equal(requested.length, 12);
+    assert.equal(live.used, 4);
+    assert.equal(requested.length, 4);
     assert.ok(requested.every(url => url.startsWith('https://browse.search.hereapi.com/') ||
       url.startsWith('https://discover.search.hereapi.com/')));
     const files = readdirSync(out);
@@ -109,10 +108,7 @@ test('recorder: dry run and over-ceiling plans make no calls; live runs stay und
     const replayed = await runBenchmark(loadRecordings(out));
     const fallback = replayed.results[1].rows[0];
     assert.deepEqual([fallback.calls, fallback.timeouts], [2, 1], 'recordings replay, timeouts included');
-    const multi = replayed.results[2].summary;
-    assert.equal(multi.rateLimitedCalls, 0, 'multi-center centers are never the origin itself');
-    assert.equal(replayed.results[1].rows[0].rateLimited, 1, 'the fallback discover at the origin answered 429');
-    assert.deepEqual(multi.cacheControl, ['max-age=86400']);
+    assert.equal(replayed.results[1].rows[0].rateLimited, 1, 'the fallback discover answered 429');
   } finally {
     rmSync(out, { recursive: true, force: true });
   }
