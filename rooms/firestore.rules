@@ -1,6 +1,7 @@
-// Room data rules, used by the local emulators and the staging deployment.
+// Room data rules, used by the local emulators, staging and production.
 // Rooms, memberships, decks, join codes, receipts and limits are written only
-// by the room callables. Clients write nothing but their own immutable ballots.
+// by the room callables. Clients write nothing but their own immutable ballots
+// and, for verified accounts, their own search defaults.
 // Live-search config, weekly usage, the provider ledger, entitlements and deck
 // generation leases are server-only and fall to the final deny.
 //
@@ -12,8 +13,11 @@
 // restaurantDecks/{id}: ownerUid, targetType (room | quickPick), targetId,
 //   candidateIds, candidates, filter summary and pool report, expiresAt. Immutable.
 // quickPicks/{id}: ownerUid, deckId, order, position, rerollsUsed, expiresAt.
-// Every document carries expiresAt for TTL cleanup; reads check it as well
+// Every room document carries expiresAt for TTL cleanup; reads check it as well
 // because TTL deletion can lag.
+// userSettings/{uid}: unit, radius, deckSize, includedCuisineIds,
+//   excludedCuisineIds, openNowPreferred, updatedAt. Kept until the account is
+//   deleted (deleteAccount removes it). Never holds a location.
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -41,6 +45,33 @@ service cloud.firestore {
         data.keys().hasOnly(['liked', 'at', 'expiresAt']) &&
         data.liked is bool && data.at is timestamp && data.at == request.time &&
         data.expiresAt == roomDoc(room).data.expiresAt;
+    }
+    // Guests keep their defaults on the device: their accounts are removed
+    // when idle, and unverified ones by the weekly cleanup, neither of which
+    // touches Firestore.
+    function verifiedAccount(uid) {
+      return request.auth != null && request.auth.uid == uid &&
+        request.auth.token.firebase.sign_in_provider != 'anonymous' &&
+        request.auth.token.email_verified == true;
+    }
+    // The same IDs as rooms/search/cuisines.js; a unit test keeps them in step.
+    function cuisineIds() {
+      return ['american', 'bbq', 'mexican', 'latin_american', 'chinese', 'japanese', 'korean', 'thai', 'vietnamese', 'indian', 'asian_other', 'middle_eastern', 'greek_mediterranean', 'italian', 'pizza', 'french', 'european', 'african', 'seafood', 'steakhouse', 'burgers', 'sandwiches', 'chicken', 'breakfast', 'dessert', 'fast_food'];
+    }
+    function cuisineList(list) {
+      return list is list && list.size() <= 8 && list.toSet().size() == list.size() &&
+        list.hasOnly(cuisineIds());
+    }
+    function validSettings(data) {
+      let fields = ['unit', 'radius', 'deckSize', 'includedCuisineIds', 'excludedCuisineIds',
+        'openNowPreferred', 'updatedAt'];
+      return data.keys().hasAll(fields) && data.keys().hasOnly(fields) &&
+        data.unit in ['mi', 'km'] &&
+        data.radius is int && data.radius in [1, 3, 5, 10, 15] &&
+        data.deckSize is int && data.deckSize in [5, 10, 15, 25] &&
+        cuisineList(data.includedCuisineIds) && cuisineList(data.excludedCuisineIds) &&
+        !data.includedCuisineIds.hasAny(data.excludedCuisineIds) &&
+        data.openNowPreferred is bool && data.updatedAt == request.time;
     }
     match /rooms/{room} {
       allow get: if member(room) && live(room);
@@ -72,6 +103,12 @@ service cloud.firestore {
       allow get: if request.auth != null && resource.data.ownerUid == request.auth.uid &&
         resource.data.expiresAt > request.time;
       allow list, write: if false;
+    }
+    match /userSettings/{uid} {
+      allow get: if verifiedAccount(uid);
+      allow create, update: if verifiedAccount(uid) && validSettings(request.resource.data);
+      // Removed only with the account, by deleteAccount.
+      allow list, delete: if false;
     }
     match /{document=**} { allow read, write: if false; }
   }

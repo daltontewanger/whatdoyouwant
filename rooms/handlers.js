@@ -535,6 +535,7 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
           await batch.commit();
         });
       }
+      await retryTransient(() => db.doc(`userSettings/${actor.uid}`).delete());
       try {
         await deleteAuthUser(actor.uid);
       } catch (error) {

@@ -390,7 +390,9 @@ test('account deletion removes memberships, ballots, hosted rooms, receipts and 
   // Registered accounts must have signed in recently.
   assert.equal((await call('deleteAccount', {}, { token: staleToken(host.uid) })).status, 400);
   assert.equal((await db.doc(`rooms/${hosted.roomId}`).get()).data().status, 'lobby');
+  await db.doc(`userSettings/${host.uid}`).set({ unit: 'km', radius: 3 });
   assert.equal((await call('deleteAccount', {}, host)).status, 200);
+  assert.equal((await db.doc(`userSettings/${host.uid}`).get()).exists, false, 'saved defaults go too');
   const decks = await db.collection('restaurantDecks').get();
   assert.deepEqual(decks.docs.map(deck => deck.data().ownerUid), [otherHost.uid], 'the host decks are gone');
   const closed = (await db.doc(`rooms/${hosted.roomId}`).get()).data();

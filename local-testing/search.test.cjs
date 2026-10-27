@@ -319,3 +319,14 @@ test('HERE transport: key only in the outgoing URL, bounded by a timeout, error 
   await assert.rejects(transport({ endpoint: 'https://example.com/steal', params: {} }), /Unexpected HERE endpoint/);
   assert.throws(() => createHereTransport({ apiKey: '' }), /key is required/);
 });
+
+test('cuisines: the app and the Firestore rules offer exactly the server whitelist', () => {
+  const { readFileSync } = require('node:fs');
+  const dart = readFileSync(require.resolve('../lib/models/cuisines.dart'), 'utf8');
+  const inApp = [...dart.matchAll(/Cuisine\('(\w+)', '([^']+)'\)/g)].map(([, id, label]) => [id, label]);
+  assert.deepEqual(inApp, CUISINE_IDS.map(id => [id, CUISINES[id].label]));
+  assert.match(dart, /maxCuisinesPerList = 8;/);
+  const rules = readFileSync(require.resolve('../rooms/firestore.rules'), 'utf8');
+  const list = rules.match(/function cuisineIds\(\) \{\s*return \[([^\]]+)\]/)[1];
+  assert.deepEqual([...list.matchAll(/'(\w+)'/g)].map(([, id]) => id), CUISINE_IDS);
+});
