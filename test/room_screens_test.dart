@@ -18,6 +18,8 @@ import 'package:whatdoyouwant/services/active_room_store.dart';
 import 'package:whatdoyouwant/services/callable_room_backend.dart';
 import 'package:whatdoyouwant/services/live_search.dart';
 import 'package:whatdoyouwant/services/room_backend.dart';
+import 'package:whatdoyouwant/services/search_defaults.dart';
+import 'package:geolocator/geolocator.dart';
 
 class FakeRoomBackend implements RoomBackend {
   final room = StreamController<RoomState>.broadcast();
@@ -42,8 +44,9 @@ class FakeRoomBackend implements RoomBackend {
   Stream<RoomState> watch(String roomId) => room.stream;
   @override
   Future<void> nudge(String roomId) async => nudges++;
+  LiveSearchAllowance? allowance;
   @override
-  Future<LiveSearchAllowance?> liveSearchAllowance() async => null;
+  Future<LiveSearchAllowance?> liveSearchAllowance() async => allowance;
   @override
   Uri? joinLinkFor(String joinCode) =>
       Uri.parse('https://example.test/app/join/$joinCode');
@@ -58,12 +61,16 @@ class FakeRoomBackend implements RoomBackend {
   @override
   Future<CreatedRoom> createRoom() async =>
       throw createError ?? UnimplementedError();
+  final started = <SearchPreferences>[];
   @override
   Future<List<Restaurant>> start(
     String roomId, {
-    required double radiusMiles,
-    required int maxOptions,
-  }) async => throw startError ?? UnimplementedError();
+    required SearchPreferences search,
+  }) async {
+    started.add(search);
+    throw startError ?? UnimplementedError();
+  }
+
   @override
   Future<void> vote(
     String roomId,
@@ -107,12 +114,45 @@ RoomState state({
   votingEndsAt: votingEndsAt,
 );
 
-Widget app(FakeRoomBackend backend, Widget home, {ActiveRoomStore? rooms}) =>
-    RoomBackendScope(
-      backend: backend,
-      activeRooms: rooms,
-      child: MaterialApp(home: home),
+Widget app(
+  FakeRoomBackend backend,
+  Widget home, {
+  ActiveRoomStore? rooms,
+  SearchDefaultsStore? defaults,
+}) => RoomBackendScope(
+  backend: backend,
+  activeRooms: rooms,
+  searchDefaults: defaults,
+  child: MaterialApp(home: home),
+);
+
+Widget hostLobby(FakeRoomBackend backend, {SearchDefaultsStore? defaults}) =>
+    app(
+      backend,
+      RoomScreen(
+        currentUser: AppUser(id: 'host', name: 'Host'),
+        roomCode: 'ROOM-ID',
+        joinCode: 'AB3K7X',
+      ),
+      defaults: defaults,
     );
+
+class LobbyLocation extends GeolocatorPlatform {
+  LobbyLocation(this.permission, {this.afterRequest});
+  LocationPermission permission;
+  final LocationPermission? afterRequest;
+  int requests = 0;
+
+  @override
+  Future<bool> isLocationServiceEnabled() async => true;
+  @override
+  Future<LocationPermission> checkPermission() async => permission;
+  @override
+  Future<LocationPermission> requestPermission() async {
+    requests++;
+    return permission = afterRequest ?? permission;
+  }
+}
 
 Widget waiting(FakeRoomBackend backend, {ActiveRoomStore? rooms}) => app(
   backend,
@@ -473,6 +513,161 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    'the lobby opens with the saved search, and changes become the new default',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final backend = FakeRoomBackend();
+      final defaults = MemorySearchDefaults(
+        const SearchPreferences(
+          unit: DistanceUnit.km,
+          radius: 10,
+          deckSize: 15,
+        ),
+      );
+      await tester.pumpWidget(hostLobby(backend, defaults: defaults));
+      backend.room.add(state(status: 'lobby'));
+      await tester.pump();
+      expect(find.text('Within 10 km · 15 options'), findsOneWidget);
+      expect(find.text('Any cuisine'), findsOneWidget);
+
+      await tester.tap(find.text('Change search'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('3 km'));
+      await tester.tap(find.text('Thai').first);
+      await tester.pump();
+      // Leaving a preferred cuisine out takes it off the preferred list.
+      await tester.tap(find.text('Thai').last);
+      await tester.tap(find.text('Pizza').first);
+      await tester.tap(find.text('Show places open now first'));
+      await tester.pump();
+      await tester.tap(find.text('Use these settings'));
+      await tester.pumpAndSettle();
+
+      const chosen = SearchPreferences(
+        unit: DistanceUnit.km,
+        radius: 3,
+        deckSize: 15,
+        includedCuisineIds: ['pizza'],
+        excludedCuisineIds: ['thai'],
+        openNowPreferred: true,
+      );
+      expect(find.text('Within 3 km · 15 options'), findsOneWidget);
+      expect(
+        find.text('Prefer Pizza · No Thai · Open now first'),
+        findsOneWidget,
+      );
+      expect((defaults.current, defaults.saves), (chosen, 1));
+
+      await tester.tap(find.text('Start Swiping'));
+      await tester.pump();
+      expect(backend.started, [chosen]);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'the lobby shows the searches left and blocks Start when none are',
+    (tester) async {
+      final backend =
+          FakeRoomBackend()
+            ..allowance = LiveSearchAllowance(
+              weeklyCap: 20,
+              used: 17,
+              remaining: 3,
+              resetsAt: DateTime.utc(2026, 11, 2),
+              paused: false,
+            );
+      await tester.pumpWidget(hostLobby(backend));
+      backend.room.add(state(status: 'lobby'));
+      await tester.pump();
+      expect(
+        find.text('3 of 20 live searches left this week. Starting uses one.'),
+        findsOneWidget,
+      );
+      ElevatedButton start() => tester.widget<ElevatedButton>(
+        find.widgetWithText(ElevatedButton, 'Start Swiping'),
+      );
+      expect(start().onPressed, isNotNull);
+
+      for (final (allowance, message) in [
+        (
+          LiveSearchAllowance(
+            weeklyCap: 20,
+            used: 20,
+            remaining: 0,
+            resetsAt: DateTime.utc(2026, 11, 2),
+            paused: false,
+          ),
+          "You've used this week's live searches.",
+        ),
+        (
+          LiveSearchAllowance(
+            weeklyCap: 20,
+            used: 2,
+            remaining: 18,
+            resetsAt: DateTime.utc(2026, 11, 2),
+            paused: true,
+          ),
+          'Live restaurant search is paused for now.',
+        ),
+      ]) {
+        backend.allowance = allowance;
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpWidget(hostLobby(backend));
+        backend.room.add(state(status: 'lobby'));
+        await tester.pump();
+        expect(find.textContaining(message), findsOneWidget);
+        expect(start().onPressed, isNull);
+      }
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'location is explained before the prompt; a block says how to undo it',
+    (tester) async {
+      final original = GeolocatorPlatform.instance;
+      addTearDown(() => GeolocatorPlatform.instance = original);
+      final backend = FakeRoomBackend()..usesDeviceLocation = true;
+      final location = LobbyLocation(
+        LocationPermission.denied,
+        afterRequest: LocationPermission.deniedForever,
+      );
+      GeolocatorPlatform.instance = location;
+      await tester.pumpWidget(hostLobby(backend));
+      backend.room.add(state(status: 'lobby'));
+      await tester.pump();
+
+      // The spinner behind the dialog never settles.
+      Future<void> settle() async {
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+      }
+
+      await tester.ensureVisible(find.text('Start Swiping'));
+      await tester.tap(find.text('Start Swiping'));
+      await settle();
+      expect(find.text('Use your location?'), findsOneWidget);
+      await tester.tap(find.text('Not now'));
+      await settle();
+      expect(location.requests, 0);
+      expect(backend.started, isEmpty);
+
+      await tester.tap(find.text('Start Swiping'));
+      await settle();
+      await tester.tap(find.text('Continue'));
+      await settle();
+      expect(location.requests, 1);
+      expect(backend.started, isEmpty);
+      expect(find.textContaining('Allow it in Settings'), findsOneWidget);
+      expect(find.text('Open Settings'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 
   testWidgets('the host lobby gets the location ready once; guests do not', (
     tester,

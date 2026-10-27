@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/restaurant.dart';
 import '../services/result_nudges.dart';
 import '../services/room_backend.dart';
+import '../services/search_defaults.dart';
 
 class ResultsScreen extends StatefulWidget {
   final String roomCode;
@@ -202,7 +203,7 @@ class ResultsScreenState extends State<ResultsScreen> {
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
-                                        'Distance: ${winning.distance.toStringAsFixed(2)} miles',
+                                        'Distance: ${distanceText(winning.distance, RoomBackendScope.distanceUnitOf(context))}',
                                         style: theme.textTheme.bodyMedium!
                                             .copyWith(color: Colors.black54),
                                       ),

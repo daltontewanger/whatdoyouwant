@@ -8,6 +8,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../services/live_search.dart';
 import '../services/room_backend.dart';
+import '../services/search_defaults.dart';
+import 'search_setup_screen.dart';
 import 'swipe_screen.dart';
 import '../models/user.dart';
 
@@ -84,10 +86,9 @@ class _RoomScreenState extends State<RoomScreen> {
   String? _roomCode;
   String? _joinCode;
   Stream<RoomState>? _roomStream;
-  double _selectedRadius = 5.0;
-  int _selectedMaxOptions = 5;
-  final List<int> radiusOptions = [1, 3, 5, 10, 15];
-  final List<int> optionCounts = [5, 10, 15, 25];
+  SearchPreferences _search = const SearchPreferences();
+  LiveSearchAllowance? _allowance;
+  bool _locationBlocked = false;
   bool _isLoading = false;
 
   RoomBackend get _backend => RoomBackendScope.of(context).backend;
@@ -99,9 +100,15 @@ class _RoomScreenState extends State<RoomScreen> {
     _joinCode = widget.joinCode;
   }
 
+  bool _setupLoaded = false;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (widget.isCreator && !_setupLoaded) {
+      _setupLoaded = true;
+      _loadSetup();
+    }
     if (_roomCode != null) {
       _roomStream ??= _backend.watch(_roomCode!);
       _prepareStart();
@@ -131,6 +138,77 @@ class _RoomScreenState extends State<RoomScreen> {
     }
   }
 
+  /// Opens with the host's saved setup and this week's remaining searches.
+  Future<void> _loadSetup() async {
+    final defaults = RoomBackendScope.of(context).searchDefaults;
+    final backend = _backend;
+    if (defaults != null) {
+      _search = defaults.current;
+      final loaded = await defaults.load();
+      if (mounted) setState(() => _search = loaded);
+    }
+    try {
+      final allowance = await backend.liveSearchAllowance();
+      if (mounted) setState(() => _allowance = allowance);
+    } catch (_) {
+      // The server still enforces the limits when the room starts.
+    }
+  }
+
+  Future<void> _editSearch() async {
+    final defaults = RoomBackendScope.of(context).searchDefaults;
+    final chosen = await Navigator.push<SearchPreferences>(
+      context,
+      MaterialPageRoute(builder: (_) => SearchSetupScreen(initial: _search)),
+    );
+    if (chosen == null || !mounted) return;
+    setState(() => _search = chosen);
+    await defaults?.save(chosen);
+  }
+
+  /// Live searches are switched off or used up for this week.
+  bool get _cannotSearch =>
+      _allowance != null && (_allowance!.paused || _allowance!.remaining <= 0);
+
+  String? get _allowanceText {
+    final allowance = _allowance;
+    if (allowance == null) return null;
+    if (allowance.paused) {
+      return 'Live restaurant search is paused for now. Try again later.';
+    }
+    if (allowance.remaining <= 0) {
+      return "You've used this week's live searches. More arrive ${resetTimeText(allowance.resetsAt)}.";
+    }
+    return '${allowance.remaining} of ${allowance.weeklyCap} live searches left this week. Starting uses one.';
+  }
+
+  /// Says what the location is for before the device or browser asks.
+  Future<bool> _explainLocation() async {
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Use your location?'),
+            content: const Text(
+              'To find restaurants near you, the app needs your location when '
+              'you start. It is rounded to about 100 m, used only for this '
+              'search, and never saved.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Not now'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Continue'),
+              ),
+            ],
+          ),
+    );
+    return proceed == true;
+  }
+
   bool _prepared = false;
 
   /// Lets the backend find the location while the host waits for guests.
@@ -157,43 +235,28 @@ class _RoomScreenState extends State<RoomScreen> {
     }
 
     LocationPermission permission = await Geolocator.checkPermission();
-    // On the web, asking for permission means taking a full location fix just
-    // to learn the answer. The search's own request prompts instead.
-    if (kIsWeb && permission == LocationPermission.denied) return true;
+    if (!mounted) return false;
     if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        setState(() => _isLoading = false);
-        if (!mounted) return false;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Location permission is required to use this feature.',
-            ),
-          ),
-        );
+      if (!await _explainLocation()) {
+        if (mounted) setState(() => _isLoading = false);
         return false;
       }
+      // On the web, asking for permission means taking a full location fix
+      // just to learn the answer. The search's own request prompts instead.
+      if (kIsWeb) return true;
+      permission = await Geolocator.requestPermission();
     }
-    if (permission == LocationPermission.deniedForever) {
-      setState(() => _isLoading = false);
-      if (!mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Location permissions are permanently denied. Please enable them in your device settings.',
-          ),
-          action: SnackBarAction(
-            label: 'Open Settings',
-            onPressed: () async {
-              await Geolocator.openAppSettings();
-            },
-          ),
-          duration: const Duration(seconds: 6),
-        ),
-      );
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _locationBlocked = permission == LocationPermission.deniedForever;
+        });
+      }
       return false;
     }
+    if (mounted) setState(() => _locationBlocked = false);
     return true;
   }
 
@@ -205,8 +268,7 @@ class _RoomScreenState extends State<RoomScreen> {
       if (_backend.usesDeviceLocation && !await _locationReady()) return;
       final finalRestaurants = await _backend.start(
         _roomCode!,
-        radiusMiles: _selectedRadius,
-        maxOptions: _selectedMaxOptions,
+        search: _search,
       );
 
       if (!mounted) return;
@@ -219,19 +281,62 @@ class _RoomScreenState extends State<RoomScreen> {
               (_) => SwipeScreen(
                 roomCode: _roomCode!,
                 currentUser: widget.currentUser,
-                radius: _selectedRadius,
-                maxOptions: _selectedMaxOptions,
+                radius: _search.radius.toDouble(),
+                maxOptions: _search.deckSize,
                 restaurants: finalRestaurants,
               ),
         ),
       );
     } catch (e) {
       if (!mounted) return;
+      // A browser that blocks location only says so once the search asks.
+      if (e is PermissionDeniedException) {
+        setState(() {
+          _isLoading = false;
+          _locationBlocked = true;
+        });
+        return;
+      }
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(startRoomErrorMessage(e))));
     }
+  }
+
+  Widget _searchSetup(ThemeData theme) {
+    final allowance = _allowanceText;
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text('Search', style: theme.textTheme.titleLarge),
+        const SizedBox(height: 4),
+        Text(
+          searchSummary(_search),
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodyLarge!.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        Text(
+          preferenceSummary(_search) ?? 'Any cuisine',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodyMedium,
+        ),
+        TextButton.icon(
+          icon: const Icon(Icons.tune),
+          label: const Text('Change search'),
+          onPressed: _isLoading ? null : _editSearch,
+        ),
+        if (allowance != null)
+          Text(
+            allowance,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall!.copyWith(color: Colors.grey[800]),
+          ),
+        if (_locationBlocked) const _LocationBlocked(onWeb: kIsWeb),
+      ],
+    );
   }
 
   @override
@@ -347,72 +452,13 @@ class _RoomScreenState extends State<RoomScreen> {
                                     ),
 
                                     // Search Options
-                                    Expanded(
-                                      flex: 2,
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Text(
-                                            'Select Search Radius:',
-                                            style: theme.textTheme.titleLarge,
-                                          ),
-                                          const SizedBox(height: 4),
-                                          SizedBox(
-                                            width: 110,
-                                            child: DropdownButton<double>(
-                                              value: _selectedRadius,
-                                              isExpanded: true,
-                                              items:
-                                                  radiusOptions
-                                                      .map(
-                                                        (r) => DropdownMenuItem(
-                                                          value: r.toDouble(),
-                                                          child: Text(
-                                                            '$r miles',
-                                                          ),
-                                                        ),
-                                                      )
-                                                      .toList(),
-                                              onChanged:
-                                                  (v) => setState(
-                                                    () => _selectedRadius = v!,
-                                                  ),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 18),
-                                          Text(
-                                            'Select Number of Options:',
-                                            style: theme.textTheme.titleLarge,
-                                          ),
-                                          const SizedBox(height: 4),
-                                          SizedBox(
-                                            width: 110,
-                                            child: DropdownButton<int>(
-                                              value: _selectedMaxOptions,
-                                              isExpanded: true,
-                                              items:
-                                                  optionCounts
-                                                      .map(
-                                                        (c) => DropdownMenuItem(
-                                                          value: c,
-                                                          child: Text(
-                                                            '$c options',
-                                                          ),
-                                                        ),
-                                                      )
-                                                      .toList(),
-                                              onChanged:
-                                                  (v) => setState(
-                                                    () =>
-                                                        _selectedMaxOptions =
-                                                            v!,
-                                                  ),
-                                            ),
-                                          ),
-                                        ],
+                                    if (widget.isCreator)
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 8,
+                                        ),
+                                        child: _searchSetup(theme),
                                       ),
-                                    ),
 
                                     // Participant count
                                     Expanded(
@@ -449,7 +495,8 @@ class _RoomScreenState extends State<RoomScreen> {
                                               : Center(
                                                 child: ElevatedButton(
                                                   onPressed:
-                                                      widget.isCreator
+                                                      widget.isCreator &&
+                                                              !_cannotSearch
                                                           ? _startSwiping
                                                           : null,
                                                   style: ElevatedButton.styleFrom(
@@ -533,6 +580,42 @@ class _JoinLink extends StatelessWidget {
               );
             },
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Location is blocked for good, so only the person can turn it back on.
+class _LocationBlocked extends StatelessWidget {
+  const _LocationBlocked({required this.onWeb});
+
+  final bool onWeb;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF1C9),
+        border: Border.all(color: const Color(0xFFF7C948)),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          Text(
+            onWeb
+                ? "Location is blocked for this site. Allow it in your browser's site settings, then tap Start Swiping again."
+                : 'Location is off for this app. Allow it in Settings, then tap Start Swiping again.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Color(0xFF5A4300)),
+          ),
+          if (!onWeb)
+            TextButton(
+              onPressed: Geolocator.openAppSettings,
+              child: const Text('Open Settings'),
+            ),
         ],
       ),
     );

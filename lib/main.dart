@@ -16,6 +16,7 @@ import 'services/callable_room_backend.dart';
 import 'services/error_reporter.dart';
 import 'services/site_links.dart';
 import 'services/room_backend.dart';
+import 'services/search_defaults.dart';
 import 'themes/main_theme.dart';
 
 Future<void> main() async {
@@ -74,6 +75,10 @@ Future<void> main() async {
       backend: CallableRoomBackend(),
       accounts: accounts,
       activeRooms: PreferencesActiveRoomStore(),
+      searchDefaults: AccountSearchDefaults(
+        device: DeviceSearchDefaults(),
+        account: FirestoreAccountSettings(),
+      )..load(),
     ),
   );
 }
@@ -83,12 +88,14 @@ class MyApp extends StatelessWidget {
   final RoomBackend backend;
   final AccountService? accounts;
   final ActiveRoomStore? activeRooms;
+  final SearchDefaultsStore? searchDefaults;
   const MyApp({
     super.key,
     required this.currentUid,
     required this.backend,
     this.accounts,
     this.activeRooms,
+    this.searchDefaults,
   });
 
   @override
@@ -97,6 +104,7 @@ class MyApp extends StatelessWidget {
       backend: backend,
       accounts: accounts,
       activeRooms: activeRooms,
+      searchDefaults: searchDefaults,
       child: MaterialApp(
         title: 'What Do You Want?!',
         debugShowCheckedModeBanner: false,

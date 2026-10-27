@@ -11,6 +11,7 @@ import 'firebase_options_local.dart';
 import 'services/account_service.dart';
 import 'services/active_room_store.dart';
 import 'services/callable_room_backend.dart';
+import 'services/search_defaults.dart';
 import 'themes/main_theme.dart';
 
 Future<void> main() async {
@@ -68,6 +69,10 @@ Future<void> main() async {
       backend: CallableRoomBackend(usesFictionalRestaurants: true),
       accounts: accounts,
       activeRooms: PreferencesActiveRoomStore(),
+      searchDefaults: AccountSearchDefaults(
+        device: DeviceSearchDefaults(),
+        account: FirestoreAccountSettings(),
+      )..load(),
     ),
   );
 }

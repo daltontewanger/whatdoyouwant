@@ -6,6 +6,7 @@ import '../models/restaurant.dart';
 import '../models/user.dart';
 import '../services/result_nudges.dart';
 import '../services/room_backend.dart';
+import '../services/search_defaults.dart';
 import 'results_screen.dart';
 
 const Color cardSwipeBackground = Color(0xFFE7F8F3);
@@ -220,7 +221,7 @@ class SwipeScreenState extends State<SwipeScreen> {
               ),
               const SizedBox(height: 14),
               Text(
-                'Distance: ${restaurant.distance.toStringAsFixed(2)} miles',
+                'Distance: ${distanceText(restaurant.distance, RoomBackendScope.distanceUnitOf(context))}',
                 style: Theme.of(
                   context,
                 ).textTheme.bodyMedium!.copyWith(color: Colors.black54),

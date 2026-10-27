@@ -4,6 +4,7 @@ import '../models/restaurant.dart';
 import 'account_service.dart';
 import 'active_room_store.dart';
 import 'live_search.dart';
+import 'search_defaults.dart';
 
 /// A room as the screens need to see it, whichever backend stores it.
 class RoomState {
@@ -98,8 +99,7 @@ abstract class RoomBackend {
   /// Starts voting and returns the deck.
   Future<List<Restaurant>> start(
     String roomId, {
-    required double radiusMiles,
-    required int maxOptions,
+    required SearchPreferences search,
   });
   Future<void> vote(
     String roomId,
@@ -138,6 +138,7 @@ class RoomBackendScope extends InheritedWidget {
     required this.backend,
     this.accounts,
     this.activeRooms,
+    this.searchDefaults,
     required super.child,
   });
 
@@ -147,12 +148,19 @@ class RoomBackendScope extends InheritedWidget {
   /// Remembers the room in progress where the backend lets members return.
   final ActiveRoomStore? activeRooms;
 
+  /// The setup each search starts from, saved for the person.
+  final SearchDefaultsStore? searchDefaults;
+
   static RoomBackendScope of(BuildContext context) {
     final scope =
         context.dependOnInheritedWidgetOfExactType<RoomBackendScope>();
     assert(scope != null, 'No RoomBackendScope above this widget.');
     return scope!;
   }
+
+  /// The unit this person reads distances in; each member sees their own.
+  static DistanceUnit distanceUnitOf(BuildContext context) =>
+      maybeOf(context)?.searchDefaults?.current.unit ?? DistanceUnit.mi;
 
   /// The scope, where there is one; widgets shown outside the app return null.
   static RoomBackendScope? maybeOf(BuildContext context) =>
@@ -162,5 +170,6 @@ class RoomBackendScope extends InheritedWidget {
   bool updateShouldNotify(RoomBackendScope oldWidget) =>
       backend != oldWidget.backend ||
       accounts != oldWidget.accounts ||
-      activeRooms != oldWidget.activeRooms;
+      activeRooms != oldWidget.activeRooms ||
+      searchDefaults != oldWidget.searchDefaults;
 }

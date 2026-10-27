@@ -14,6 +14,7 @@ import 'services/account_service.dart';
 import 'services/active_room_store.dart';
 import 'services/callable_room_backend.dart';
 import 'services/error_reporter.dart';
+import 'services/search_defaults.dart';
 import 'services/site_links.dart';
 import 'themes/main_theme.dart';
 
@@ -95,6 +96,10 @@ Future<void> main() async {
       backend: CallableRoomBackend(),
       accounts: accounts,
       activeRooms: PreferencesActiveRoomStore(),
+      searchDefaults: AccountSearchDefaults(
+        device: DeviceSearchDefaults(),
+        account: FirestoreAccountSettings(),
+      )..load(),
     ),
   );
 }

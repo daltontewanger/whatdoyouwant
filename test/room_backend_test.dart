@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:whatdoyouwant/services/callable_room_backend.dart';
+import 'package:whatdoyouwant/services/search_defaults.dart';
 
 void main() {
   group('callable mapping', () {
@@ -54,13 +55,22 @@ void main() {
       expect(
         startSearchFor(
           (lat: 38.123456, lng: -98.987654),
-          radiusMiles: 5.0,
-          deckSize: 15,
+          const SearchPreferences(
+            unit: DistanceUnit.km,
+            radius: 10,
+            deckSize: 15,
+            includedCuisineIds: ['thai'],
+            excludedCuisineIds: ['pizza'],
+            openNowPreferred: true,
+          ),
         ),
         {
           'origin': {'lat': 38.123, 'lng': -98.988},
-          'radius': {'value': 5, 'unit': 'mi'},
+          'radius': {'value': 10, 'unit': 'km'},
           'deckSize': 15,
+          'includedCuisineIds': ['thai'],
+          'excludedCuisineIds': ['pizza'],
+          'openNowPreferred': true,
         },
       );
     });

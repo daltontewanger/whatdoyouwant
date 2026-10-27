@@ -11,6 +11,7 @@ import 'device_location.dart';
 import 'live_search.dart';
 import 'lobby_backstop.dart';
 import 'room_backend.dart';
+import 'search_defaults.dart';
 import 'site_links.dart';
 
 export 'device_location.dart' show SearchOrigin;
@@ -39,20 +40,22 @@ const _metersPerMile = 1609.344;
 /// about 100 m first: plenty for a search measured in miles, and less
 /// precise than where the person actually is.
 Map<String, Object?> startSearchFor(
-  SearchOrigin origin, {
-  required double radiusMiles,
-  required int deckSize,
-}) => {
+  SearchOrigin origin,
+  SearchPreferences search,
+) => {
   'origin': {
     'lat': double.parse(origin.lat.toStringAsFixed(3)),
     'lng': double.parse(origin.lng.toStringAsFixed(3)),
   },
-  'radius': {'value': radiusMiles.round(), 'unit': 'mi'},
-  'deckSize': deckSize,
+  'radius': {'value': search.radius, 'unit': search.unit.label},
+  'deckSize': search.deckSize,
+  'includedCuisineIds': search.includedCuisineIds,
+  'excludedCuisineIds': search.excludedCuisineIds,
+  'openNowPreferred': search.openNowPreferred,
 };
 
 /// One card as the server stores it, in a deck or a room's results. Cards keep
-/// meters; the app still shows miles.
+/// meters; the app works in miles and shows the person's own unit.
 Restaurant cardRestaurant(Map raw) => Restaurant(
   id: raw['id'] as String,
   name: raw['name'] as String,
@@ -251,17 +254,12 @@ class CallableRoomBackend implements RoomBackend {
   @override
   Future<List<Restaurant>> start(
     String roomId, {
-    required double radiusMiles,
-    required int maxOptions,
+    required SearchPreferences search,
   }) async {
     final origin = await _locate();
     final started = await _call('startRoom', {
       'roomId': roomId,
-      'search': startSearchFor(
-        origin,
-        radiusMiles: radiusMiles,
-        deckSize: maxOptions,
-      ),
+      'search': startSearchFor(origin, search),
     });
     // A fresh start returns its cards; a repeat start points at the stored deck.
     if (started['candidates'] is List) return deckRestaurants(started);
