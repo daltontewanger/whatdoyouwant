@@ -62,11 +62,39 @@ function addressOf(item) {
   return label.startsWith(prefix) ? label.slice(prefix.length) : label;
 }
 
+// Deal, delivery and review sites HERE sometimes lists ahead of a place's own
+// website. They are used only when the listing has nothing else.
+const THIRD_PARTY_SITES = ['groupon.com', 'doordash.com', 'ubereats.com', 'grubhub.com', 'postmates.com',
+  'seamless.com', 'yelp.com', 'tripadvisor.com', 'facebook.com', 'instagram.com'];
+
+// HERE sometimes stores a bare domain ("www.example.com"); those get https so
+// the link is usable. Anything else without a web scheme is dropped later.
+function webAddress(value) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return /^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}([/?#]\S*)?$/i.test(trimmed) ? `https://${trimmed}` : null;
+}
+
+function isThirdParty(url) {
+  let host;
+  try { host = new URL(url).hostname.toLowerCase(); } catch { return false; }
+  return THIRD_PARTY_SITES.some(site => host === site || host.endsWith(`.${site}`));
+}
+
+// The place's own website from any of its contact groups, else the first
+// usable link at all.
+function websiteOf(item) {
+  const sites = (item.contacts ?? []).flatMap(contact => contact?.www ?? [])
+    .map(entry => webAddress(entry?.value)).filter(Boolean);
+  return sites.find(url => !isThirdParty(url)) ?? sites[0] ?? null;
+}
+
 function normalizeHereItem(item) {
   if (!item || item.resultType !== 'place' || !item.position) return null;
   const foodTypes = (item.foodTypes ?? []).map(type => type?.id).filter(id => typeof id === 'string');
   const categories = (item.categories ?? []).map(category => category?.id).filter(id => typeof id === 'string');
-  const contact = item.contacts?.[0] ?? {};
+  const phone = (item.contacts ?? []).flatMap(contact => contact?.phone ?? []).find(entry => entry?.value);
   const chain = item.chains?.[0]?.id;
   return normalizedRestaurant({
     provider: 'here',
@@ -79,8 +107,8 @@ function normalizeHereItem(item) {
     categoryIds: categories,
     dietaryHints: dietaryHintsFromHere(foodTypes),
     openStatus: openStatusOf(item),
-    phone: contact.phone?.[0]?.value,
-    website: contact.www?.[0]?.value,
+    phone: phone?.value,
+    website: websiteOf(item),
     chainId: chain ? `here:${chain}` : null,
   });
 }

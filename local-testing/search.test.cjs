@@ -221,6 +221,21 @@ test('HERE normalization: contract fields only, title stripped from the address,
   assert.equal(normalizeHereItem({ ...items[0], contacts: [{ www: [{ value: 'javascript:alert(1)' }] }] }).website, null);
 });
 
+test('HERE websites: the place\'s own site first, bare domains made usable', () => {
+  const item = fixture('suburb').responses[0].body.items[0];
+  const site = (...contacts) => normalizeHereItem({ ...item, contacts }).website;
+  assert.equal(site({ www: [{ value: 'https://www.groupon.com/deals/x' }, { value: 'https://own.example/' }] }),
+    'https://own.example/', 'deal sites lose to the place\'s own');
+  assert.equal(site({ phone: [{ value: '+1 555 0100' }] }, { www: [{ value: 'https://own.example/' }] }),
+    'https://own.example/', 'any contact group counts');
+  assert.equal(site({ www: [{ value: 'https://m.doordash.com/store/1' }] }), 'https://m.doordash.com/store/1',
+    'a third-party link is still better than none');
+  assert.equal(site({ www: [{ value: 'www.own.example/menu' }] }), 'https://www.own.example/menu');
+  assert.equal(site({ www: [{ value: 'not a site' }, { value: 'mailto:a@own.example' }] }), null);
+  assert.equal(normalizeHereItem({ ...item, contacts: [{ www: [] }, { phone: [{ value: '+1 555 0100' }] }] }).phone,
+    '+1 555 0100');
+});
+
 test('HERE one-circle: one browse call when the pool is healthy, with no key or free text in it', async () => {
   const { transport, calls } = replay('suburb');
   const parsed = request({ includedCuisineIds: ['thai'] });
