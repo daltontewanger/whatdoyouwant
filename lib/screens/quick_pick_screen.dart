@@ -282,22 +282,32 @@ class _QuickPickScreenState extends State<QuickPickScreen> with SearchStarter {
                         ),
                         child: Column(
                           children: [
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: IconButton(
-                                icon: const Icon(
-                                  Icons.arrow_back,
-                                  color: Colors.black54,
-                                  size: 28,
+                            Row(
+                              children: [
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.arrow_back,
+                                    color: Colors.black54,
+                                    size: 28,
+                                  ),
+                                  tooltip: 'Back',
+                                  onPressed: () => Navigator.maybePop(context),
                                 ),
-                                tooltip: 'Back',
-                                onPressed: () => Navigator.maybePop(context),
-                              ),
+                                const Spacer(),
+                                if (pick != null)
+                                  PlaceShareButtons(
+                                    restaurant: pick.restaurant,
+                                  ),
+                              ],
                             ),
                             const SizedBox(height: 8),
-                            pick == null
-                                ? _setup(theme)
-                                : _revealed(theme, pick),
+                            if (pick == null)
+                              _setup(theme)
+                            else ...[
+                              _revealed(theme, pick),
+                              const SizedBox(height: 16),
+                              const PlaceCredit(),
+                            ],
                           ],
                         ),
                       ),

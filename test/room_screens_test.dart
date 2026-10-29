@@ -926,7 +926,8 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.text('Demo Tacos'), findsOneWidget);
-    expect(find.text('Votes: 2 of 3'), findsOneWidget);
+    expect(find.textContaining('2 of 3 liked it'), findsOneWidget);
+    expect(find.text('Well, most of you wanted it'), findsOneWidget);
   });
 
   testWidgets(
