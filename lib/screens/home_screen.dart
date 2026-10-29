@@ -237,7 +237,7 @@ class HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _quickPick() async {
-    if (!await _verifiedOrSignIn('use Quick Pick') || !mounted) return;
+    if (!await _verifiedOrSignIn('use Tell Me What I Want') || !mounted) return;
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const QuickPickScreen()),
@@ -494,17 +494,6 @@ class HomeScreenState extends State<HomeScreen>
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
-                              onPressed: _isLoading ? null : _quickPick,
-                              child: const Text(
-                                'Quick Pick',
-                                style: TextStyle(fontSize: 16),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
                               onPressed: _isLoading ? null : _joinRoom,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: theme.colorScheme.surface,
@@ -518,6 +507,29 @@ class HomeScreenState extends State<HomeScreen>
                               child: const Text(
                                 'Join Room',
                                 style: TextStyle(fontSize: 16),
+                              ),
+                            ),
+                          ),
+                          // Having one place picked is the side option, so
+                          // it sits under the two main buttons as a link.
+                          Padding(
+                            padding: const EdgeInsets.only(top: 14),
+                            child: Text(
+                              'Still too much pressure swiping through options? We can help pick for you.',
+                              textAlign: TextAlign.center,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: Colors.grey[800],
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _isLoading ? null : _quickPick,
+                            child: const Text(
+                              'Tell Me What I Want',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                decoration: TextDecoration.underline,
                               ),
                             ),
                           ),

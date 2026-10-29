@@ -15,7 +15,7 @@ import 'search_panel.dart';
 /// What to tell someone whose Quick Pick could not start.
 String quickPickErrorMessage(Object error) {
   if (error is FirebaseException && error.code == 'permission-denied') {
-    return 'Only verified accounts can use Quick Pick. Open Account to sign in or verify your email.';
+    return 'Only verified accounts can use Tell Me What I Want. Open Account to sign in or verify your email.';
   }
   return searchErrorMessage(error) ??
       'Could not load restaurants. Check your connection and try again.';
@@ -51,7 +51,7 @@ class _QuickPickScreenState extends State<QuickPickScreen> with SearchStarter {
   String? _requestId;
 
   @override
-  String get startLabel => 'Pick for me';
+  String get startLabel => 'Go Ahead, Tell Me';
 
   @override
   String get searchCostNote => 'A pick uses one; rerolls are free.';
@@ -164,7 +164,7 @@ class _QuickPickScreenState extends State<QuickPickScreen> with SearchStarter {
   Widget _setup(ThemeData theme) => Column(
     children: [
       Text(
-        'Quick Pick',
+        'Tell Me What I Want',
         style: theme.textTheme.headlineSmall!.copyWith(
           color: theme.colorScheme.primary,
           fontWeight: FontWeight.w800,
@@ -172,8 +172,9 @@ class _QuickPickScreenState extends State<QuickPickScreen> with SearchStarter {
       ),
       const SizedBox(height: 10),
       Text(
-        "We'll pick one place near you. Not feeling it? Get another from the "
-        'same search, up to 5 times, without using another search.'
+        "We'll help decide what you want by picking a place near you. Not "
+        'feeling it? Get another from the same search, up to 5 times, '
+        'without using another search.'
         "${backend.usesFictionalRestaurants ? '\n\nThis build uses fictional test restaurants.' : ''}",
         textAlign: TextAlign.center,
         style: TextStyle(
@@ -190,7 +191,10 @@ class _QuickPickScreenState extends State<QuickPickScreen> with SearchStarter {
           : ElevatedButton(
             onPressed: cannotSearch ? null : _pickForMe,
             style: ElevatedButton.styleFrom(minimumSize: const Size(170, 46)),
-            child: const Text('Pick for me', style: TextStyle(fontSize: 16)),
+            child: const Text(
+              'Go Ahead, Tell Me',
+              style: TextStyle(fontSize: 16),
+            ),
           ),
     ],
   );

@@ -48,6 +48,7 @@ void main() {
       ),
     );
     await openQuickPick(tester, backend, defaults: defaults);
+    expect(find.text('Tell Me What I Want'), findsOneWidget);
     // One card shows at a time, so the setup has no number of options.
     expect(find.text('Within 10 km'), findsOneWidget);
     expect(find.text('Prefer Thai'), findsOneWidget);
@@ -63,7 +64,7 @@ void main() {
     await tester.pageBack();
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Pick for me'));
+    await tester.tap(find.text('Go Ahead, Tell Me'));
     await tester.pumpAndSettle();
     expect(backend.picks.single.$2, defaults.current.copyWith(deckSize: 10));
     expect(find.text('Demo Pizza'), findsOneWidget);
@@ -92,7 +93,7 @@ void main() {
 
     await tester.tap(find.text('New search'));
     await tester.pumpAndSettle();
-    expect(find.text('Pick for me'), findsOneWidget);
+    expect(find.text('Go Ahead, Tell Me'), findsOneWidget);
   });
 
   testWidgets('a retried Quick Pick reuses its request, a new one does not', (
@@ -105,7 +106,7 @@ void main() {
             message: 'down',
           );
     await openQuickPick(tester, backend);
-    await tester.tap(find.text('Pick for me'));
+    await tester.tap(find.text('Go Ahead, Tell Me'));
     await tester.pumpAndSettle();
     expect(
       find.text(
@@ -115,11 +116,11 @@ void main() {
     );
 
     backend.pickError = null;
-    await tester.tap(find.text('Pick for me'));
+    await tester.tap(find.text('Go Ahead, Tell Me'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('New search'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Pick for me'));
+    await tester.tap(find.text('Go Ahead, Tell Me'));
     await tester.pumpAndSettle();
     final ids = [for (final (id, _) in backend.picks) id];
     expect(ids[0], ids[1], reason: 'a retry after a lost reply is free');
@@ -129,7 +130,7 @@ void main() {
   testWidgets('leaving a pick before choosing asks first', (tester) async {
     final backend = FakeRoomBackend();
     await openQuickPick(tester, backend);
-    await tester.tap(find.text('Pick for me'));
+    await tester.tap(find.text('Go Ahead, Tell Me'));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
@@ -144,7 +145,7 @@ void main() {
         FirebaseFunctionsException(code: code, message: code, details: details);
     expect(
       quickPickErrorMessage(callable('permission-denied')),
-      startsWith('Only verified accounts can use Quick Pick.'),
+      startsWith('Only verified accounts can use Tell Me What I Want.'),
     );
     expect(
       rerollErrorMessage(
