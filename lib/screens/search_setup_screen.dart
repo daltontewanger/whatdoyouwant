@@ -4,8 +4,9 @@ import '../models/cuisines.dart';
 import '../services/search_defaults.dart';
 
 /// One line describing a search, such as "Within 5 mi · 10 options".
-String searchSummary(SearchPreferences search) =>
-    'Within ${search.radius} ${search.unit.label} · ${search.deckSize} options';
+String searchSummary(SearchPreferences search, {bool withDeckSize = true}) =>
+    'Within ${search.radius} ${search.unit.label}'
+    '${withDeckSize ? ' · ${search.deckSize} options' : ''}';
 
 /// The cuisine and open-now part of a search, or null for "anything".
 String? preferenceSummary(SearchPreferences search) {
@@ -22,9 +23,16 @@ String? preferenceSummary(SearchPreferences search) {
 /// Lets the host choose what the deck searches for. Returns the new choices,
 /// or null when the host leaves without applying them.
 class SearchSetupScreen extends StatefulWidget {
-  const SearchSetupScreen({super.key, required this.initial});
+  const SearchSetupScreen({
+    super.key,
+    required this.initial,
+    this.choosesDeckSize = true,
+  });
 
   final SearchPreferences initial;
+
+  /// Quick Pick shows one card at a time, so it has no number of options.
+  final bool choosesDeckSize;
 
   @override
   State<SearchSetupScreen> createState() => _SearchSetupScreenState();
@@ -166,21 +174,24 @@ class _SearchSetupScreenState extends State<SearchSetupScreen> {
                       ),
                   ],
                 ),
-                _heading(theme, 'Number of options'),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    for (final size in SearchPreferences.deckSizes)
-                      ChoiceChip(
-                        label: Text('$size'),
-                        selected: _search.deckSize == size,
-                        onSelected:
-                            (_) => setState(
-                              () => _search = _search.copyWith(deckSize: size),
-                            ),
-                      ),
-                  ],
-                ),
+                if (widget.choosesDeckSize) ...[
+                  _heading(theme, 'Number of options'),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      for (final size in SearchPreferences.deckSizes)
+                        ChoiceChip(
+                          label: Text('$size'),
+                          selected: _search.deckSize == size,
+                          onSelected:
+                              (_) => setState(
+                                () =>
+                                    _search = _search.copyWith(deckSize: size),
+                              ),
+                        ),
+                    ],
+                  ),
+                ],
                 _heading(
                   theme,
                   'Cuisines to prefer',
@@ -215,8 +226,17 @@ class _SearchSetupScreenState extends State<SearchSetupScreen> {
                   child: const Text('Use these settings'),
                 ),
                 TextButton(
+                  // Quick Pick leaves the room's number of options as it was.
                   onPressed:
-                      () => setState(() => _search = const SearchPreferences()),
+                      () => setState(
+                        () =>
+                            _search =
+                                widget.choosesDeckSize
+                                    ? const SearchPreferences()
+                                    : const SearchPreferences().copyWith(
+                                      deckSize: _search.deckSize,
+                                    ),
+                      ),
                   child: const Text('Reset to the standard settings'),
                 ),
               ],
