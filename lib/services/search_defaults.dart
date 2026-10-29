@@ -38,7 +38,7 @@ class SearchPreferences {
   const SearchPreferences({
     this.unit = DistanceUnit.mi,
     this.radius = 5,
-    this.deckSize = 5,
+    this.deckSize = 10,
     this.includedCuisineIds = const [],
     this.excludedCuisineIds = const [],
     this.openNowPreferred = false,
