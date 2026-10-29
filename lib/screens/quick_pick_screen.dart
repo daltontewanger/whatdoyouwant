@@ -2,14 +2,12 @@ import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 
-import '../models/restaurant.dart';
 import '../services/live_search.dart';
 import '../services/place_links.dart';
 import '../services/room_backend.dart';
-import '../services/search_defaults.dart';
+import 'place_card.dart';
 import 'search_panel.dart';
 
 /// What to tell someone whose Quick Pick could not start.
@@ -204,14 +202,18 @@ class _QuickPickScreenState extends State<QuickPickScreen> with SearchStarter {
     return Column(
       children: [
         Text(
-          _chosen ? "You're going to" : 'How about',
-          style: theme.textTheme.titleMedium!.copyWith(color: Colors.grey[800]),
+          _chosen ? "You're going to:" : 'How about:',
+          style: theme.textTheme.titleLarge!.copyWith(
+            fontWeight: FontWeight.bold,
+            fontSize: 22,
+            color: Colors.black87,
+          ),
         ),
-        const SizedBox(height: 10),
-        _PlaceCard(restaurant: restaurant),
+        const SizedBox(height: 14),
+        PlaceCard(restaurant: restaurant),
         const SizedBox(height: 20),
         if (_chosen)
-          _PlaceActions(links: placeLinksFor(restaurant))
+          PlaceActions(links: placeLinksFor(restaurant))
         else if (_busy)
           const CircularProgressIndicator()
         else ...[
@@ -305,97 +307,6 @@ class _QuickPickScreenState extends State<QuickPickScreen> with SearchStarter {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _PlaceCard extends StatelessWidget {
-  const _PlaceCard({required this.restaurant});
-
-  final Restaurant restaurant;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        border: Border.all(color: theme.colorScheme.primary, width: 3),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        children: [
-          Text(
-            restaurant.name,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.headlineSmall!.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          if (restaurant.address.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(restaurant.address, textAlign: TextAlign.center),
-          ],
-          const SizedBox(height: 8),
-          Text(
-            'Distance: ${distanceText(restaurant.distance, RoomBackendScope.distanceUnitOf(context))}',
-            style: theme.textTheme.bodyMedium!.copyWith(
-              color: Colors.grey[800],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Map, directions, website and phone, where the listing has them.
-class _PlaceActions extends StatelessWidget {
-  const _PlaceActions({required this.links});
-
-  final PlaceLinks links;
-
-  Future<void> _open(BuildContext context, Uri url) async {
-    final messenger = ScaffoldMessenger.of(context);
-    var opened = false;
-    try {
-      opened = await launchUrl(
-        url,
-        mode: LaunchMode.externalApplication,
-        webOnlyWindowName: '_blank',
-      );
-    } catch (_) {}
-    if (!opened) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Could not open that link.')),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (links.isEmpty) {
-      return const Text('This listing has no map or contact details.');
-    }
-    return Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 10,
-      runSpacing: 10,
-      children: [
-        for (final (url, icon, label) in [
-          (links.map, Icons.map_outlined, 'Map'),
-          (links.directions, Icons.directions, 'Directions'),
-          (links.website, Icons.language, 'Website'),
-          (links.phone, Icons.call, 'Call'),
-        ])
-          if (url != null)
-            OutlinedButton.icon(
-              icon: Icon(icon),
-              label: Text(label),
-              onPressed: () => _open(context, url),
-            ),
-      ],
     );
   }
 }

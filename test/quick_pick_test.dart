@@ -85,7 +85,7 @@ void main() {
 
     await tester.tap(find.text("Let's go here"));
     await tester.pumpAndSettle();
-    expect(find.text("You're going to"), findsOneWidget);
+    expect(find.text("You're going to:"), findsOneWidget);
     expect(
       find.text('This listing has no map or contact details.'),
       findsOneWidget,

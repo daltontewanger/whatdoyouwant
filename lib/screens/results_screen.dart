@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/restaurant.dart';
 import '../services/result_nudges.dart';
 import '../services/room_backend.dart';
-import '../services/search_defaults.dart';
+import 'place_card.dart';
 
 class ResultsScreen extends StatefulWidget {
   final String roomCode;
@@ -173,43 +173,7 @@ class ResultsScreenState extends State<ResultsScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 14),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.primary.withValues(
-                                      alpha: 0.08,
-                                    ),
-                                    borderRadius: BorderRadius.circular(18),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 18,
-                                    horizontal: 18,
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        winning.name,
-                                        style: theme.textTheme.headlineSmall!
-                                            .copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 24,
-                                            ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        winning.address,
-                                        style: theme.textTheme.bodyLarge,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Distance: ${distanceText(winning.distance, RoomBackendScope.distanceUnitOf(context))}',
-                                        style: theme.textTheme.bodyMedium!
-                                            .copyWith(color: Colors.black54),
-                                      ),
-                                    ],
-                                  ),
-                                ),
+                                PlaceCard(restaurant: winning),
                                 const SizedBox(height: 18),
                                 Center(
                                   child: Text(

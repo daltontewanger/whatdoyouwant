@@ -1,5 +1,8 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:url_launcher/link.dart';
 import 'package:whatdoyouwant/models/restaurant.dart';
+import 'package:whatdoyouwant/screens/place_card.dart';
 import 'package:whatdoyouwant/services/place_links.dart';
 
 Restaurant place({
@@ -75,4 +78,44 @@ void main() {
     );
     expect(placeLinksFor(place(phone: 'call us')).phone, isNull);
   });
+
+  testWidgets(
+    'every place action is a real link with only what the listing has',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PlaceActions(
+              links: placeLinksFor(
+                place(
+                  phone: '+1 555-010-0001',
+                  website: 'https://demo.example',
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final links = {
+        for (final link in tester.widgetList<Link>(find.byType(Link)))
+          link.uri!.scheme: link.target,
+      };
+      // Tests run as an app, where the phone handles every link itself.
+      expect(links, {'https': LinkTarget.blank, 'tel': LinkTarget.blank});
+      expect(find.text('Call'), findsOneWidget);
+      expect(find.text('Website'), findsOneWidget);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PlaceActions(links: placeLinksFor(place(latitude: null))),
+          ),
+        ),
+      );
+      expect(
+        find.text('This listing has no map or contact details.'),
+        findsOneWidget,
+      );
+    },
+  );
 }
