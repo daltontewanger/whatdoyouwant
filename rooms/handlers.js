@@ -132,14 +132,6 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
   const quickPickView = (quickPickId, data) => ({ quickPickId, deckId: data.deckId, position: data.position,
     candidateId: data.order[data.position],
     rerollsLeft: Math.max(0, Math.min(MAX_REROLLS - data.rerollsUsed, data.order.length - 1 - data.position)) });
-  function shuffled(ids) {
-    const order = [...ids];
-    for (let i = order.length - 1; i > 0; i--) {
-      const j = randomInt(i + 1);
-      [order[i], order[j]] = [order[j], order[i]];
-    }
-    return order;
-  }
 
   const roomRef = roomId => db.doc(`rooms/${roomId}`);
   const deckRef = deckId => db.doc(`restaurantDecks/${deckId}`);
@@ -308,7 +300,9 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
           return { done: quickPickView(quickPickId, existing.data()) };
         },
         commit(tx, deck, built) {
-          const data = { ownerUid: actor.uid, deckId: deck.id, order: shuffled(built.candidates.map(c => c.id)),
+          // Deck order is already a fresh random draw within each preference
+          // tier, so revealing it in order keeps preferred cuisines first.
+          const data = { ownerUid: actor.uid, deckId: deck.id, order: built.candidates.map(c => c.id),
             position: 0, rerollsUsed: 0, createdAt: FieldValue.serverTimestamp(), expiresAt: expiry(QUICK_PICK_MS) };
           tx.create(ref, data);
           return { view: quickPickView(quickPickId, data), expiresAt: data.expiresAt };
