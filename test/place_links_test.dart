@@ -1,3 +1,4 @@
+﻿import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:url_launcher/link.dart';
@@ -36,6 +37,20 @@ void main() {
       'https://share.here.com/r/mylocation/38.500000,-98.500000,'
       'Demo%20Pizza%2C%201%20Example%20Street%2C%20Exampleton',
     );
+  });
+
+  test('other maps apps get only the position', () {
+    final links = placeLinksFor(place());
+    expect(
+      links.googleDirections.toString(),
+      'https://www.google.com/maps/dir/?api=1&destination=38.500000%2C-98.500000',
+    );
+    expect(
+      links.appleDirections.toString(),
+      'https://maps.apple.com/?daddr=38.500000%2C-98.500000',
+    );
+    expect(links.deviceMaps.toString(), 'geo:0,0?q=38.500000,-98.500000');
+    expect(placeLinksFor(place(latitude: null)).googleDirections, isNull);
   });
 
   test('names cannot break out of the link path', () {
@@ -102,6 +117,7 @@ void main() {
       };
       // Tests run as an app, where the phone handles every link itself.
       expect(links, {'https': LinkTarget.blank, 'tel': LinkTarget.blank});
+      expect(find.text('Map'), findsOneWidget);
       expect(find.text('Call'), findsOneWidget);
       expect(find.text('Website'), findsOneWidget);
 
@@ -118,4 +134,31 @@ void main() {
       );
     },
   );
+
+  for (final (platform, extra, missing) in [
+    (TargetPlatform.android, "Your phone's maps app", 'Apple Maps'),
+    (TargetPlatform.iOS, 'Apple Maps', "Your phone's maps app"),
+  ]) {
+    testWidgets('directions offer HERE WeGo first on ${platform.name}', (
+      tester,
+    ) async {
+      debugDefaultTargetPlatformOverride = platform;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: PlaceActions(links: placeLinksFor(place()))),
+        ),
+      );
+      await tester.tap(find.text('Directions'));
+      await tester.pumpAndSettle();
+      final titles = [
+        for (final tile in tester.widgetList<ListTile>(find.byType(ListTile)))
+          (tile.title! as Text).data,
+      ];
+      expect(titles, ['HERE WeGo', 'Google Maps', extra]);
+      expect(find.text(missing), findsNothing);
+      expect(find.text('Default'), findsOneWidget);
+      debugDefaultTargetPlatformOverride = null;
+    });
+  }
 }
