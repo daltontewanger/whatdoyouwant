@@ -7,6 +7,7 @@ import '../services/room_backend.dart';
 import '../services/site_links.dart';
 import 'account_action_screen.dart';
 import 'account_screen.dart';
+import 'quick_pick_screen.dart';
 import 'room_screen.dart';
 import 'join_screen.dart';
 import 'main_shell.dart';
@@ -218,23 +219,35 @@ class HomeScreenState extends State<HomeScreen>
     ),
   );
 
+  /// Live searches need a verified account; guests can still join rooms.
+  /// Signing in lands back here on home rather than in what was asked for.
+  Future<bool> _verifiedOrSignIn(String toDo) async {
+    if (_verifiedHost) return true;
+    final messenger = ScaffoldMessenger.of(context);
+    await _openAccount();
+    if (!mounted || _verifiedHost) return false;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          'Sign in with a verified email to $toDo. Guests can join without an account.',
+        ),
+      ),
+    );
+    return false;
+  }
+
+  Future<void> _quickPick() async {
+    if (!await _verifiedOrSignIn('use Quick Pick') || !mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const QuickPickScreen()),
+    );
+  }
+
   Future<void> _createRoom() async {
     final scope = RoomBackendScope.of(context);
     final messenger = ScaffoldMessenger.of(context);
-    if (!_verifiedHost) {
-      // Hosts need a verified account; guests can still join without one.
-      // Signing in lands back here on home rather than in a new room.
-      await _openAccount();
-      if (!mounted || _verifiedHost) return;
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Sign in with a verified email to create a room. Guests can join without an account.',
-          ),
-        ),
-      );
-      return;
-    }
+    if (!await _verifiedOrSignIn('create a room')) return;
     setState(() => _isLoading = true);
     try {
       final room = await scope.backend.createRoom();
@@ -473,6 +486,17 @@ class HomeScreenState extends State<HomeScreen>
                               onPressed: _isLoading ? null : _createRoom,
                               child: const Text(
                                 'Create Room',
+                                style: TextStyle(fontSize: 16),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: _isLoading ? null : _quickPick,
+                              child: const Text(
+                                'Quick Pick',
                                 style: TextStyle(fontSize: 16),
                               ),
                             ),

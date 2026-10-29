@@ -84,7 +84,36 @@ class FakeRoomBackend implements RoomBackend {
   }
 
   final votes = <(int, bool)>[];
+
+  /// Each Quick Pick request as (requestId, search).
+  final picks = <(String, SearchPreferences)>[];
+  Object? pickError;
+  int rerolls = 0;
+  @override
+  Future<QuickPick> createQuickPick({
+    required String requestId,
+    required SearchPreferences search,
+  }) async {
+    picks.add((requestId, search));
+    if (pickError != null) throw pickError!;
+    return quickPickAt(0);
+  }
+
+  @override
+  Future<QuickPick> rerollQuickPick(QuickPick pick) async {
+    rerolls++;
+    return quickPickAt(pick.position + 1);
+  }
 }
+
+/// A pick over [deck] that allows one reroll, like a two-card deck.
+QuickPick quickPickAt(int position) => QuickPick(
+  id: 'PICK',
+  position: position,
+  restaurant: deck[position],
+  rerollsLeft: deck.length - 1 - position,
+  cards: {for (final card in deck) card.id: card},
+);
 
 final deck = [
   Restaurant(id: 'a', name: 'Demo Pizza', address: '1 Example', distance: 0.25),

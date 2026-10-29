@@ -81,6 +81,27 @@ class CreatedRoom {
   final String joinCode;
 }
 
+/// One person's Quick Pick: a stored deck shown one card at a time.
+class QuickPick {
+  const QuickPick({
+    required this.id,
+    required this.position,
+    required this.restaurant,
+    required this.rerollsLeft,
+    required this.cards,
+  });
+
+  final String id;
+
+  /// Which card of the deck is showing; rerolls continue from here.
+  final int position;
+  final Restaurant restaurant;
+  final int rerollsLeft;
+
+  /// Every card in the pick's deck by ID, so a reroll needs no extra read.
+  final Map<String, Restaurant> cards;
+}
+
 /// Everything the room screens do, so they can run on the room callables or
 /// on a fake in tests.
 abstract class RoomBackend {
@@ -128,6 +149,17 @@ abstract class RoomBackend {
   /// This week's live searches, or null where there is no allowance to show
   /// (guests, unverified accounts, and backends without one).
   Future<LiveSearchAllowance?> liveSearchAllowance();
+
+  /// Spends one live search on a deck for this person and shows its first
+  /// card. Repeating a [requestId] returns the same pick rather than
+  /// searching again, so a retry after a lost reply costs nothing.
+  Future<QuickPick> createQuickPick({
+    required String requestId,
+    required SearchPreferences search,
+  });
+
+  /// The next card from the same deck, without a search or a charge.
+  Future<QuickPick> rerollQuickPick(QuickPick pick);
 }
 
 /// Makes the backend and, where accounts exist, the account service available

@@ -320,4 +320,42 @@ class CallableRoomBackend implements RoomBackend {
   @override
   Future<LiveSearchAllowance?> liveSearchAllowance() async =>
       LiveSearchAllowance.fromCallable(await _call('liveSearchStatus', {}));
+
+  @override
+  Future<QuickPick> createQuickPick({
+    required String requestId,
+    required SearchPreferences search,
+  }) async {
+    final origin = await _locate();
+    final view = await _call('createQuickPick', {
+      'requestId': requestId,
+      'search': startSearchFor(origin, search),
+    });
+    final deck = await _db.doc('restaurantDecks/${view['deckId']}').get();
+    return quickPickFrom(view, {
+      for (final card in deckRestaurants(deck.data()!)) card.id: card,
+    });
+  }
+
+  @override
+  Future<QuickPick> rerollQuickPick(QuickPick pick) async {
+    // `from` is the card on screen, so a retried reroll cannot skip one.
+    final view = await _call('rerollQuickPick', {
+      'quickPickId': pick.id,
+      'from': pick.position,
+    });
+    return quickPickFrom(view, pick.cards);
+  }
 }
+
+/// A Quick Pick as the server reports it, with the deck's cards.
+QuickPick quickPickFrom(
+  Map<String, dynamic> view,
+  Map<String, Restaurant> cards,
+) => QuickPick(
+  id: view['quickPickId'] as String,
+  position: (view['position'] as num).toInt(),
+  restaurant: cards[view['candidateId']]!,
+  rerollsLeft: (view['rerollsLeft'] as num).toInt(),
+  cards: cards,
+);
