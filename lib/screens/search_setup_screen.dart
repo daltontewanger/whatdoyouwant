@@ -82,19 +82,43 @@ class _SearchSetupScreenState extends State<SearchSetupScreen> {
     ),
   );
 
-  Widget _cuisineChips({required bool include}) {
+  Widget _cuisineChips(ThemeData theme, {required bool include}) {
     final chosen =
         include ? _search.includedCuisineIds : _search.excludedCuisineIds;
+    final other =
+        include ? _search.excludedCuisineIds : _search.includedCuisineIds;
+    final muted = theme.colorScheme.onSurface.withValues(alpha: 0.38);
     return Wrap(
       spacing: 8,
       runSpacing: 4,
       children: [
         for (final cuisine in cuisines)
-          FilterChip(
-            label: Text(cuisine.label),
-            selected: chosen.contains(cuisine.id),
-            onSelected: (_) => _toggleCuisine(cuisine.id, include: include),
-          ),
+          if (other.contains(cuisine.id))
+            // Already chosen in the other list. Greyed out so that choice is
+            // easy to see, but still tappable to move it here.
+            FilterChip(
+              label: Text(cuisine.label),
+              tooltip: include ? 'Left out below' : 'Preferred above',
+              selected: false,
+              labelStyle: TextStyle(
+                color: muted,
+                decoration: TextDecoration.lineThrough,
+                decorationColor: muted,
+              ),
+              side: BorderSide(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.12),
+              ),
+              backgroundColor: theme.colorScheme.onSurface.withValues(
+                alpha: 0.06,
+              ),
+              onSelected: (_) => _toggleCuisine(cuisine.id, include: include),
+            )
+          else
+            FilterChip(
+              label: Text(cuisine.label),
+              selected: chosen.contains(cuisine.id),
+              onSelected: (_) => _toggleCuisine(cuisine.id, include: include),
+            ),
       ],
     );
   }
@@ -163,14 +187,14 @@ class _SearchSetupScreenState extends State<SearchSetupScreen> {
                   hint:
                       'Shown first when there are enough nearby. Leave empty for anything.',
                 ),
-                _cuisineChips(include: true),
+                _cuisineChips(theme, include: true),
                 _heading(
                   theme,
                   'Cuisines to leave out',
                   hint:
                       'Left out when the listing says so. Labels come from listings and are not a guide to ingredients or allergens.',
                 ),
-                _cuisineChips(include: false),
+                _cuisineChips(theme, include: false),
                 const SizedBox(height: 12),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,

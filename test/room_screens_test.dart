@@ -539,6 +539,17 @@ void main() {
       await tester.tap(find.text('3 km'));
       await tester.tap(find.text('Thai').first);
       await tester.pump();
+      // The preferred cuisine shows greyed out in the list to leave out.
+      final greyed = tester.widget<FilterChip>(
+        find.ancestor(
+          of: find.text('Thai').last,
+          matching: find.byType(FilterChip),
+        ),
+      );
+      expect(
+        (greyed.selected, greyed.tooltip, greyed.labelStyle?.decoration),
+        (false, 'Preferred above', TextDecoration.lineThrough),
+      );
       // Leaving a preferred cuisine out takes it off the preferred list.
       await tester.tap(find.text('Thai').last);
       await tester.tap(find.text('Pizza').first);
