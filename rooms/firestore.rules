@@ -56,7 +56,7 @@ service cloud.firestore {
     }
     // The same IDs as rooms/search/cuisines.js; a unit test keeps them in step.
     function cuisineIds() {
-      return ['american', 'bbq', 'mexican', 'latin_american', 'chinese', 'japanese', 'korean', 'thai', 'vietnamese', 'indian', 'asian_other', 'middle_eastern', 'greek_mediterranean', 'italian', 'pizza', 'french', 'european', 'african', 'seafood', 'steakhouse', 'burgers', 'sandwiches', 'chicken', 'breakfast', 'dessert', 'fast_food'];
+      return ['african', 'american', 'chinese', 'french', 'greek_mediterranean', 'indian', 'italian', 'japanese', 'korean', 'latin_american', 'mexican', 'middle_eastern', 'thai', 'vietnamese', 'bbq', 'breakfast', 'burgers', 'chicken', 'dessert', 'fast_food', 'pizza', 'sandwiches', 'seafood', 'steakhouse'];
     }
     function cuisineList(list) {
       return list is list && list.size() <= 8 && list.toSet().size() == list.size() &&

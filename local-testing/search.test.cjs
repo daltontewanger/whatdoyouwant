@@ -83,6 +83,7 @@ test('cuisines: HERE food types, families and categories map to whitelisted IDs 
   assert.deepEqual(cuisinesFromHere([], ['100-1000-0005']), ['mexican']);
   assert.deepEqual(cuisinesFromHere(['800-067'], ['100-1000-0009']), ['burgers', 'fast_food']);
   assert.deepEqual(cuisinesFromHere(['800-066', '800-085']), [], 'unmapped types are unknown, not a cuisine');
+  assert.deepEqual(cuisinesFromHere(['204-000', '300-000']), [], 'broad "other" regions are not offered, so never excluded');
   assert.deepEqual(cuisinesFromHere([]), []);
   assert.deepEqual(dietaryHintsFromHere(['800-077', '202-000', '800-076']), ['vegan', 'vegetarian']);
   for (const [id, cuisine] of Object.entries(CUISINES)) {
