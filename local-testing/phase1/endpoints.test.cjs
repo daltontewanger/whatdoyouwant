@@ -391,8 +391,10 @@ test('account deletion removes memberships, ballots, hosted rooms, receipts and 
   assert.equal((await call('deleteAccount', {}, { token: staleToken(host.uid) })).status, 400);
   assert.equal((await db.doc(`rooms/${hosted.roomId}`).get()).data().status, 'lobby');
   await db.doc(`userSettings/${host.uid}`).set({ unit: 'km', radius: 3 });
+  await db.doc(`userLists/${host.uid}`).set({ spots: [{ id: 'a', name: 'Pizza Place' }] });
   assert.equal((await call('deleteAccount', {}, host)).status, 200);
   assert.equal((await db.doc(`userSettings/${host.uid}`).get()).exists, false, 'saved defaults go too');
+  assert.equal((await db.doc(`userLists/${host.uid}`).get()).exists, false, 'and the own list');
   const decks = await db.collection('restaurantDecks').get();
   assert.deepEqual(decks.docs.map(deck => deck.data().ownerUid), [otherHost.uid], 'the host decks are gone');
   const closed = (await db.doc(`rooms/${hosted.roomId}`).get()).data();
@@ -437,4 +439,73 @@ test('email domains: any session may ask about a bare domain; addresses and extr
   assert.equal((await call('checkEmailDomain', { domain: 'pat@example.test' }, guest)).status, 400);
   assert.equal((await call('checkEmailDomain', { domain: 'example.test', email: 'x' }, guest)).status, 400);
   assert.equal((await call('checkEmailDomain', { domain: 'example.test' })).status, 401);
+});
+
+test('own lists: verified accounts replace their whole list; each spot is checked', async () => {
+  const host = await user(true, true);
+  const spots = [{ id: 'a1', name: '  Tony\'s   Pizza ', address: '100 Main St' }, { id: 'b2', name: 'Pho Real', note: 'get the #4' }];
+  const saved = await call('saveOwnList', { spots }, host);
+  assert.equal(saved.status, 200);
+  assert.deepEqual(saved.data.result, { saved: 2 });
+  assert.deepEqual((await db.doc(`userLists/${host.uid}`).get()).data().spots,
+    [{ id: 'a1', name: 'Tony\'s Pizza', address: '100 Main St' }, { id: 'b2', name: 'Pho Real', note: 'get the #4' }]);
+  assert.equal((await call('saveOwnList', { spots: [] }, host)).status, 200, 'an emptied list is saved too');
+  assert.deepEqual((await db.doc(`userLists/${host.uid}`).get()).data().spots, []);
+
+  const many = Array.from({ length: 51 }, (_, i) => ({ id: `s${i}`, name: `Spot ${i}` }));
+  for (const bad of [
+    { spots: many },
+    { spots: [{ id: 'a', name: '   ' }] },
+    { spots: [{ id: 'a', name: 'x'.repeat(81) }] },
+    { spots: [{ id: 'a', name: 'Ok', note: 'x'.repeat(121) }] },
+    { spots: [{ id: 'a', name: 'Ok', latitude: 1 }] },
+    { spots: [{ id: 'a', name: 'One' }, { id: 'a', name: 'Two' }] },
+    { spots: [{ id: '../x', name: 'Ok' }] },
+    { spots: [], uid: 'someone-else' },
+  ]) {
+    assert.equal((await call('saveOwnList', bad, host)).status, 400, JSON.stringify(bad).slice(0, 60));
+  }
+  assert.equal((await call('saveOwnList', { spots: many.slice(0, 50) }, host)).status, 200, 'fifty fit');
+
+  for (const who of [await user(), await user(true, false)]) {
+    assert.equal((await call('saveOwnList', { spots }, who)).status, 403, 'guests and unverified accounts keep lists on the device');
+  }
+  assert.equal((await call('saveOwnList', { spots })).status, 401);
+});
+
+test('rooms from an own list: no search, no usage, and the result keeps the typed spot', async () => {
+  const host = await user(true, true);
+  const guest = await user();
+  const { roomId, joinCode } = await room(host);
+  assert.equal((await join(joinCode, guest)).status, 200);
+  const spots = [{ id: 'pho-1', name: 'Pho Real', note: 'get the #4' }, { id: 'taco-2', name: 'Taco Truck' },
+    { id: 'pizza-3', name: 'Tony’s Pizza', address: '100 Main St' }];
+
+  for (const bad of [{ roomId, spots: spots.slice(0, 1) }, { roomId, spots: [{ id: 'x', name: '' }, ...spots] },
+    { roomId, spots, search: SEARCH }, { roomId: 'nope', spots }]) {
+    assert.equal((await call('startRoomFromList', bad, host)).status, 400, JSON.stringify(bad).slice(0, 50));
+  }
+  assert.equal((await call('startRoomFromList', { roomId, spots }, guest)).status, 403, 'only the host starts');
+
+  const started = await call('startRoomFromList', { roomId, spots }, host);
+  assert.equal(started.status, 200);
+  const view = started.data.result;
+  assert.equal(view.candidateCount, 3);
+  assert.deepEqual(view.candidates.map(card => card.id).sort(), ['pho-1', 'pizza-3', 'taco-2']);
+  assert.ok(view.candidates.every(card => card.userEntered === true && card.latitude === undefined));
+  const deck = (await db.doc(`restaurantDecks/${view.deckId}`).get()).data();
+  assert.equal(deck.source, 'ownList');
+  assert.equal(deck.provider, undefined);
+  assert.equal((await db.collection('usageWeeks').where('uidHash', '!=', '').get()).docs
+    .filter(doc => doc.id.startsWith(`${host.uid}_`)).length, 0, 'no live search was used');
+  const again = await call('startRoomFromList', { roomId, spots }, host);
+  assert.equal(again.data.result.deckId, view.deckId, 'a repeated start points at the same deck');
+
+  for (const voter of [host, guest]) {
+    assert.equal((await vote(roomId, voter, 'pho-1')).status, 200);
+    for (const other of ['taco-2', 'pizza-3']) assert.equal((await vote(roomId, voter, other, false)).status, 200);
+  }
+  const results = (await call('roomResults', { roomId }, host)).data.result;
+  assert.equal(results.results.winner, 'pho-1');
+  assert.deepEqual(results.results.winnerCard, { id: 'pho-1', name: 'Pho Real', userEntered: true, note: 'get the #4' });
 });

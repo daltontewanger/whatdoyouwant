@@ -5,8 +5,9 @@ const { authorize } = require('./authorization');
 const { parseSearchRequest, InvalidSearchRequest } = require('./search/request');
 const { assertProvider } = require('./search/provider');
 const { createFakeProvider } = require('./search/fake-provider');
-const { resultCard, storedCandidate } = require('./decks');
+const { resultCard, storedCandidate, ownListDeckDocument } = require('./decks');
 const { createClientErrorReporter } = require('./client-errors');
+const { parseOwnList, InvalidList } = require('./own-list');
 const { createGeneration } = require('./generation');
 
 const ROOM_TTL_MS = 24 * 3600000;
@@ -283,6 +284,53 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       } });
     },
 
+    // A room from the host's own list: the spots they chose become the deck.
+    // No search runs, so no provider call and nothing counts against the week.
+    async startRoomFromList(request) {
+      const actor = identity(request);
+      if (!authorize('create', actor)) deny();
+      const value = request.data ?? {};
+      if (typeof value !== 'object' || Array.isArray(value) ||
+        Object.keys(value).sort().join() !== 'roomId,spots' || typeof value.roomId !== 'string' ||
+        !ROOM_ID.test(value.roomId)) {
+        invalid();
+      }
+      let spots;
+      try {
+        spots = parseOwnList({ spots: value.spots });
+      } catch (error) {
+        if (error instanceof InvalidList) invalid();
+        throw error;
+      }
+      if (spots.length < 2) invalid();
+      const roomId = value.roomId;
+      await limit(actor.uid, 'start', 10, 60000);
+      return db.runTransaction(async tx => {
+        const { room, snapshot, state } = await memberView(tx, roomId, actor.uid);
+        if (state.creator !== actor.uid) deny();
+        if (state.status !== 'lobby') return startedView(roomId, state);
+        if (!authorize('start', actor, state, true, now())) deny();
+        // Shuffled, so the host's own order does not decide who sees what first.
+        const order = [...spots];
+        for (let i = order.length - 1; i > 0; i--) {
+          const j = randomInt(i + 1);
+          [order[i], order[j]] = [order[j], order[i]];
+        }
+        const deck = db.doc(`restaurantDecks/${randomBytes(12).toString('hex')}`);
+        const roomExpiry = snapshot.data().expiresAt.toMillis();
+        const expiresAt = Timestamp.fromMillis(Math.min(roomExpiry, now() + VOTING_WINDOW_MS + DECK_AFTER_VOTING_MS));
+        const document = ownListDeckDocument({ ownerUid: actor.uid, targetId: roomId, spots: order, expiresAt,
+          generatedAt: FieldValue.serverTimestamp() });
+        tx.create(deck, document);
+        tx.update(room, { status: 'voting', deckId: deck.id, candidateCount: document.candidates.length,
+          joinCode: FieldValue.delete(), startedAt: FieldValue.serverTimestamp(),
+          votingEndsAt: expiry(VOTING_WINDOW_MS) });
+        if (state.joinCode) tx.delete(codeRef(state.joinCode));
+        return { roomId, deckId: deck.id, candidateCount: document.candidates.length,
+          candidates: document.candidates };
+      });
+    },
+
     // One live deck for one person, revealed a card at a time. The request ID
     // names the pick, so a retried call returns it instead of searching again.
     async createQuickPick(request) {
@@ -472,6 +520,23 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       throw new HttpsError('unavailable', 'Please try again.');
     },
 
+    // A verified account's own list for We'll Decide What We Want, replaced
+    // whole on each save.
+    async saveOwnList(request) {
+      const actor = identity(request);
+      if (!authorize('create', actor)) deny();
+      let spots;
+      try {
+        spots = parseOwnList(request.data);
+      } catch (error) {
+        if (error instanceof InvalidList) invalid();
+        throw error;
+      }
+      await limit(actor.uid, 'ownList', 30, 60000);
+      await db.doc(`userLists/${actor.uid}`).set({ spots, updatedAt: FieldValue.serverTimestamp() });
+      return { saved: spots.length };
+    },
+
     async deleteAccount(request) {
       const actor = identity(request);
       input(request, {});
@@ -530,6 +595,7 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
         });
       }
       await retryTransient(() => db.doc(`userSettings/${actor.uid}`).delete());
+      await retryTransient(() => db.doc(`userLists/${actor.uid}`).delete());
       try {
         await deleteAuthUser(actor.uid);
       } catch (error) {
@@ -544,6 +610,7 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
 
 const CALLABLES = ['createRoom', 'joinRoom', 'startRoom', 'closeRoom', 'roomResults',
   'revokeMember', 'rotateJoinCode', 'deleteAccount', 'liveSearchStatus', 'createQuickPick', 'rerollQuickPick',
-  'appStatus', 'reportClientError', 'checkEmailDomain'];
+  'appStatus', 'reportClientError', 'checkEmailDomain', 'saveOwnList',
+  'startRoomFromList'];
 
 module.exports = { createRoomHandlers, CALLABLES, CODE_ALPHABET, CAPACITY };

@@ -18,6 +18,9 @@
 // userSettings/{uid}: unit, radius, deckSize, includedCuisineIds,
 //   excludedCuisineIds, openNowPreferred, updatedAt. Kept until the account is
 //   deleted (deleteAccount removes it). Never holds a location.
+// userLists/{uid}: spots [{id, name, address?, note?}] the person typed (at
+//   most 50), updatedAt. Written only by saveOwnList, which checks each spot;
+//   kept until the account is deleted (deleteAccount removes it).
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -109,6 +112,10 @@ service cloud.firestore {
       allow create, update: if verifiedAccount(uid) && validSettings(request.resource.data);
       // Removed only with the account, by deleteAccount.
       allow list, delete: if false;
+    }
+    match /userLists/{uid} {
+      allow get: if verifiedAccount(uid);
+      allow list, write: if false;
     }
     match /{document=**} { allow read, write: if false; }
   }

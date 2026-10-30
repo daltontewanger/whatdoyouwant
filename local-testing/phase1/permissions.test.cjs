@@ -219,3 +219,16 @@ test('search defaults accept only the offered values', async () => {
   assert.equal(await saveSettings('host', settingsFields(), VERIFIED, 'host', false), 403, 'updatedAt is the server time');
   assert.equal(await saveSettings('host'), 200);
 });
+
+test('own lists: only the verified owner reads theirs, and nobody writes them directly', async () => {
+  const list = (path, uid, identity) => request(':commit', 'POST', { writes: [{ update: {
+    name: `projects/${PROJECT}/databases/(default)/documents/userLists/${path}`,
+    fields: { spots: { arrayValue: { values: [] } } } } }] }, uid, identity);
+  assert.equal(await list('host', 'host', VERIFIED), 403, 'only saveOwnList writes, after checking each spot');
+  assert.equal(await request('/userLists/host', 'GET', undefined, 'host', VERIFIED), 404, 'readable, not yet saved');
+  assert.equal(await request('/userLists/host', 'GET', undefined, 'other', VERIFIED), 403);
+  assert.equal(await request('/userLists/host', 'GET', undefined, 'host', { provider: 'password', verified: false }), 403);
+  assert.equal(await request('/userLists/host', 'GET'), 403);
+  assert.equal(await request('/userLists', 'GET', undefined, 'host', VERIFIED), 403, 'no listing');
+  assert.equal(await request('/userLists/host', 'DELETE', undefined, 'host', VERIFIED), 403);
+});

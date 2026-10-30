@@ -27,8 +27,29 @@ function storedCandidate(candidate) {
 // show the result and its links, nothing more.
 function resultCard(candidate) {
   if (!candidate) return null;
+  if (candidate.userEntered) {
+    const { id, name, address, note } = candidate;
+    return { id, name, userEntered: true, ...(address ? { address } : {}), ...(note ? { note } : {}) };
+  }
   const { id, name, address, distanceMeters, latitude, longitude, phone, website } = candidate;
   return { id, name, address, distanceMeters, latitude, longitude, phone, website };
+}
+
+// A deck from the host's own list: the spots as they typed them, with no
+// provider, position or distance.
+function ownListDeckDocument({ ownerUid, targetId, spots, expiresAt, generatedAt }) {
+  const candidates = spots.map((spot, order) => ({ id: spot.id, order, name: spot.name, userEntered: true,
+    ...(spot.address ? { address: spot.address } : {}), ...(spot.note ? { note: spot.note } : {}) }));
+  return {
+    ownerUid,
+    targetType: 'room',
+    targetId,
+    source: 'ownList',
+    candidateIds: candidates.map(candidate => candidate.id),
+    candidates,
+    generatedAt,
+    expiresAt,
+  };
 }
 
 function deckDocument({ ownerUid, targetType, targetId, provider, result, request, built, seed, expiresAt,
@@ -53,4 +74,4 @@ function deckDocument({ ownerUid, targetType, targetId, provider, result, reques
   };
 }
 
-module.exports = { deckDocument, storedCandidate, resultCard };
+module.exports = { deckDocument, storedCandidate, resultCard, ownListDeckDocument };
