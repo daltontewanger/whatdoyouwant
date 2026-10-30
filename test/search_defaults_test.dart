@@ -54,6 +54,29 @@ void main() {
     expect(SearchPreferences.fromJson(null), const SearchPreferences());
   });
 
+  test('a ZIP code lasts only while the app runs', () async {
+    final device = DeviceSearchDefaults();
+    final defaults = AccountSearchDefaults(
+      device: device,
+      account: FakeAccountSettings()..verifiedUid = 'uid-1',
+    );
+    await defaults.load();
+    defaults.zip = '67202';
+    await defaults.save(thaiKm);
+    await defaults.load();
+    expect(defaults.zip, '67202', reason: 'reloading keeps it in this session');
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getKeys().map(prefs.get).join(), isNot(contains('67202')));
+    expect(
+      (defaults.account as FakeAccountSettings).writes.toString(),
+      isNot(contains('67202')),
+    );
+    expect(
+      (await DeviceSearchDefaults().load(), DeviceSearchDefaults().zip),
+      (thaiKm, null),
+    );
+  });
+
   test('distances read in the person\'s unit', () {
     expect(distanceText(0.25, DistanceUnit.mi), '0.25 mi');
     expect(distanceText(3, DistanceUnit.km), '4.8 km');

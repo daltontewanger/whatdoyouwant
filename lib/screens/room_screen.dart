@@ -131,10 +131,7 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
 
   /// Lets the backend find the location while the host waits for guests.
   void _prepareStart() {
-    if (_prepared ||
-        !widget.isCreator ||
-        _fromList ||
-        !_backend.usesDeviceLocation) {
+    if (_prepared || !widget.isCreator || _fromList || !needsLocation) {
       return;
     }
     _prepared = true;
@@ -147,15 +144,13 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
 
     try {
       final spots = widget.ownSpots;
-      if (spots == null &&
-          _backend.usesDeviceLocation &&
-          !await locationReady()) {
+      if (spots == null && needsLocation && !await locationReady()) {
         if (mounted) setState(() => _isLoading = false);
         return;
       }
       final finalRestaurants =
           spots == null
-              ? await _backend.start(_roomCode!, search: search)
+              ? await _backend.start(_roomCode!, search: search, zip: zip)
               : await _backend.startFromList(_roomCode!, spots);
 
       if (!mounted) return;

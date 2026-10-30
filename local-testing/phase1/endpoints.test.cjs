@@ -169,6 +169,26 @@ test('rooms: anonymous, unverified and missing identities cannot create; supplie
   assert.equal((await start(roomId, await user(true, true))).status, 403);
 });
 
+test('decks: a ZIP code searches around its centre; an unknown one costs nothing and keeps no ZIP', async () => {
+  const host = await user(true, true);
+  const { roomId } = await room(host);
+  const status = async () => (await call('liveSearchStatus', {}, host)).data.result.used;
+  const unknown = await start(roomId, host, { ...SEARCH, origin: { zip: '00000' } });
+  assert.equal(unknown.status, 400);
+  assert.equal(unknown.data.error.status, 'INVALID_ARGUMENT');
+  assert.deepEqual(unknown.data.error.details, { reason: 'unknown-zip' });
+  assert.equal((await start(roomId, host, { ...SEARCH, origin: { zip: '6720' } })).data.error.details, undefined);
+  assert.equal(await status(), 0, 'nothing was spent');
+  assert.equal((await db.doc(`rooms/${roomId}`).get()).data().status, 'lobby');
+
+  assert.equal((await start(roomId, host, { ...SEARCH, origin: { zip: '67202' } })).status, 200);
+  assert.equal(await status(), 1);
+  const deck = await deckOf(roomId);
+  assert.ok(deck.candidates.length >= 5 && deck.candidates.every(c => c.distanceMeters <= 8047));
+  assert.ok(!JSON.stringify(deck).includes('67202') && !JSON.stringify(deck).includes('"origin"'),
+    'neither the ZIP code nor its centre is stored');
+});
+
 test('decks: start accepts only the search contract; thin pools store nothing; decks keep no origin', async () => {
   const host = await user(true, true); const guest = await user(); const outsider = await user();
   const { roomId, joinCode } = await room(host);

@@ -1,12 +1,22 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:whatdoyouwant/screens/room_screen.dart';
+import 'package:whatdoyouwant/screens/search_panel.dart';
 import 'package:whatdoyouwant/services/live_search.dart';
 
 FirebaseFunctionsException limited(String code, Map<String, Object?> details) =>
     FirebaseFunctionsException(code: code, message: 'raw', details: details);
 
 void main() {
+  test('an unknown ZIP code is named as the problem', () {
+    expect(
+      searchErrorMessage(
+        limited('invalid-argument', {'reason': 'unknown-zip'}),
+      ),
+      "We couldn't find that ZIP code. Check it in Change search and try again.",
+    );
+  });
+
   test('the allowance reads the server answer; guests have none', () {
     final allowance =
         LiveSearchAllowance.fromCallable({

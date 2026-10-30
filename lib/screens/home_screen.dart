@@ -291,11 +291,17 @@ class HomeScreenState extends State<HomeScreen>
     final defaults = RoomBackendScope.of(context).searchDefaults;
     final current = await defaults?.load() ?? const SearchPreferences();
     if (!mounted) return;
-    final chosen = await Navigator.push<SearchPreferences>(
+    final chosen = await Navigator.push<SearchSetup>(
       context,
-      MaterialPageRoute(builder: (_) => SearchSetupScreen(initial: current)),
+      MaterialPageRoute(
+        builder:
+            (_) =>
+                SearchSetupScreen(initial: current, initialZip: defaults?.zip),
+      ),
     );
-    if (chosen != null) await defaults?.save(chosen);
+    if (chosen == null) return;
+    defaults?.zip = chosen.zip;
+    await defaults?.save(chosen.search);
   }
 
   Future<void> _quickPick() async {

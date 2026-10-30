@@ -51,6 +51,13 @@ void main() {
       expect((cards[1].latitude, cards[1].website), (null, null));
     });
 
+    test('a ZIP code search sends the ZIP code and no location', () {
+      expect(
+        startSearchFor(null, const SearchPreferences(), zip: '67202')['origin'],
+        {'zip': '67202'},
+      );
+    });
+
     test('the start search rounds the location and sends offered values', () {
       expect(
         startSearchFor(

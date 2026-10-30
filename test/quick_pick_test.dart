@@ -96,6 +96,19 @@ void main() {
     expect(find.text('Go Ahead, Tell Me'), findsOneWidget);
   });
 
+  testWidgets('a ZIP code chosen earlier this session is used for the pick', (
+    tester,
+  ) async {
+    final backend = FakeRoomBackend()..usesDeviceLocation = true;
+    final defaults = MemorySearchDefaults()..zip = '67202';
+    await openQuickPick(tester, backend, defaults: defaults);
+    expect(find.text('Near 67202 · Within 5 mi'), findsOneWidget);
+    expect(backend.prepared, 0, reason: 'the device location is not needed');
+    await tester.tap(find.text('Go Ahead, Tell Me'));
+    await tester.pumpAndSettle();
+    expect(backend.pickZips, ['67202']);
+  });
+
   testWidgets('a retried Quick Pick reuses its request, a new one does not', (
     tester,
   ) async {

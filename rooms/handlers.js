@@ -2,7 +2,7 @@
 // Firebase modules are injected so each entry can supply its own copies.
 const { randomBytes, randomInt, createHash } = require('node:crypto');
 const { authorize } = require('./authorization');
-const { parseSearchRequest, InvalidSearchRequest } = require('./search/request');
+const { parseSearchRequest, InvalidSearchRequest, UnknownZip } = require('./search/request');
 const { assertProvider } = require('./search/provider');
 const { createFakeProvider } = require('./search/fake-provider');
 const { resultCard, storedCandidate, ownListDeckDocument } = require('./decks');
@@ -114,6 +114,9 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
     try {
       return { [name]: value[name], search: parseSearchRequest(value.search) };
     } catch (error) {
+      if (error instanceof UnknownZip) {
+        throw new HttpsError('invalid-argument', 'Unknown ZIP code.', { reason: 'unknown-zip' });
+      }
       if (error instanceof InvalidSearchRequest) invalid();
       throw error;
     }

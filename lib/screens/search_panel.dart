@@ -15,6 +15,9 @@ import 'search_setup_screen.dart';
 String? searchErrorMessage(Object error) {
   final limited = liveSearchErrorMessage(error);
   if (limited != null) return limited;
+  if (callableReason(error) == 'unknown-zip') {
+    return "We couldn't find that ZIP code. Check it in Change search and try again.";
+  }
   if (error is TimeoutException) {
     return 'Could not find your location in time. Check that location is on, then try again.';
   }
@@ -44,6 +47,9 @@ String? searchErrorMessage(Object error) {
 /// permission asked for with an explanation first.
 mixin SearchStarter<T extends StatefulWidget> on State<T> {
   SearchPreferences search = const SearchPreferences();
+
+  /// Where this session searches from instead of the device, if anywhere.
+  String? zip;
   LiveSearchAllowance? allowance;
   bool locationBlocked = false;
 
@@ -64,6 +70,7 @@ mixin SearchStarter<T extends StatefulWidget> on State<T> {
     final refreshed = refreshAllowance();
     if (defaults != null) {
       search = defaults.current;
+      zip = defaults.zip;
       final loaded = await defaults.load();
       if (mounted) setState(() => search = loaded);
     }
@@ -82,20 +89,29 @@ mixin SearchStarter<T extends StatefulWidget> on State<T> {
 
   Future<void> editSearch() async {
     final defaults = RoomBackendScope.of(context).searchDefaults;
-    final chosen = await Navigator.push<SearchPreferences>(
+    final chosen = await Navigator.push<SearchSetup>(
       context,
       MaterialPageRoute(
         builder:
             (_) => SearchSetupScreen(
               initial: search,
+              initialZip: zip,
               choosesDeckSize: choosesDeckSize,
             ),
       ),
     );
     if (chosen == null || !mounted) return;
-    setState(() => search = chosen);
-    await defaults?.save(chosen);
+    setState(() {
+      search = chosen.search;
+      zip = chosen.zip;
+      if (zip != null) locationBlocked = false;
+    });
+    defaults?.zip = chosen.zip;
+    await defaults?.save(chosen.search);
   }
+
+  /// Whether starting needs the device location and its permission.
+  bool get needsLocation => zip == null && backend.usesDeviceLocation;
 
   /// Live searches are switched off or used up for this week.
   bool get cannotSearch =>
@@ -195,7 +211,7 @@ mixin SearchStarter<T extends StatefulWidget> on State<T> {
         Text('Search', style: theme.textTheme.titleLarge),
         const SizedBox(height: 4),
         Text(
-          searchSummary(search, withDeckSize: choosesDeckSize),
+          searchSummary(search, withDeckSize: choosesDeckSize, zip: zip),
           textAlign: TextAlign.center,
           style: theme.textTheme.bodyLarge!.copyWith(
             fontWeight: FontWeight.w700,

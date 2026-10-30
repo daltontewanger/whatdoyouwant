@@ -1,12 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/cuisines.dart';
 import '../services/search_defaults.dart';
 
-/// One line describing a search, such as "Within 5 mi · 10 options".
-String searchSummary(SearchPreferences search, {bool withDeckSize = true}) =>
+/// One line describing a search, such as "Within 5 mi · 10 options", led by
+/// the ZIP code when the search starts from one.
+String searchSummary(
+  SearchPreferences search, {
+  bool withDeckSize = true,
+  String? zip,
+}) =>
+    '${zip == null ? '' : 'Near $zip · '}'
     'Within ${search.radius} ${search.unit.label}'
     '${withDeckSize ? ' · ${search.deckSize} options' : ''}';
+
+/// What the settings screen hands back: the saved choices, and the ZIP code
+/// for this session (null to search where the device is).
+typedef SearchSetup = ({SearchPreferences search, String? zip});
 
 /// The cuisine and open-now part of a search, or null for "anything".
 String? preferenceSummary(SearchPreferences search) {
@@ -26,10 +37,12 @@ class SearchSetupScreen extends StatefulWidget {
   const SearchSetupScreen({
     super.key,
     required this.initial,
+    this.initialZip,
     this.choosesDeckSize = true,
   });
 
   final SearchPreferences initial;
+  final String? initialZip;
 
   /// Quick Pick shows one card at a time, so it has no number of options.
   final bool choosesDeckSize;
@@ -40,6 +53,82 @@ class SearchSetupScreen extends StatefulWidget {
 
 class _SearchSetupScreenState extends State<SearchSetupScreen> {
   late SearchPreferences _search = widget.initial;
+  late bool _byZip = widget.initialZip != null;
+  late final _zip = TextEditingController(text: widget.initialZip);
+  bool _zipChecked = false;
+
+  @override
+  void dispose() {
+    _zip.dispose();
+    super.dispose();
+  }
+
+  void _apply() {
+    final zip = _zip.text.trim();
+    if (_byZip && !isZipCode(zip)) {
+      setState(() => _zipChecked = true);
+      return;
+    }
+    Navigator.pop<SearchSetup>(context, (
+      search: _search,
+      zip: _byZip ? zip : null,
+    ));
+  }
+
+  Widget _where(ThemeData theme) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      _heading(
+        theme,
+        'Where to search',
+        hint:
+            _byZip
+                ? 'Searches around the middle of that ZIP code. US only.'
+                : 'Your location is asked for when the search starts.',
+      ),
+      SegmentedButton<bool>(
+        segments: const [
+          ButtonSegment(
+            value: false,
+            icon: Icon(Icons.my_location),
+            label: Text('My location'),
+          ),
+          ButtonSegment(
+            value: true,
+            icon: Icon(Icons.pin_drop_outlined),
+            label: Text('ZIP code'),
+          ),
+        ],
+        selected: {_byZip},
+        onSelectionChanged: (value) => setState(() => _byZip = value.single),
+      ),
+      if (_byZip) ...[
+        const SizedBox(height: 12),
+        TextField(
+          controller: _zip,
+          autofocus: widget.initialZip == null,
+          keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(5),
+          ],
+          decoration: InputDecoration(
+            labelText: 'ZIP code',
+            border: const OutlineInputBorder(),
+            helperText: 'Not saved. Forgotten when you close the app.',
+            errorText:
+                _zipChecked && !isZipCode(_zip.text.trim())
+                    ? 'Enter a 5-digit ZIP code.'
+                    : null,
+          ),
+          onChanged: (_) {
+            if (_zipChecked) setState(() {});
+          },
+          onSubmitted: (_) => _apply(),
+        ),
+      ],
+    ],
+  );
 
   void _toggleCuisine(String id, {required bool include}) {
     final included = [..._search.includedCuisineIds];
@@ -144,6 +233,7 @@ class _SearchSetupScreenState extends State<SearchSetupScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
               children: [
+                _where(theme),
                 _heading(theme, 'Distance'),
                 SegmentedButton<DistanceUnit>(
                   segments: const [
@@ -222,21 +312,21 @@ class _SearchSetupScreenState extends State<SearchSetupScreen> {
                 ),
                 const SizedBox(height: 20),
                 ElevatedButton(
-                  onPressed: () => Navigator.pop(context, _search),
+                  onPressed: _apply,
                   child: const Text('Use these settings'),
                 ),
                 TextButton(
                   // Quick Pick leaves the room's number of options as it was.
                   onPressed:
-                      () => setState(
-                        () =>
-                            _search =
-                                widget.choosesDeckSize
-                                    ? const SearchPreferences()
-                                    : const SearchPreferences().copyWith(
-                                      deckSize: _search.deckSize,
-                                    ),
-                      ),
+                      () => setState(() {
+                        _byZip = false;
+                        _search =
+                            widget.choosesDeckSize
+                                ? const SearchPreferences()
+                                : const SearchPreferences().copyWith(
+                                  deckSize: _search.deckSize,
+                                );
+                      }),
                   child: const Text('Reset to the standard settings'),
                 ),
               ],

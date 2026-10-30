@@ -63,12 +63,15 @@ class FakeRoomBackend implements RoomBackend {
   Future<CreatedRoom> createRoom() async =>
       throw createError ?? UnimplementedError();
   final started = <SearchPreferences>[];
+  final startedZips = <String?>[];
   @override
   Future<List<Restaurant>> start(
     String roomId, {
     required SearchPreferences search,
+    String? zip,
   }) async {
     started.add(search);
+    startedZips.add(zip);
     throw startError ?? UnimplementedError();
   }
 
@@ -98,14 +101,17 @@ class FakeRoomBackend implements RoomBackend {
 
   /// Each Quick Pick request as (requestId, search).
   final picks = <(String, SearchPreferences)>[];
+  final pickZips = <String?>[];
   Object? pickError;
   int rerolls = 0;
   @override
   Future<QuickPick> createQuickPick({
     required String requestId,
     required SearchPreferences search,
+    String? zip,
   }) async {
     picks.add((requestId, search));
+    pickZips.add(zip);
     if (pickError != null) throw pickError!;
     return quickPickAt(0);
   }
@@ -619,6 +625,63 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+
+  testWidgets('a ZIP code search skips the location and is not saved', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final original = GeolocatorPlatform.instance;
+    addTearDown(() => GeolocatorPlatform.instance = original);
+    final location = LobbyLocation(LocationPermission.deniedForever);
+    GeolocatorPlatform.instance = location;
+    final backend = FakeRoomBackend()..usesDeviceLocation = true;
+    final defaults = MemorySearchDefaults();
+    await tester.pumpWidget(hostLobby(backend, defaults: defaults));
+    backend.room.add(state(status: 'lobby'));
+    await tester.pump();
+
+    await tester.tap(find.text('Change search'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ZIP code'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '672');
+    await tester.tap(find.text('Use these settings'));
+    await tester.pump();
+    expect(find.text('Enter a 5-digit ZIP code.'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), '67-202x');
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      '67202',
+      reason: 'only digits fit',
+    );
+    await tester.tap(find.text('Use these settings'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Near 67202 · Within 5 mi · 10 options'), findsOneWidget);
+    expect(defaults.zip, '67202');
+    expect(defaults.current.toJson().toString(), isNot(contains('67202')));
+
+    await tester.tap(find.text('Start Swiping'));
+    await tester.pump();
+    expect(backend.startedZips, ['67202']);
+    expect(location.requests, 0, reason: 'no location prompt');
+    expect(find.textContaining('Location is'), findsNothing);
+
+    // Back to the device: the ZIP code is dropped.
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Change search'));
+    await tester.pumpAndSettle();
+    expect(find.text('67202'), findsOneWidget);
+    await tester.tap(find.text('My location'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Use these settings'));
+    await tester.pumpAndSettle();
+    expect(find.text('Within 5 mi · 10 options'), findsOneWidget);
+    expect(defaults.zip, isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
 
   testWidgets(
     'the lobby shows the searches left and blocks Start when none are',

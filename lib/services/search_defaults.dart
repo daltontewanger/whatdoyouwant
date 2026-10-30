@@ -134,12 +134,26 @@ class SearchPreferences {
   int get hashCode => jsonEncode(toJson()).hashCode;
 }
 
+/// A five-digit US ZIP code, the only kind the server can search around.
+bool isZipCode(String value) => RegExp(r'^\d{5}$').hasMatch(value);
+
 /// The setup a person last used, so the next search starts from it.
 /// [current] is usable straight away and updates once [load] has run.
 abstract class SearchDefaultsStore extends ChangeNotifier {
   SearchPreferences get current;
   Future<SearchPreferences> load();
   Future<void> save(SearchPreferences preferences);
+
+  /// A ZIP code to search around instead of the device location, or null
+  /// for the device. Kept only while the app runs: it is never saved with
+  /// the defaults, so it is forgotten when the app closes.
+  String? get zip => _zip;
+  String? _zip;
+  set zip(String? value) {
+    if (value == _zip) return;
+    _zip = value;
+    notifyListeners();
+  }
 }
 
 class MemorySearchDefaults extends SearchDefaultsStore {

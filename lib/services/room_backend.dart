@@ -119,10 +119,12 @@ abstract class RoomBackend {
   Future<String> joinRoom(String typedCode);
   Stream<RoomState> watch(String roomId);
 
-  /// Starts voting and returns the deck.
+  /// Starts voting and returns the deck. With a [zip] code the search starts
+  /// there instead of at the device.
   Future<List<Restaurant>> start(
     String roomId, {
     required SearchPreferences search,
+    String? zip,
   });
 
   /// Starts voting on spots from the host's own list. No search runs, so it
@@ -162,6 +164,7 @@ abstract class RoomBackend {
   Future<QuickPick> createQuickPick({
     required String requestId,
     required SearchPreferences search,
+    String? zip,
   });
 
   /// The next card from the same deck, without a search or a charge.

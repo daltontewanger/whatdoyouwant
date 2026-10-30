@@ -65,7 +65,7 @@ class _QuickPickScreenState extends State<QuickPickScreen> with SearchStarter {
     if (_loaded) return;
     _loaded = true;
     loadSearchSetup();
-    if (backend.usesDeviceLocation) {
+    if (needsLocation) {
       unawaited(backend.prepareStart().catchError((_) {}));
     }
   }
@@ -79,7 +79,7 @@ class _QuickPickScreenState extends State<QuickPickScreen> with SearchStarter {
   Future<void> _pickForMe() async {
     setState(() => _busy = true);
     try {
-      if (backend.usesDeviceLocation && !await locationReady()) {
+      if (needsLocation && !await locationReady()) {
         if (mounted) setState(() => _busy = false);
         return;
       }
@@ -89,6 +89,7 @@ class _QuickPickScreenState extends State<QuickPickScreen> with SearchStarter {
       final pick = await backend.createQuickPick(
         requestId: _requestId!,
         search: search.copyWith(deckSize: 10),
+        zip: zip,
       );
       _requestId = null;
       if (!mounted) return;

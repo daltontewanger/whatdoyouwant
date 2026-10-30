@@ -39,15 +39,20 @@ const _metersPerMile = 1609.344;
 
 /// The search the server's startRoom expects. The location is rounded to
 /// about 100 m first: plenty for a search measured in miles, and less
-/// precise than where the person actually is.
+/// precise than where the person actually is. A [zip] code is sent instead
+/// of a location, and the server searches around its centre.
 Map<String, Object?> startSearchFor(
-  SearchOrigin origin,
-  SearchPreferences search,
-) => {
-  'origin': {
-    'lat': double.parse(origin.lat.toStringAsFixed(3)),
-    'lng': double.parse(origin.lng.toStringAsFixed(3)),
-  },
+  SearchOrigin? origin,
+  SearchPreferences search, {
+  String? zip,
+}) => {
+  'origin':
+      zip != null
+          ? {'zip': zip}
+          : {
+            'lat': double.parse(origin!.lat.toStringAsFixed(3)),
+            'lng': double.parse(origin.lng.toStringAsFixed(3)),
+          },
   'radius': {'value': search.radius, 'unit': search.unit.label},
   'deckSize': search.deckSize,
   'includedCuisineIds': search.includedCuisineIds,
@@ -258,11 +263,12 @@ class CallableRoomBackend implements RoomBackend {
   Future<List<Restaurant>> start(
     String roomId, {
     required SearchPreferences search,
+    String? zip,
   }) async {
-    final origin = await _locate();
+    final origin = zip == null ? await _locate() : null;
     final started = await _call('startRoom', {
       'roomId': roomId,
-      'search': startSearchFor(origin, search),
+      'search': startSearchFor(origin, search, zip: zip),
     });
     // A fresh start returns its cards; a repeat start points at the stored deck.
     if (started['candidates'] is List) return deckRestaurants(started);
@@ -342,11 +348,12 @@ class CallableRoomBackend implements RoomBackend {
   Future<QuickPick> createQuickPick({
     required String requestId,
     required SearchPreferences search,
+    String? zip,
   }) async {
-    final origin = await _locate();
+    final origin = zip == null ? await _locate() : null;
     final view = await _call('createQuickPick', {
       'requestId': requestId,
-      'search': startSearchFor(origin, search),
+      'search': startSearchFor(origin, search, zip: zip),
     });
     final deck = await _db.doc('restaurantDecks/${view['deckId']}').get();
     return quickPickFrom(view, {

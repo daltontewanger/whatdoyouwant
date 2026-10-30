@@ -3,7 +3,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 require('./network-guard.cjs').installHttpGuard();
-const { parseSearchRequest, filterSummary, InvalidSearchRequest } = require('../rooms/search/request');
+const { parseSearchRequest, filterSummary, InvalidSearchRequest, UnknownZip } = require('../rooms/search/request');
 const { CUISINES, CUISINE_IDS, cuisinesFromHere, dietaryHintsFromHere } = require('../rooms/search/cuisines');
 const { buildDeck, distanceMeters, candidateId } = require('../rooms/search/deck');
 const { createFakeProvider } = require('../rooms/search/fake-provider');
@@ -74,6 +74,22 @@ test('request contract: rejects anything outside the whitelist instead of trimmi
     { origin: ORIGIN, radius: KM5, deckSize: 20 },
   ];
   for (const data of bad) assert.throws(() => parseSearchRequest(data), InvalidSearchRequest, JSON.stringify(data));
+});
+
+test('request contract: a US ZIP code searches around its centre and is not kept', () => {
+  const parsed = request({ origin: { zip: '67202' } });
+  assert.deepEqual(parsed.origin, { lat: 37.687, lng: -97.335 });
+  assert.ok(!JSON.stringify(parsed).includes('67202'), 'nothing downstream sees the ZIP code itself');
+  assert.deepEqual(request({ origin: { zip: '00601' } }).origin, { lat: 18.181, lng: -66.75 }, 'the first row loads');
+  // Well formed but no area to search, such as a PO-box-only ZIP code.
+  for (const zip of ['00000', '99999', '67201']) {
+    assert.throws(() => request({ origin: { zip } }), UnknownZip, zip);
+  }
+  for (const origin of [{ zip: 67202 }, { zip: '6720' }, { zip: '67202-1234' }, { zip: ' 67202' },
+    { zip: '67202', lat: 1 }, { zip: '67202', ...ORIGIN }]) {
+    assert.throws(() => request({ origin }), error => error instanceof InvalidSearchRequest &&
+      !(error instanceof UnknownZip), JSON.stringify(origin));
+  }
 });
 
 test('cuisines: HERE food types, families and categories map to whitelisted IDs only', () => {
