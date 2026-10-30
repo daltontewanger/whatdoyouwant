@@ -73,12 +73,14 @@
       <li>passwords (handled by our sign-in provider and stored only in hashed form; we never see them)</li>
       <li>contact or authentication data</li>
       <li>search preferences: if you have an account, the search settings you choose (distance unit, search radius, number of options, cuisines to prefer or leave out, and whether to show places open now first), so they follow you between devices. They never include your location.</li>
+      <li>your own list: if you have an account, the places you type into We'll Decide What We Want (a name, and optionally an address and a note, for up to 50 places), so your list follows you between devices. Without an account, your list stays only on your device. We never look these places up or connect them to your location.</li>
     </ul>
     <p id="sensitiveinfo"><strong>Sensitive information.</strong> When necessary, with your consent or as otherwise permitted by applicable law, we process the following categories of sensitive information: account login information and precise geolocation.</p>
     <p><strong>Google sign-in data.</strong> You can choose to register or sign in with your Google account. If you do, we receive certain profile information from Google, as described in <a href="#sociallogins">How do we handle your social logins?</a> below.</p>
     <p><strong>Application data.</strong> If you use our application(s), we also may collect the following information if you choose to give us access or permission:</p>
     <ul>
       <li><em>Geolocation information.</em> When you start a search as a host, we ask for your device's location to find restaurants near you. We ask only at that moment, not continuously or in the background. If you wish to change our access or permissions, you may do so in your device's settings.</li>
+      <li><em>ZIP code.</em> Instead of your device's location, you can choose to search around a US ZIP code. We use it only to find the middle of that ZIP code's area for your search. This ZIP code is not saved and will be forgotten after the app is closed.</li>
     </ul>
     <p>All personal information that you provide to us must be true, complete, and accurate, and you must notify us of any changes to such personal information.</p>
 
@@ -89,7 +91,7 @@
       <li><em>Guest identifier.</em> When you use the app without an account, we create a random guest identifier so you can join rooms and vote.</li>
       <li><em>Log and usage data.</em> Our servers automatically record service-related and diagnostic information when you use our Services, such as your IP address, browser and device type, the date and time of each request, and whether it succeeded.</li>
       <li><em>Security checks.</em> To keep automated abuse out, our bot-protection provider checks that requests come from a genuine browser or app. This reads browser and device signals and may set its own cookie.</li>
-      <li><em>Location data.</em> When you start a search as a host, we use your device's location, rounded to about 100 meters, to find nearby restaurants. You can refuse access to your location or disable it in your device settings; however, if you do, you will not be able to start a search. You can still join rooms and vote.</li>
+      <li><em>Location data.</em> When you start a search as a host, we use your device's location, rounded to about 100 meters, to find nearby restaurants. You can refuse access to your location or disable it in your device settings; however, if you do, you will not be able to start a search near you. You can search around a ZIP code instead, and you can still join rooms and vote.</li>
     </ul>
     <p>You can find out more about cookies and similar technologies in our Cookie Policy: <a href="https://getwhatdoyouwant.app/cookies">https://getwhatdoyouwant.app/cookies</a>.</p>
 
@@ -101,7 +103,7 @@
     <p><strong>We process your personal information for a variety of reasons, depending on how you interact with our Services, including:</strong></p>
     <ul>
       <li><strong>To facilitate account creation and authentication and otherwise manage user accounts.</strong> We may process your information so you can create and log in to your account, as well as keep your account in working order. (Retention period: for as long as the user maintains an account, and up to 30 days after the account is deleted, to allow for removal from backups.)</li>
-      <li><strong>To deliver and facilitate delivery of services to the user.</strong> We may process your information to provide you with the requested service. (Retention period: for as long as the user maintains an account, and up to 30 days after the account is deleted. Location data used for nearby searches is used only to return results and is not stored.)</li>
+      <li><strong>To deliver and facilitate delivery of services to the user.</strong> We may process your information to provide you with the requested service. (Retention period: for as long as the user maintains an account, and up to 30 days after the account is deleted. Location data and ZIP codes used for searches are used only to return results and are not stored.)</li>
       <li><strong>To respond to support requests and feedback.</strong> We may process your information when necessary to respond to you and to contact you about your use of our Services. (Retention period: for as long as needed to respond to and resolve the user's feedback or support request, and no longer than 12 months after the last contact.)</li>
       <li><strong>To protect our Services.</strong> We may process your information as part of our efforts to keep our Services safe and secure, including fraud monitoring and prevention. (Retention period: security and server logs are kept for up to 30 days, unless needed longer to investigate a specific security incident or abuse, or to comply with legal obligations.)</li>
       <li><strong>To save or protect an individual's vital interest.</strong> We may process your information when necessary to save or protect an individual's vital interest, such as to prevent harm.</li>
@@ -145,7 +147,7 @@
       <li>Cloud computing services</li>
       <li>Data storage service providers</li>
       <li>User account registration and authentication services</li>
-      <li>Location and mapping services (restaurant search, which receives only the rounded location of a search)</li>
+      <li>Location and mapping services (restaurant search, which receives only the rounded location of a search, or the middle of the ZIP code's area when you search by ZIP code)</li>
       <li>Security and bot-protection services</li>
       <li>Communication tools (for answering support email)</li>
     </ul>
@@ -157,7 +159,7 @@
 
     <h2 id="cookies">5. Do we use cookies and other tracking technologies?</h2>
     <p><em><strong>In short:</strong> We use only what is needed to sign you in and keep the Services secure. We do not use advertising or analytics trackers.</em></p>
-    <p>We use a small amount of storage in your browser or device to keep you signed in, to remember the room you are in, and to remember your last search settings. Our bot-protection provider may set a cookie to help tell genuine visitors from automated abuse. These technologies are needed for the Services to work and to keep them secure. We do not use cookies or similar technologies for analytics, advertising, or tracking you across other websites.</p>
+    <p>We use a small amount of storage in your browser or device to keep you signed in, to remember the room you are in, and to remember your last search settings and your own list. Our bot-protection provider may set a cookie to help tell genuine visitors from automated abuse. These technologies are needed for the Services to work and to keep them secure. We do not use cookies or similar technologies for analytics, advertising, or tracking you across other websites.</p>
     <p>Specific information about these technologies and how you can refuse certain cookies is set out in our Cookie Policy: <a href="https://getwhatdoyouwant.app/cookies">https://getwhatdoyouwant.app/cookies</a>.</p>
 
     <h2 id="sociallogins">6. How do we handle your social logins?</h2>
@@ -176,11 +178,12 @@
     <ul>
       <li>Account details (email, and name and ID if you sign in with Google) are kept until you delete your account.</li>
       <li>Search preferences saved to an account are kept until you delete your account. Without an account, they stay only on your device.</li>
+      <li>Your own list saved to an account is kept until you change it or delete your account. Without an account, it stays only on your device.</li>
       <li>Guest identifiers are deleted after 30 days of inactivity.</li>
       <li>Accounts whose email address is never verified are deleted after 30 days of inactivity.</li>
       <li>Rooms and votes are deleted automatically within about a day.</li>
       <li>IP addresses in server logs are deleted after 30 days.</li>
-      <li>Location is not stored: it is used for the search a host starts and then discarded.</li>
+      <li>Location is not stored: it is used for the search a host starts and then discarded. A host can search around a ZIP code instead; this ZIP code is not saved and will be forgotten after the app is closed.</li>
     </ul>
     <p>See <a href="#infouse">How do we process your information?</a> for our retention periods by purpose. When we have no ongoing legitimate business need to process your personal information, we will either delete or anonymize it, or, if this is not possible (for example, because it has been stored in backup archives), we will securely store it and isolate it from any further processing until deletion is possible.</p>
 
@@ -243,8 +246,8 @@
     <p>We may also collect other personal information outside of these categories when you contact us for help through our support channels, and to respond to your inquiries.</p>
     <p>We will use and retain the collected personal information as needed to provide the Services or for:</p>
     <ul>
-      <li>Category A: Account details (email, and name and ID if you sign in with Google) are kept until you delete your account, except that accounts whose email is never verified are deleted after 30 days of inactivity. Guest IDs are deleted after 30 days of inactivity. IP addresses in server logs are deleted after 30 days. Search preferences saved to an account are kept until you delete your account.</li>
-      <li>Category G: Not stored. When a host starts a search, the device's location, rounded to about 100 meters, is used for that search only and then discarded. Guests who join a room never share their location.</li>
+      <li>Category A: Account details (email, and name and ID if you sign in with Google) are kept until you delete your account, except that accounts whose email is never verified are deleted after 30 days of inactivity. Guest IDs are deleted after 30 days of inactivity. IP addresses in server logs are deleted after 30 days. Search preferences and your own list saved to an account are kept until you delete your account.</li>
+      <li>Category G: Not stored. When a host starts a search, the device's location, rounded to about 100 meters, is used for that search only and then discarded. A host can search around a ZIP code instead; this ZIP code is not saved and will be forgotten after the app is closed. Guests who join a room never share their location.</li>
       <li>Category L: Sign-in details are kept until you delete your account. Location is not stored: it is used for the search a host starts and then discarded.</li>
     </ul>
     <h3>Sources of personal information</h3>
