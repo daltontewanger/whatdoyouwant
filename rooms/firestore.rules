@@ -117,6 +117,12 @@ service cloud.firestore {
       allow get: if verifiedAccount(uid);
       allow list, write: if false;
     }
+    // Favorites and never list: the verified owner reads; only saveMyPlaces
+    // writes, after checking every entry.
+    match /userPlaces/{uid} {
+      allow get: if verifiedAccount(uid);
+      allow list, write: if false;
+    }
     match /{document=**} { allow read, write: if false; }
   }
 }

@@ -137,22 +137,50 @@ function eligiblePool(records, request) {
   };
 }
 
+// Up to one favorite per person, from those this search found, and never more
+// than half the deck, so a room that only brings favorites still sees new
+// places. Who gets a slot when there are too many is left to the seed.
+function pinnedFavorites(pool, favorites, deckSize, seed) {
+  const byId = new Map(pool.map(record => [candidateId(record), record]));
+  const picks = favorites
+    .map((ids, person) => {
+      const found = [...new Set(ids)].filter(id => byId.has(id))
+        .sort((a, b) => (hash(`${seed}:${person}:${a}`) < hash(`${seed}:${person}:${b}`) ? -1 : 1));
+      return { draw: hash(`${seed}:person:${person}`), id: found[0] };
+    })
+    .filter(pick => pick.id)
+    .sort((a, b) => (a.draw < b.draw ? -1 : 1));
+  const pinned = new Set();
+  for (const pick of picks) {
+    if (pinned.size === Math.floor(deckSize / 2)) break;
+    pinned.add(pick.id);
+  }
+  return [...pinned].map(id => byId.get(id));
+}
+
 /**
  * Builds a deck from normalized records.
  * @param {object[]} records NormalizedRestaurant records from any provider.
  * @param {object} request A parsed search request (see request.js).
- * @param {{seed: string, minimumPool?: number}} options The stored seed draws the order within each
- *   preference tier.
+ * @param {{seed: string, minimumPool?: number, never?: Iterable<string>, favorites?: string[][]}} options
+ *   The stored seed draws the order within each preference tier. `never` holds card IDs to leave out;
+ *   `favorites` holds each person's favorite card IDs.
  * @returns {{candidates: object[], pool: object}} Candidates in deck order and a pool report.
  */
-function buildDeck(records, request, { seed, minimumPool = Math.min(MINIMUM_POOL, request.deckSize) }) {
+function buildDeck(records, request, { seed, minimumPool = Math.min(MINIMUM_POOL, request.deckSize),
+  never = [], favorites = [] }) {
   if (typeof seed !== 'string' || !seed.length) throw new Error('A deck needs a stored seed.');
-  const { kept, counts } = eligiblePool(records, request);
-  const ranked = kept
-    .map(record => ({ record, tier: tier(record, request), draw: hash(`${seed}:${candidateId(record)}`) }))
-    .sort((a, b) => b.tier - a.tier || (a.draw < b.draw ? -1 : a.draw > b.draw ? 1 : 0))
+  const { kept: eligible, counts } = eligiblePool(records, request);
+  const left = new Set(never);
+  const kept = eligible.filter(record => !left.has(candidateId(record)));
+  const pinned = pinnedFavorites(kept, favorites, request.deckSize, seed);
+  const draw = record => ({ record, tier: tier(record, request), draw: hash(`${seed}:${candidateId(record)}`) });
+  const byRank = (a, b) => b.tier - a.tier || (a.draw < b.draw ? -1 : a.draw > b.draw ? 1 : 0);
+  const ranked = kept.filter(record => !pinned.includes(record)).map(draw).sort(byRank)
     .map(entry => entry.record);
-  const chosen = selectVaried(ranked, request.deckSize);
+  // Favorites take their place in the usual order rather than leading the deck.
+  const chosen = [...pinned, ...selectVaried(ranked, request.deckSize - pinned.length)]
+    .map(draw).sort(byRank).map(entry => entry.record);
   const candidates = chosen.map((record, order) => ({
     ...record,
     id: candidateId(record),
@@ -163,6 +191,8 @@ function buildDeck(records, request, { seed, minimumPool = Math.min(MINIMUM_POOL
     candidates,
     pool: {
       ...counts,
+      neverLeftOut: eligible.length - kept.length,
+      favoritesIncluded: pinned.length,
       selected: candidates.length,
       minimum: minimumPool,
       sufficient: kept.length >= minimumPool,

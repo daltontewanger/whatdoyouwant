@@ -156,8 +156,49 @@ test('deck: distance comes from the origin; out-of-radius and positively exclude
   assert.ok(!candidates.some(c => c.cuisineIds.includes('mexican')));
   assert.ok(candidates.some(c => c.cuisineIds.length === 0), 'unknown cuisine stays under exclusions (flexible)');
   assert.deepEqual(pool, { received: 26, invalid: 0, outOfRadius: 1, excluded: 2, duplicates: 0, eligible: 23,
-    selected: 23, minimum: 8, sufficient: true });
+    neverLeftOut: 0, favoritesIncluded: 0, selected: 23, minimum: 8, sufficient: true });
   assert.equal((await fakeDeck({ deckSize: 5 })).pool.minimum, 5, 'a short deck needs only its own size');
+});
+
+async function listDeck(options, fields = { deckSize: 10 }) {
+  const parsed = request(fields);
+  const { restaurants } = await createFakeProvider().searchNearby(parsed);
+  return { restaurants, deck: buildDeck(restaurants, parsed, { seed: 'seed-1', ...options }) };
+}
+
+test('deck: never places are left out and counted; too many leaves the pool short', async () => {
+  const { deck: plain } = await listDeck({});
+  const never = plain.candidates.slice(0, 3).map(c => c.id);
+  const { deck } = await listDeck({ never });
+  assert.ok(deck.candidates.every(c => !never.includes(c.id)));
+  assert.equal(deck.candidates.length, 10);
+  assert.equal(deck.pool.neverLeftOut, 3);
+  assert.equal(deck.pool.eligible, plain.pool.eligible, 'eligible still reports what the search found');
+
+  const { restaurants } = await listDeck({});
+  const everything = restaurants.map(candidateId);
+  const { deck: empty } = await listDeck({ never: everything });
+  assert.deepEqual([empty.candidates.length, empty.pool.sufficient], [0, false]);
+});
+
+test('deck: one favorite per person, only when found, at most half the deck', async () => {
+  const { restaurants, deck: plain } = await listDeck({}, { deckSize: 5 });
+  const outside = restaurants.map(candidateId).filter(id => !plain.candidates.some(c => c.id === id));
+  // Each person's favorites are all places the plain draw left out.
+  const people = [[outside[0], outside[1]], [outside[2]], [outside[3]], [outside[4]], ['c00000000000000000000']];
+  const { deck } = await listDeck({ favorites: people }, { deckSize: 5 });
+  const used = deck.candidates.filter(c => outside.slice(0, 5).includes(c.id));
+  assert.equal(used.length, 2, 'five cards hold at most two favorites');
+  assert.equal(deck.pool.favoritesIncluded, 2);
+  assert.ok(!(used.some(c => c.id === outside[0]) && used.some(c => c.id === outside[1])), 'one per person');
+  assert.equal(deck.candidates.length, 5);
+  assert.deepEqual((await listDeck({ favorites: people }, { deckSize: 5 })).deck.candidates.map(c => c.id),
+    deck.candidates.map(c => c.id), 'the seed decides, so a retry builds the same deck');
+
+  const { deck: shared } = await listDeck({ favorites: [[outside[0]], [outside[0]]] }, { deckSize: 5 });
+  assert.equal(shared.pool.favoritesIncluded, 1, 'two people with the same favorite share one card');
+  const { deck: neverWins } = await listDeck({ favorites: [[outside[0]]], never: [outside[0]] }, { deckSize: 5 });
+  assert.ok(!neverWins.candidates.some(c => c.id === outside[0]), 'someone else\'s never outweighs a favorite');
 });
 
 test('deck: included cuisines lead, unknown cuisines next, other cuisines last', async () => {

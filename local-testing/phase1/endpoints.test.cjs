@@ -8,6 +8,9 @@ const fromRooms = createRequire(require.resolve('../../rooms/package.json'));
 const { Firestore, Timestamp, FieldValue } = fromRooms('firebase-admin/firestore');
 const { HttpsError } = fromRooms('firebase-functions/v2/https');
 const { createRoomHandlers } = require('../../rooms/handlers.js');
+const { createFakeProvider } = require('../../rooms/search/fake-provider.js');
+const { parseSearchRequest } = require('../../rooms/search/request.js');
+const { eligiblePool, candidateId } = require('../../rooms/search/deck.js');
 const db = new Firestore({ projectId: PROJECT, host: '127.0.0.1:8080', ssl: false });
 const documents = `http://127.0.0.1:8080/v1/projects/${PROJECT}/databases/(default)/documents`;
 async function request(url, body, token, method = 'POST') {
@@ -349,7 +352,7 @@ test('sweep: closes rooms whose voting ran out unattended and deletes expired de
     candidateIds: [], candidates: [], expiresAt: Timestamp.fromMillis(Date.now() - 1000) });
 
   const first = await sweeper.sweep();
-  assert.deepEqual(first, { roomsClosed: 1, decksDeleted: 1, leasesSettled: 0 });
+  assert.deepEqual(first, { roomsClosed: 1, decksDeleted: 1, leasesSettled: 0, detailsDropped: 0 });
   const closed = (await db.doc(`rooms/${stale.roomId}`).get()).data();
   assert.equal(closed.status, 'closed');
   assert.equal(closed.results.winner, D[3]);
@@ -360,7 +363,8 @@ test('sweep: closes rooms whose voting ran out unattended and deletes expired de
 
   const staleDeck = (await db.doc(`rooms/${stale.roomId}`).get()).data().deckId;
   await db.doc(`restaurantDecks/${staleDeck}`).update({ expiresAt: Timestamp.fromMillis(Date.now() - 1000) });
-  assert.deepEqual(await sweeper.sweep(), { roomsClosed: 0, decksDeleted: 1, leasesSettled: 0 }, 'repeat runs are harmless');
+  assert.deepEqual(await sweeper.sweep(), { roomsClosed: 0, decksDeleted: 1, leasesSettled: 0, detailsDropped: 0 },
+    'repeat runs are harmless');
   assert.equal((await readRoom(stale.roomId, guest)).status, 200, 'the result outlives the deck');
 });
 
@@ -412,7 +416,9 @@ test('account deletion removes memberships, ballots, hosted rooms, receipts and 
   assert.equal((await db.doc(`rooms/${hosted.roomId}`).get()).data().status, 'lobby');
   await db.doc(`userSettings/${host.uid}`).set({ unit: 'km', radius: 3 });
   await db.doc(`userLists/${host.uid}`).set({ spots: [{ id: 'a', name: 'Pizza Place' }] });
+  await db.doc(`userPlaces/${host.uid}`).set({ favorites: [], never: [], useFavorites: true, useNever: true });
   assert.equal((await call('deleteAccount', {}, host)).status, 200);
+  assert.equal((await db.doc(`userPlaces/${host.uid}`).get()).exists, false, 'favorites and never list go too');
   assert.equal((await db.doc(`userSettings/${host.uid}`).get()).exists, false, 'saved defaults go too');
   assert.equal((await db.doc(`userLists/${host.uid}`).get()).exists, false, 'and the own list');
   const decks = await db.collection('restaurantDecks').get();
@@ -528,4 +534,106 @@ test('rooms from an own list: no search, no usage, and the result keeps the type
   const results = (await call('roomResults', { roomId }, host)).data.result;
   assert.equal(results.results.winner, 'pho-1');
   assert.deepEqual(results.results.winnerCard, { id: 'pho-1', name: 'Pho Real', userEntered: true, note: 'get the #4' });
+});
+
+// Card IDs of the places the fake provider puts inside SEARCH's radius.
+async function placesNearby() {
+  const parsed = parseSearchRequest(SEARCH);
+  const { restaurants } = await createFakeProvider().searchNearby(parsed);
+  return eligiblePool(restaurants, parsed).kept.map(candidateId);
+}
+const PLACES = (fields = {}) => ({ favorites: [], never: [], useFavorites: true, useNever: true, ...fields });
+
+test('my places: verified accounts save favorites and never; the sweep drops old details', async () => {
+  const host = await user(true, true);
+  const [a, b, c] = await placesNearby();
+  const seenAt = Date.now() - 1000;
+  const saved = await call('saveMyPlaces', PLACES({ favorites: [{ id: a, name: 'Demo Taco', seenAt }],
+    never: [{ id: b, name: 'Demo Fish' }] }), host);
+  assert.deepEqual([saved.status, saved.data.result], [200, { saved: 2 }]);
+  const stored = (await db.doc(`userPlaces/${host.uid}`).get()).data();
+  assert.deepEqual([stored.favorites, stored.never, stored.useNever], [[{ id: a, name: 'Demo Taco', seenAt }],
+    [{ id: b, name: 'Demo Fish' }], true]);
+  assert.equal(stored.detailsExpireAt.toMillis(), seenAt + 30 * 24 * 3600000);
+  for (const bad of [{}, PLACES({ favorites: [{ id: 'ChIJprovider' }] }), PLACES({ extra: 1 }),
+    PLACES({ favorites: [{ id: c }], never: [{ id: c }] })]) {
+    assert.equal((await call('saveMyPlaces', bad, host)).status, 400, JSON.stringify(bad).slice(0, 60));
+  }
+  for (const who of [await user(), await user(true, false)]) {
+    assert.equal((await call('saveMyPlaces', PLACES(), who)).status, 403, 'guests keep lists on the device');
+  }
+
+  const later = createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthUser: async () => {},
+    now: () => seenAt + 30 * 24 * 3600000 + 1 });
+  assert.equal((await later.sweep()).detailsDropped, 1);
+  const swept = (await db.doc(`userPlaces/${host.uid}`).get()).data();
+  assert.deepEqual([swept.favorites, swept.never, swept.detailsExpireAt], [[{ id: a }], [{ id: b, name: 'Demo Fish' }],
+    undefined], 'only the ID is left; never names stay');
+  assert.equal((await later.sweep()).detailsDropped, 0);
+});
+
+test('room lists: members share card IDs in the lobby; the host decides what the deck uses', async () => {
+  const host = await user(true, true); const guest = await user(); const outsider = await user();
+  const nearby = await placesNearby();
+  const { roomId, joinCode } = await room(host);
+  assert.equal((await join(joinCode, guest)).status, 200);
+  const never = nearby.slice(0, 3);
+  const favorite = nearby[nearby.length - 1];
+  const share = (who, fields) => call('shareRoomLists', { roomId, favorites: [], never: [], ...fields }, who);
+  assert.equal((await share(guest, { favorites: [favorite], never })).status, 200);
+  assert.equal((await share(host, { never: [nearby[3]] })).status, 200);
+  assert.equal((await share(outsider, {})).status, 403);
+  assert.equal((await share(guest, { never: ['Demo Fish'] })).status, 400);
+  assert.equal((await readRoom(roomId, guest)).status, 200);
+  assert.equal((await request(`${documents}/rooms/${roomId}/lists/${guest.uid}`, undefined, guest.token, 'GET')).status,
+    403, 'shared lists are server-only, even for their owner');
+
+  const started = await call('startRoom', { roomId, search: { ...SEARCH, deckSize: 10 },
+    lists: { favorites: true, never: true } }, host);
+  assert.equal(started.status, 200);
+  const ids = (await deckOf(roomId)).candidateIds;
+  assert.ok(ids.includes(favorite), 'the favorite made it in');
+  assert.ok([...never, nearby[3]].every(id => !ids.includes(id)), 'never places are left out');
+  assert.equal((await db.collection(`rooms/${roomId}/lists`).get()).size, 0, 'lists go once the deck exists');
+  assert.deepEqual((await share(guest, {})).data.result, { shared: false });
+
+  // With the switches off (or an older app that sends none) the lists change nothing.
+  const other = await room(host);
+  await call('shareRoomLists', { roomId: other.roomId, favorites: [], never: nearby }, host);
+  assert.equal((await start(other.roomId, host)).status, 200);
+  assert.equal((await deckOf(other.roomId)).candidateIds.length, 5);
+  for (const lists of [{ favorites: true }, { favorites: 'yes', never: false }, null]) {
+    assert.equal((await call('startRoom', { roomId: other.roomId, search: SEARCH, lists }, host)).status, 400);
+  }
+});
+
+test('room lists: never lists that leave too few places say so and cost nothing', async () => {
+  const host = await user(true, true);
+  const { roomId } = await room(host);
+  await call('shareRoomLists', { roomId, favorites: [], never: await placesNearby() }, host);
+  const thin = await call('startRoom', { roomId, search: SEARCH, lists: { favorites: false, never: true } }, host);
+  assert.equal(thin.status, 400);
+  assert.equal(thin.data.error.details.reason, 'too-few-results');
+  assert.ok(thin.data.error.details.neverLeftOut > 5);
+  assert.equal(thin.data.error.details.eligible, 0);
+  assert.equal((await call('liveSearchStatus', {}, host)).data.result.used, 0);
+  const again = await call('startRoom', { roomId, search: SEARCH, lists: { favorites: false, never: false } }, host);
+  assert.equal(again.status, 200, 'starting without never lists works');
+});
+
+test('quick pick: never suggests a place on the person\'s own never list', async () => {
+  const host = await user(true, true);
+  const nearby = await placesNearby();
+  const keep = nearby.slice(0, 12);
+  const savedNever = await call('saveMyPlaces', PLACES({ never: nearby.slice(12).map(id => ({ id })) }), host);
+  assert.equal(savedNever.status, 200, JSON.stringify(savedNever.data));
+  const pick = await call('createQuickPick', { requestId: randomUUID(), search: { ...SEARCH, deckSize: 10 } }, host);
+  assert.equal(pick.status, 200);
+  const deck = (await db.doc(`restaurantDecks/${pick.data.result.deckId}`).get()).data();
+  assert.ok(deck.candidateIds.every(id => keep.includes(id)));
+
+  await call('saveMyPlaces', PLACES({ never: nearby.slice(12).map(id => ({ id })), useNever: false }), host);
+  const off = await call('createQuickPick', { requestId: randomUUID(), search: { ...SEARCH, deckSize: 10 } }, host);
+  const all = (await db.doc(`restaurantDecks/${off.data.result.deckId}`).get()).data().candidateIds;
+  assert.equal(all.length, 10, 'with the switch off the list is not applied');
 });

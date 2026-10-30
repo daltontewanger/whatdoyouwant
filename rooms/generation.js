@@ -107,7 +107,8 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
     }));
   }
 
-  async function generateDeck({ uid, mode, targetId, search, target }) {
+  // `lists` holds the never and favorite card IDs this deck should honour.
+  async function generateDeck({ uid, mode, targetId, search, target, lists = {} }) {
     // Wall-clock stage timings for the log; the injected clock is for limits.
     const began = Date.now();
     const reserved = await reserve({ uid, mode, targetId, target });
@@ -129,13 +130,15 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
     }
     const calls = result.providerCalls;
     const searchedAt = Date.now();
-    const built = buildDeck(result.restaurants, search, { seed });
+    const built = buildDeck(result.restaurants, search, { seed, never: lists.never, favorites: lists.favorites });
     // Nothing is stored or charged for a pool too thin to use; the person is
-    // asked to widen the search instead.
+    // asked to widen the search, or to start without never lists when those
+    // took out what would have been enough.
     if (!built.pool.sufficient) {
       await refund(reservation, calls, 'too-few-results');
       throw new HttpsError('failed-precondition', 'Too few restaurants match.',
-        { reason: 'too-few-results', eligible: built.pool.eligible, minimum: built.pool.minimum });
+        { reason: 'too-few-results', eligible: built.pool.eligible - built.pool.neverLeftOut,
+          minimum: built.pool.minimum, ...(built.pool.neverLeftOut ? { neverLeftOut: built.pool.neverLeftOut } : {}) });
     }
 
     const deck = db.doc(`restaurantDecks/${randomBytes(12).toString('hex')}`);
@@ -160,6 +163,7 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
     }
     // Counts only: no UID, location or restaurant names.
     log({ event: 'deck_created', mode, provider: provider.id, providerCalls: calls, eligible: built.pool.eligible,
+      neverLeftOut: built.pool.neverLeftOut, favoritesIncluded: built.pool.favoritesIncluded,
       selected: built.pool.selected, kept: Boolean(outcome.view), reserveMs: reservedAt - began,
       providerMs: searchedAt - reservedAt, commitMs: Date.now() - searchedAt });
     if (outcome.view) return outcome.view;

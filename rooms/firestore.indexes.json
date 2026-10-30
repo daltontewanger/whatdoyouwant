@@ -28,6 +28,7 @@
       "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
     },
     { "collectionGroup": "ballot", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "lists", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "roomCodes", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "_requests", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "_limits", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },

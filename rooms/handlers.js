@@ -8,6 +8,7 @@ const { createFakeProvider } = require('./search/fake-provider');
 const { resultCard, storedCandidate, ownListDeckDocument } = require('./decks');
 const { createClientErrorReporter } = require('./client-errors');
 const { parseOwnList, InvalidList } = require('./own-list');
+const { parsePlaces, parseRoomLists, detailsExpireAt, withoutStaleDetails, InvalidPlaces } = require('./place-lists');
 const { createGeneration } = require('./generation');
 
 const ROOM_TTL_MS = 24 * 3600000;
@@ -103,16 +104,18 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
     retryTransient });
 
   // A target ID plus one search request. The search is parsed by its own
-  // strict contract; its origin is used for this call and never kept.
-  function searchInput(request, name, pattern) {
+  // strict contract; its origin is used for this call and never kept. Fields
+  // named in `optional` may also be present; the caller checks them.
+  function searchInput(request, name, pattern, optional = []) {
     const value = request.data ?? {};
-    if (typeof value !== 'object' || Array.isArray(value) ||
-      Object.keys(value).sort().join() !== [name, 'search'].sort().join() || typeof value[name] !== 'string' ||
+    const keys = typeof value === 'object' && !Array.isArray(value) ? Object.keys(value) : null;
+    if (!keys || !keys.includes(name) || !keys.includes('search') ||
+      !keys.every(key => [name, 'search', ...optional].includes(key)) || typeof value[name] !== 'string' ||
       !pattern.test(value[name])) {
       invalid();
     }
     try {
-      return { [name]: value[name], search: parseSearchRequest(value.search) };
+      return { ...value, search: parseSearchRequest(value.search) };
     } catch (error) {
       if (error instanceof UnknownZip) {
         throw new HttpsError('invalid-argument', 'Unknown ZIP code.', { reason: 'unknown-zip' });
@@ -133,6 +136,26 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
   }
 
   const quickPickRef = quickPickId => db.doc(`quickPicks/${quickPickId}`);
+  const placesRef = uid => db.doc(`userPlaces/${uid}`);
+  const expiresField = at => (at === null ? FieldValue.delete() : Timestamp.fromMillis(at));
+
+  // The lists active members shared for this room, as the host's switches
+  // allow. Read before the deck is built; anything shared later misses it.
+  async function roomLists(roomId, use) {
+    if (!use.favorites && !use.never) return { lists: {}, shared: [] };
+    const room = roomRef(roomId);
+    const [members, lists] = await Promise.all([room.collection('members').where('active', '==', true).get(),
+      room.collection('lists').get()]);
+    const active = new Set(members.docs.map(member => member.id));
+    const counted = lists.docs.filter(list => active.has(list.id));
+    return {
+      lists: {
+        never: use.never ? counted.flatMap(list => list.data().never) : [],
+        favorites: use.favorites ? counted.map(list => list.data().favorites) : [],
+      },
+      shared: lists.docs.map(list => list.ref),
+    };
+  }
   const quickPickView = (quickPickId, data) => ({ quickPickId, deckId: data.deckId, position: data.position,
     candidateId: data.order[data.position],
     rerollsLeft: Math.max(0, Math.min(MAX_REROLLS - data.rerollsUsed, data.order.length - 1 - data.position)) });
@@ -263,9 +286,15 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
     async startRoom(request) {
       const actor = identity(request);
       if (!authorize('create', actor)) deny();
-      const { roomId, search } = searchInput(request, 'roomId', ROOM_ID);
+      const { roomId, search, lists: use = { favorites: false, never: false } } =
+        searchInput(request, 'roomId', ROOM_ID, ['lists']);
+      if (!use || typeof use !== 'object' || Object.keys(use).sort().join() !== 'favorites,never' ||
+        typeof use.favorites !== 'boolean' || typeof use.never !== 'boolean') {
+        invalid();
+      }
       await limit(actor.uid, 'start', 10, 60000);
-      return generation.generateDeck({ uid: actor.uid, mode: 'room', targetId: roomId, search, target: {
+      const { lists, shared } = await roomLists(roomId, use);
+      return generation.generateDeck({ uid: actor.uid, mode: 'room', targetId: roomId, search, lists, target: {
         async check(tx) {
           const { room, snapshot, state } = await memberView(tx, roomId, actor.uid);
           if (state.creator !== actor.uid) deny();
@@ -279,6 +308,8 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
             joinCode: FieldValue.delete(), startedAt: FieldValue.serverTimestamp(),
             votingEndsAt: expiry(VOTING_WINDOW_MS) });
           if (state.joinCode) tx.delete(codeRef(state.joinCode));
+          // Members' lists are only for building the deck.
+          shared.forEach(ref => tx.delete(ref));
           // The cards come back with the start, so the host need not read the deck.
           return { view: { roomId, deckId: deck.id, candidateCount: built.candidates.length,
             candidates: built.candidates.map(storedCandidate) },
@@ -343,7 +374,11 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       await limit(actor.uid, 'quickPick', 10, 60000);
       const quickPickId = digest(`${actor.uid}:${requestId}`).slice(0, 24);
       const ref = quickPickRef(quickPickId);
-      return generation.generateDeck({ uid: actor.uid, mode: 'quickPick', targetId: quickPickId, search, target: {
+      // A pick never suggests a place on the person's own never list.
+      const places = (await placesRef(actor.uid).get()).data();
+      const never = places?.useNever ? places.never.map(place => place.id) : [];
+      return generation.generateDeck({ uid: actor.uid, mode: 'quickPick', targetId: quickPickId, search,
+        lists: { never }, target: {
         async check(tx) {
           const existing = await tx.get(ref);
           if (!existing.exists) return { ready: null };
@@ -480,8 +515,21 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
         });
       }
       const leasesSettled = await generation.reconcile();
-      log({ event: 'rooms_swept', roomsClosed: closed, decksDeleted: expired.size, leasesSettled });
-      return { roomsClosed: closed, decksDeleted: expired.size, leasesSettled };
+      // Favorites keep a place's details only while it keeps turning up.
+      let detailsDropped = 0;
+      const lapsed = await db.collection('userPlaces').where('detailsExpireAt', '<=', Timestamp.fromMillis(now()))
+        .limit(SWEEP_BATCH).get();
+      for (const snapshot of lapsed.docs) {
+        detailsDropped += await retryTransient(() => db.runTransaction(async tx => {
+          const current = await tx.get(snapshot.ref);
+          if (!current.exists || !(current.data().detailsExpireAt?.toMillis() <= now())) return 0;
+          const favorites = withoutStaleDetails(current.data().favorites, now());
+          tx.update(snapshot.ref, { favorites, detailsExpireAt: expiresField(detailsExpireAt(favorites)) });
+          return 1;
+        }));
+      }
+      log({ event: 'rooms_swept', roomsClosed: closed, decksDeleted: expired.size, leasesSettled, detailsDropped });
+      return { roomsClosed: closed, decksDeleted: expired.size, leasesSettled, detailsDropped };
     },
 
     async revokeMember(request) {
@@ -540,6 +588,48 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       return { saved: spots.length };
     },
 
+    // A verified account's favorites and never list, replaced whole on each
+    // save. Guests keep theirs on the device.
+    async saveMyPlaces(request) {
+      const actor = identity(request);
+      if (!authorize('create', actor)) deny();
+      let places;
+      try {
+        places = parsePlaces(request.data, now());
+      } catch (error) {
+        if (error instanceof InvalidPlaces) invalid();
+        throw error;
+      }
+      await limit(actor.uid, 'myPlaces', 30, 60000);
+      const expires = detailsExpireAt(places.favorites);
+      await placesRef(actor.uid).set({ ...places, ...(expires === null ? {} : { detailsExpireAt: Timestamp.fromMillis(expires) }),
+        updatedAt: FieldValue.serverTimestamp() });
+      return { saved: places.favorites.length + places.never.length };
+    },
+
+    // Each member, guests included, shares the card IDs from their own lists
+    // while the room waits; the deck is built from them at the start. Nobody
+    // else in the room can read them.
+    async shareRoomLists(request) {
+      const actor = identity(request);
+      let shared;
+      try {
+        shared = parseRoomLists(request.data ?? {});
+      } catch (error) {
+        if (error instanceof InvalidPlaces) invalid();
+        throw error;
+      }
+      if (typeof shared.roomId !== 'string' || !ROOM_ID.test(shared.roomId)) invalid();
+      await limit(actor.uid, 'shareLists', 30, 60000);
+      return db.runTransaction(async tx => {
+        const { room, snapshot, state } = await memberView(tx, shared.roomId, actor.uid);
+        if (state.status !== 'lobby') return { shared: false };
+        tx.set(room.collection('lists').doc(actor.uid), { favorites: shared.favorites, never: shared.never,
+          expiresAt: snapshot.data().expiresAt });
+        return { shared: true };
+      });
+    },
+
     async deleteAccount(request) {
       const actor = identity(request);
       input(request, {});
@@ -569,6 +659,7 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
           const [current, ballots] = await Promise.all([tx.get(membership.ref),
             tx.get(room.collection('votes').doc(actor.uid).collection('ballot'))]);
           ballots.forEach(ballot => tx.delete(ballot.ref));
+          tx.delete(room.collection('lists').doc(actor.uid));
           if (!current.exists) return;
           tx.delete(membership.ref);
           if (current.data().active === true && !hostedIds.has(room.id)) {
@@ -599,6 +690,7 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       }
       await retryTransient(() => db.doc(`userSettings/${actor.uid}`).delete());
       await retryTransient(() => db.doc(`userLists/${actor.uid}`).delete());
+      await retryTransient(() => placesRef(actor.uid).delete());
       try {
         await deleteAuthUser(actor.uid);
       } catch (error) {
@@ -614,6 +706,6 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
 const CALLABLES = ['createRoom', 'joinRoom', 'startRoom', 'closeRoom', 'roomResults',
   'revokeMember', 'rotateJoinCode', 'deleteAccount', 'liveSearchStatus', 'createQuickPick', 'rerollQuickPick',
   'appStatus', 'reportClientError', 'checkEmailDomain', 'saveOwnList',
-  'startRoomFromList'];
+  'startRoomFromList', 'saveMyPlaces', 'shareRoomLists'];
 
 module.exports = { createRoomHandlers, CALLABLES, CODE_ALPHABET, CAPACITY };

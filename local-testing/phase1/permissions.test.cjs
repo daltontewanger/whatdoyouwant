@@ -232,3 +232,16 @@ test('own lists: only the verified owner reads theirs, and nobody writes them di
   assert.equal(await request('/userLists', 'GET', undefined, 'host', VERIFIED), 403, 'no listing');
   assert.equal(await request('/userLists/host', 'DELETE', undefined, 'host', VERIFIED), 403);
 });
+
+test('favorites and never lists: only the verified owner reads theirs, and nobody writes them directly', async () => {
+  const places = (path, uid, identity) => request(':commit', 'POST', { writes: [{ update: {
+    name: `projects/${PROJECT}/databases/(default)/documents/userPlaces/${path}`,
+    fields: { favorites: { arrayValue: { values: [] } } } } }] }, uid, identity);
+  assert.equal(await places('host', 'host', VERIFIED), 403, 'only saveMyPlaces writes, after checking each entry');
+  assert.equal(await request('/userPlaces/host', 'GET', undefined, 'host', VERIFIED), 404, 'readable, not yet saved');
+  assert.equal(await request('/userPlaces/host', 'GET', undefined, 'other', VERIFIED), 403);
+  assert.equal(await request('/userPlaces/host', 'GET', undefined, 'host', { provider: 'password', verified: false }), 403);
+  assert.equal(await request('/userPlaces/host', 'GET'), 403);
+  assert.equal(await request('/userPlaces', 'GET', undefined, 'host', VERIFIED), 403, 'no listing');
+  assert.equal(await request('/rooms/ROOM/lists/host', 'GET', undefined, 'host'), 403, 'shared room lists are server-only');
+});
