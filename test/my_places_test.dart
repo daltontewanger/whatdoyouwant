@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:whatdoyouwant/models/restaurant.dart';
@@ -290,56 +291,67 @@ void main() {
     });
   });
 
+  Widget swiping(
+    FakeRoomBackend backend,
+    MyPlacesStore store,
+    List<Restaurant> cards,
+  ) => scoped(
+    backend,
+    SwipeScreen(
+      roomCode: 'ROOM-ID',
+      currentUser: AppUser(id: 'guest', name: 'Guest'),
+      radius: 1,
+      maxOptions: cards.length,
+      restaurants: cards,
+    ),
+    places: store,
+  );
+
+  const favoriteButton = 'I know what I want: vote yes and save it';
+  const neverButton = 'Never what I want: vote no and save it';
+
   testWidgets('Favorite votes yes and Never votes no, both saving the place', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(420, 900);
+    tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final backend = FakeRoomBackend();
-    final store = MemoryMyPlaces(
-      MyPlaces(favorites: [SavedPlace.favorite(place(1, 'Demo Taco'), now)]),
-      () => now,
-    );
+    final store = MemoryMyPlaces(const MyPlaces(), () => now);
     await tester.pumpWidget(
-      scoped(
-        backend,
-        SwipeScreen(
-          roomCode: 'ROOM-ID',
-          currentUser: AppUser(id: 'guest', name: 'Guest'),
-          radius: 1,
-          maxOptions: 3,
-          restaurants: [
-            place(1, 'Demo Taco'),
-            place(2, 'Demo Fish'),
-            Restaurant(
-              id: 'typed-1',
-              name: 'Our usual',
-              address: '',
-              distance: 0,
-              userEntered: true,
-            ),
-          ],
+      swiping(backend, store, [
+        place(1, 'Demo Taco'),
+        place(2, 'Demo Fish'),
+        Restaurant(
+          id: 'typed-1',
+          name: 'Our usual',
+          address: '',
+          distance: 0,
+          userEntered: true,
         ),
-        places: store,
-      ),
+      ]),
     );
     await tester.pump();
-    expect(find.text('Your favorite'), findsOneWidget);
-    // The badge sits in a corner; the card's text stays centred.
+    // The buttons sit on the card; its text stays centred above them.
     final card = tester.getRect(find.byType(Card).last);
     final name = tester.getRect(find.text('Demo Taco'));
     expect(name.center.dx, closeTo(card.center.dx, 1));
 
-    await tester.tap(find.byTooltip('Save as favorite'));
+    await tester.tap(find.byTooltip(favoriteButton).hitTestable());
     await settle(tester);
     expect(backend.votes, [(0, true)]);
-    expect(find.text('Saved to your favorites'), findsOneWidget);
+    expect(store.isFavorite(placeId(1)), isTrue);
+    expect(
+      find.text('Saved to your "I know what I want" list'),
+      findsOneWidget,
+    );
 
-    await tester.tap(find.byTooltip('Never what I want'));
+    await tester.tap(find.byTooltip(neverButton).hitTestable());
     await settle(tester);
     expect(backend.votes, [(0, true), (1, false)]);
     expect(store.isNever(placeId(2)), isTrue);
+    expect(find.text('Saved to your "Never what I want" list'), findsOneWidget);
+    expect(find.byTooltip('Close'), findsOneWidget, reason: 'it can be closed');
     await tester.tap(find.text('Undo'));
     await settle(tester);
     expect(
@@ -349,8 +361,50 @@ void main() {
     );
 
     // The host's own typed spot cannot go on either list.
-    expect(find.byTooltip('Save as favorite').hitTestable(), findsNothing);
-    expect(find.byTooltip('Never what I want').hitTestable(), findsNothing);
+    expect(find.byTooltip(favoriteButton).hitTestable(), findsNothing);
+    expect(find.byTooltip(neverButton).hitTestable(), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('a place already on a list shows its mark instead of buttons', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final store = MemoryMyPlaces(
+      MyPlaces(favorites: [SavedPlace.favorite(place(1, 'Demo Taco'), now)]),
+    );
+    await tester.pumpWidget(
+      swiping(FakeRoomBackend(), store, [place(1, 'Demo Taco')]),
+    );
+    await tester.pump();
+    const badge = 'This is on your "I know what I want" list';
+    expect(find.byTooltip(favoriteButton), findsNothing);
+    expect(find.byTooltip(neverButton), findsNothing);
+    await tester.tap(find.byTooltip(badge));
+    await settle(tester);
+    expect(find.text(badge), findsOneWidget, reason: 'tapping says which list');
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('arrow keys vote no and yes', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final backend = FakeRoomBackend();
+    await tester.pumpWidget(
+      swiping(backend, MemoryMyPlaces(), [
+        place(1, 'Demo Taco'),
+        place(2, 'Demo Fish'),
+      ]),
+    );
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await settle(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await settle(tester);
+    expect(backend.votes, [(0, true), (1, false)]);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -438,7 +492,13 @@ void main() {
     await tester.pump();
     expect(sharedText(backend), 'ROOM-ID [] [${placeId(7)}]');
 
-    await tester.tap(find.text('Include favorites'));
+    expect(find.text('I know what I want ›'), findsOneWidget);
+    expect(
+      find.text("Everyone's exclusion list combined, kept private"),
+      findsOneWidget,
+    );
+    // The first switch is the favorites one.
+    await tester.tap(find.byType(Switch).first);
     await tester.pump();
     await tester.tap(find.text('Start Swiping'));
     await tester.pumpAndSettle();

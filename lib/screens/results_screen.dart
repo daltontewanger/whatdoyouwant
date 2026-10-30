@@ -507,7 +507,33 @@ class _ResultViewState extends State<_ResultView> {
           ),
           const SizedBox(height: 12),
           const Spacer(),
-          _backupOpen ? _backupView(theme) : _winnerView(theme),
+          // Like the site's tiles: the card opening grows into place while
+          // the other fades back, and closing runs it in reverse.
+          AnimatedSwitcher(
+            duration:
+                MediaQuery.disableAnimationsOf(context)
+                    ? Duration.zero
+                    : const Duration(milliseconds: 450),
+            switchInCurve: const Cubic(0.2, 0.8, 0.2, 1),
+            switchOutCurve: Curves.easeIn,
+            transitionBuilder:
+                (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: ScaleTransition(
+                    scale: Tween(begin: 0.94, end: 1.0).animate(animation),
+                    child: child,
+                  ),
+                ),
+            layoutBuilder:
+                (current, previous) => Stack(
+                  alignment: Alignment.topCenter,
+                  children: [...previous, if (current case final shown?) shown],
+                ),
+            child: KeyedSubtree(
+              key: ValueKey(_backupOpen),
+              child: _backupOpen ? _backupView(theme) : _winnerView(theme),
+            ),
+          ),
           const Spacer(),
           const SizedBox(height: 20),
           Center(

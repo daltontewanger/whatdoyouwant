@@ -28,10 +28,7 @@ class MyPlacesScreen extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
                 children: [
-                  _Heading(
-                    icon: const FavoriteIcon(),
-                    title: 'I know what I want',
-                  ),
+                  const _Heading(icon: FavoriteIcon(), title: favoritesList),
                   _Switch(
                     title: 'Use my favorites in rooms',
                     value: places.useFavorites,
@@ -67,13 +64,10 @@ class MyPlacesScreen extends StatelessWidget {
                                 ),
                               ),
                       onRemove:
-                          () => _remove(context, store, place, 'favorites'),
+                          () => _remove(context, store, place, favoritesList),
                     ),
                   const SizedBox(height: 28),
-                  const _Heading(
-                    icon: Icon(Icons.block, color: Color(0xFF555451)),
-                    title: 'Never what I want',
-                  ),
+                  const _Heading(icon: NeverIcon(), title: neverList),
                   _Switch(
                     title: 'Leave these out of rooms and picks',
                     value: places.useNever,
@@ -89,9 +83,7 @@ class MyPlacesScreen extends StatelessWidget {
                   for (final place in places.never)
                     _PlaceRow(
                       title: place.name.isEmpty ? 'A never place' : place.name,
-                      onRemove:
-                          () =>
-                              _remove(context, store, place, 'your never list'),
+                      onRemove: () => _remove(context, store, place, neverList),
                     ),
                   const SizedBox(height: 24),
                   Text(
@@ -123,9 +115,7 @@ class MyPlacesScreen extends StatelessWidget {
     } catch (_) {
       // An account's device copy keeps the change and sends it next time.
       if (!store.synced) {
-        messenger.showSnackBar(
-          const SnackBar(content: Text('That could not be saved. Try again.')),
-        );
+        tell(messenger, 'That could not be saved. Try again.');
       }
     }
   }
@@ -146,19 +136,11 @@ class MyPlacesScreen extends StatelessWidget {
         never: before.never.where((p) => p.id != place.id).toList(),
       ),
     );
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            'Removed from ${list == 'favorites' ? 'your favorites' : list}',
-          ),
-          action: SnackBarAction(
-            label: 'Undo',
-            onPressed: () => store.restore(before).catchError((_) {}),
-          ),
-        ),
-      );
+    tell(
+      messenger,
+      'Removed from your "$list" list',
+      undo: () => store.restore(before).catchError((_) {}),
+    );
   }
 }
 

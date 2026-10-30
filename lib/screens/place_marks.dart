@@ -6,59 +6,69 @@ import '../models/restaurant.dart';
 import '../models/saved_place.dart';
 import '../services/my_places.dart';
 import '../services/room_backend.dart';
+import 'bubble_icons.dart';
 
-const favoriteColor = Color(0xFFB83A6B);
+const favoriteColor = Color(0xFF8E2F55);
+const neverColor = Color(0xFF3A3A37);
 
-/// The app's speech bubble holding a heart: the mark for a favorite.
+/// The two lists as the app names them.
+const favoritesList = 'I know what I want';
+const neverList = 'Never what I want';
+
+/// The mark for a favorite: a heart in a pink speech bubble.
 class FavoriteIcon extends StatelessWidget {
-  const FavoriteIcon({super.key, this.size = 24, this.color = favoriteColor});
+  const FavoriteIcon({super.key, this.size = 28});
 
   final double size;
-  final Color color;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    width: size,
-    height: size,
-    child: Stack(
-      alignment: Alignment.center,
-      children: [
-        Icon(Icons.chat_bubble_outline, size: size, color: color),
-        Padding(
-          padding: EdgeInsets.only(bottom: size * 0.12),
-          child: Icon(Icons.favorite, size: size * 0.42, color: color),
-        ),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) =>
+      BubbleIcon(BubbleGlyph.favorite, size: size);
 }
 
-/// Shown on a card that is already one of the person's favorites.
-class FavoriteBadge extends StatelessWidget {
-  const FavoriteBadge({super.key});
+/// The mark for a never place: a crossed-out plate in a grey bubble.
+class NeverIcon extends StatelessWidget {
+  const NeverIcon({super.key, this.size = 28});
+
+  final double size;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.fromLTRB(6, 3, 10, 3),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: const Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        FavoriteIcon(size: 16),
-        SizedBox(width: 4),
-        Text(
-          'Your favorite',
-          style: TextStyle(color: favoriteColor, fontSize: 12),
-        ),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) =>
+      BubbleIcon(BubbleGlyph.never, size: size, tailRight: true);
 }
 
-void _tell(
+/// Shown in the corner of a card already on one of the person's lists.
+/// Tapping it says which list.
+class ListBadge extends StatelessWidget {
+  const ListBadge({super.key, required this.never});
+
+  final bool never;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = 'This is on your "${never ? neverList : favoritesList}" list';
+    return Semantics(
+      button: true,
+      label: text,
+      excludeSemantics: true,
+      child: Tooltip(
+        message: text,
+        child: InkResponse(
+          radius: 22,
+          onTap: () => tell(ScaffoldMessenger.maybeOf(context), text),
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: never ? const NeverIcon() : const FavoriteIcon(),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A short message with a close button, and an Undo when given one. Gone
+/// after a few seconds, so it never hangs over the next card.
+void tell(
   ScaffoldMessengerState? messenger,
   String text, {
   VoidCallback? undo,
@@ -68,6 +78,8 @@ void _tell(
     ..showSnackBar(
       SnackBar(
         content: Text(text),
+        duration: const Duration(seconds: 3),
+        showCloseIcon: true,
         action:
             undo == null
                 ? null
@@ -89,7 +101,7 @@ Future<void> markPlace(
   if (store == null || !SavedPlace.canSave(restaurant)) return;
   final messenger = ScaffoldMessenger.maybeOf(context);
   final before = store.places;
-  final list = never ? 'your never list' : 'your favorites';
+  final list = 'your "${never ? neverList : favoritesList}" list';
   try {
     if (remove) {
       await store.remove(restaurant.id);
@@ -99,16 +111,16 @@ Future<void> markPlace(
       await store.addFavorite(restaurant);
     }
   } on ListFull catch (full) {
-    _tell(messenger, full.toString());
+    tell(messenger, full.toString());
     return;
   } catch (_) {
     // The device copy already has the change and sends it next time.
     if (!store.synced) {
-      _tell(messenger, 'That could not be saved. Try again.');
+      tell(messenger, 'That could not be saved. Try again.');
       return;
     }
   }
-  _tell(
+  tell(
     messenger,
     remove ? 'Removed from $list' : 'Saved to $list',
     undo: () => store.restore(before).catchError((_) {}),
@@ -126,11 +138,11 @@ Future<void> addToOwnList(BuildContext context, Restaurant restaurant) async {
     address: _fit(restaurant.address, OwnSpot.maxAddress),
   );
   if (store.spots.any((s) => s.matchKey == spot.matchKey)) {
-    _tell(messenger, "It's already on your list");
+    tell(messenger, "It's already on your list");
     return;
   }
   if (store.spots.length >= OwnSpot.maxSpots) {
-    _tell(
+    tell(
       messenger,
       'Your list has ${OwnSpot.maxSpots} spots. Remove one to add this.',
     );
@@ -141,11 +153,11 @@ Future<void> addToOwnList(BuildContext context, Restaurant restaurant) async {
     await store.save([...store.spots, spot]);
   } catch (_) {
     if (!store.synced) {
-      _tell(messenger, 'That could not be saved. Try again.');
+      tell(messenger, 'That could not be saved. Try again.');
       return;
     }
   }
-  _tell(
+  tell(
     messenger,
     "Added to We'll Decide What We Want",
     undo: () => store.save(before).catchError((_) {}),
@@ -199,7 +211,7 @@ class PlaceListButtons extends StatelessWidget {
                 foregroundColor: favoriteColor,
                 side: BorderSide(color: saved ? favoriteColor : Colors.black26),
               ),
-              icon: const FavoriteIcon(size: 20),
+              icon: const FavoriteIcon(size: 24),
               label: Text(saved ? 'Saved to favorites' : 'Save as favorite'),
               onPressed:
                   () => markPlace(

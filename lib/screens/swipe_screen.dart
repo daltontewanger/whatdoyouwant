@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 import '../models/restaurant.dart';
 import '../models/saved_place.dart';
@@ -9,6 +10,7 @@ import '../services/result_nudges.dart';
 import '../services/room_backend.dart';
 import '../services/my_places.dart';
 import '../services/search_defaults.dart';
+import 'bubble_icons.dart';
 import 'place_marks.dart';
 import 'results_screen.dart';
 
@@ -92,8 +94,9 @@ class SwipeScreenState extends State<SwipeScreen> {
   }
 
   /// Never counts as No and Favorite as Yes; both also save the place.
-  void _mark({required bool never}) {
-    if (_currentIndex >= swipeOptions.length) return;
+  /// Only the card on top can be marked.
+  void _mark(int index, {required bool never}) {
+    if (index != _currentIndex || _currentIndex >= swipeOptions.length) return;
     markPlace(context, swipeOptions[_currentIndex], never: never);
     _swipe(never ? CardSwiperDirection.left : CardSwiperDirection.right);
   }
@@ -209,8 +212,19 @@ class SwipeScreenState extends State<SwipeScreen> {
   }
 
   List<Widget> get _cardWidgets {
-    return swipeOptions.map((restaurant) {
+    return swipeOptions.indexed.map((entry) {
+      final (index, restaurant) = entry;
       final favorite = _places?.isFavorite(restaurant.id) ?? false;
+      final never = _places?.isNever(restaurant.id) ?? false;
+      // Typed spots from the host's own list are already the host's, and a
+      // place already on a list shows that instead. Only the card on top
+      // offers them; the one beneath peeks out below it.
+      final offersLists =
+          _places != null &&
+          SavedPlace.canSave(restaurant) &&
+          !favorite &&
+          !never;
+      final canMark = offersLists && index == _currentIndex;
       return Card(
         color: cardSwipeBackground,
         shape: Theme.of(context).cardTheme.shape,
@@ -220,10 +234,8 @@ class SwipeScreenState extends State<SwipeScreen> {
           // Expanded so the text stays centred in the card around the badge.
           fit: StackFit.expand,
           children: [
-            if (favorite)
-              const Positioned(top: 12, right: 12, child: FavoriteBadge()),
             Padding(
-              padding: const EdgeInsets.all(28.0),
+              padding: EdgeInsets.fromLTRB(28, 28, 28, offersLists ? 56 : 28),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -269,6 +281,33 @@ class SwipeScreenState extends State<SwipeScreen> {
                 ],
               ),
             ),
+            if (favorite || never)
+              Positioned(top: 8, right: 8, child: ListBadge(never: never)),
+            if (canMark) ...[
+              Positioned(
+                left: 10,
+                bottom: 10,
+                child: _CardAction(
+                  label: 'Never',
+                  tooltip: 'Never what I want: vote no and save it',
+                  icon: const NeverIcon(),
+                  color: neverColor,
+                  onTap: () => _mark(index, never: true),
+                ),
+              ),
+              Positioned(
+                right: 10,
+                bottom: 10,
+                child: _CardAction(
+                  label: 'Favorite',
+                  tooltip: 'I know what I want: vote yes and save it',
+                  icon: const FavoriteIcon(),
+                  iconAfter: true,
+                  color: favoriteColor,
+                  onTap: () => _mark(index, never: false),
+                ),
+              ),
+            ],
           ],
         ),
       );
@@ -289,287 +328,283 @@ class SwipeScreenState extends State<SwipeScreen> {
     }
 
     final bool finishedDeck = _currentIndex >= swipeOptions.length;
-    // Typed spots from the host's own list are already the host's; they
-    // cannot be favorites or never places.
-    final bool canMark =
-        _places != null &&
-        !finishedDeck &&
-        SavedPlace.canSave(swipeOptions[_currentIndex]);
 
-    return Scaffold(
-      backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.10),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            const maxCardWidth = 420.0;
-            return Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: maxCardWidth,
-                  minHeight: constraints.maxHeight,
-                ),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 30,
-                    horizontal: 20,
+    return _withArrowKeys(
+      Scaffold(
+        backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.10),
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              const maxCardWidth = 420.0;
+              return Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: maxCardWidth,
+                    minHeight: constraints.maxHeight,
                   ),
-                  decoration: BoxDecoration(
-                    color: theme.cardColor,
-                    borderRadius: BorderRadius.circular(28),
-                    boxShadow: [
-                      BoxShadow(
-                        color: theme.colorScheme.primary.withValues(
-                          alpha: 0.10,
-                        ),
-                        blurRadius: 18,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: LayoutBuilder(
-                    builder: (context, innerConstraints) {
-                      return SingleChildScrollView(
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            minHeight: innerConstraints.maxHeight,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 30,
+                      horizontal: 20,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.cardColor,
+                      borderRadius: BorderRadius.circular(28),
+                      boxShadow: [
+                        BoxShadow(
+                          color: theme.colorScheme.primary.withValues(
+                            alpha: 0.10,
                           ),
-                          child: IntrinsicHeight(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Text(
-                                  "Swipe to Choose!",
-                                  textAlign: TextAlign.center,
-                                  style: theme.textTheme.headlineMedium!
-                                      .copyWith(
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 34,
-                                        letterSpacing: 1.2,
-                                        shadows: const [
-                                          Shadow(
-                                            color: Colors.black12,
-                                            blurRadius: 4,
-                                            offset: Offset(1, 2),
+                          blurRadius: 18,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: LayoutBuilder(
+                      builder: (context, innerConstraints) {
+                        return SingleChildScrollView(
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: innerConstraints.maxHeight,
+                            ),
+                            child: IntrinsicHeight(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    'Swipe to Choose',
+                                    textAlign: TextAlign.center,
+                                    style: theme.textTheme.headlineMedium!
+                                        .copyWith(
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 34,
+                                          letterSpacing: 1.2,
+                                          shadows: const [
+                                            Shadow(
+                                              color: Colors.black12,
+                                              blurRadius: 4,
+                                              offset: Offset(1, 2),
+                                            ),
+                                          ],
+                                        ),
+                                  ),
+
+                                  // Only as tall as its text: a stretchy
+                                  // block here grows with the text and pushes
+                                  // the vote buttons off short screens.
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      8,
+                                      10,
+                                      8,
+                                      4,
+                                    ),
+                                    child: Text(
+                                      'Swipe right, tap the thumbs up or Favorite for a place you want'
+                                      ' · Swipe left, tap the thumbs down or Never for a place you '
+                                      "don't want\nAfter $swipeTimeoutSeconds seconds it will auto vote "
+                                      "that you don't want this place",
+                                      textAlign: TextAlign.center,
+                                      style: theme.textTheme.bodyMedium!
+                                          .copyWith(
+                                            fontSize: 14,
+                                            color: Colors.black.withValues(
+                                              alpha: 0.7,
+                                            ),
                                           ),
+                                    ),
+                                  ),
+
+                                  Expanded(
+                                    flex: 3,
+                                    child: Center(
+                                      // The swiper sizes cards from these constraints; with
+                                      // a loose width every card shrinks to its own text
+                                      // and sits at the left edge.
+                                      child: SizedBox(
+                                        width: double.infinity,
+                                        height: 380,
+                                        child: CardSwiper(
+                                          controller: _cardSwiperController,
+                                          cardsCount: _cardWidgets.length,
+                                          // The swiper shows two stacked cards by
+                                          // default and rejects a one-card deck.
+                                          numberOfCardsDisplayed:
+                                              _cardWidgets.length < 2 ? 1 : 2,
+                                          cardBuilder: (context, index, h, v) {
+                                            if (index >= _cardWidgets.length) {
+                                              return null;
+                                            }
+                                            return _cardWidgets[index];
+                                          },
+                                          isLoop: false,
+                                          onSwipe: _handleSwipe,
+                                          onEnd: () async {
+                                            // Finished locally — navigate now (waiting screen if others not done)
+                                            if (!_navigated) _goToResults();
+                                            // Also nudge watchdog
+                                            await _backend
+                                                .nudge(widget.roomCode)
+                                                .catchError((_) {});
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+
+                                  if (!finishedDeck)
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        top: 20,
+                                        bottom: 6,
+                                      ),
+                                      // Small thumbs either side of the countdown are
+                                      // a tap alternative to swiping, for anyone who
+                                      // cannot or would rather not drag a card.
+                                      child: Row(
+                                        children: [
+                                          if (!_isLeaving)
+                                            _VoteButton(
+                                              glyph: BubbleGlyph.no,
+                                              label: 'No',
+                                              onTap:
+                                                  () => _swipe(
+                                                    CardSwiperDirection.left,
+                                                  ),
+                                            ),
+                                          Expanded(
+                                            child: TweenAnimationBuilder<
+                                              double
+                                            >(
+                                              key: ValueKey(_currentIndex),
+                                              duration: const Duration(
+                                                seconds: swipeTimeoutSeconds,
+                                              ),
+                                              tween: Tween(
+                                                begin: 1.0,
+                                                end: 0.0,
+                                              ),
+                                              builder: (context, value, child) {
+                                                if (_isLeaving) {
+                                                  return const SizedBox.shrink();
+                                                }
+                                                final secondsLeft =
+                                                    (swipeTimeoutSeconds *
+                                                            value)
+                                                        .ceil();
+                                                return Column(
+                                                  children: [
+                                                    Text(
+                                                      secondsLeft > 0
+                                                          ? '$secondsLeft'
+                                                          : '',
+                                                      style: theme
+                                                          .textTheme
+                                                          .headlineMedium!
+                                                          .copyWith(
+                                                            color:
+                                                                Colors.orange,
+                                                            fontSize: 38,
+                                                          ),
+                                                    ),
+                                                    const SizedBox(height: 6),
+                                                    LinearProgressIndicator(
+                                                      value: value,
+                                                      color: Colors.orange,
+                                                      backgroundColor: theme
+                                                          .colorScheme
+                                                          .primary
+                                                          .withValues(
+                                                            alpha: 0.13,
+                                                          ),
+                                                      minHeight: 8,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            7,
+                                                          ),
+                                                    ),
+                                                  ],
+                                                );
+                                              },
+                                              onEnd: () {
+                                                if (_isLeaving ||
+                                                    finishedDeck) {
+                                                  return;
+                                                }
+                                                WidgetsBinding.instance
+                                                    .addPostFrameCallback((_) {
+                                                      if (mounted &&
+                                                          !_isLeaving &&
+                                                          !finishedDeck) {
+                                                        _simulateLeftSwipe();
+                                                      }
+                                                    });
+                                              },
+                                            ),
+                                          ),
+                                          if (!_isLeaving)
+                                            _VoteButton(
+                                              glyph: BubbleGlyph.yes,
+                                              label: 'Yes',
+                                              onTap:
+                                                  () => _swipe(
+                                                    CardSwiperDirection.right,
+                                                  ),
+                                            ),
                                         ],
                                       ),
-                                ),
-
-                                Expanded(
-                                  child: Align(
-                                    alignment: Alignment.center,
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 6,
-                                      ),
-                                      child: Text(
-                                        "Swipe right or tap Yes to vote YES; swipe left or tap No to vote NO.\nAuto NO after $swipeTimeoutSeconds seconds.",
-                                        textAlign: TextAlign.center,
-                                        style: theme.textTheme.bodyLarge!
-                                            .copyWith(
-                                              fontSize: 16,
-                                              color: Colors.black.withValues(
-                                                alpha: 0.7,
-                                              ),
-                                            ),
-                                      ),
                                     ),
-                                  ),
-                                ),
 
-                                Expanded(
-                                  flex: 3,
-                                  child: Center(
-                                    // The swiper sizes cards from these constraints; with
-                                    // a loose width every card shrinks to its own text
-                                    // and sits at the left edge.
-                                    child: SizedBox(
-                                      width: double.infinity,
-                                      height: 380,
-                                      child: CardSwiper(
-                                        controller: _cardSwiperController,
-                                        cardsCount: _cardWidgets.length,
-                                        // The swiper shows two stacked cards by
-                                        // default and rejects a one-card deck.
-                                        numberOfCardsDisplayed:
-                                            _cardWidgets.length < 2 ? 1 : 2,
-                                        cardBuilder: (context, index, h, v) {
-                                          if (index >= _cardWidgets.length) {
-                                            return null;
-                                          }
-                                          return _cardWidgets[index];
-                                        },
-                                        isLoop: false,
-                                        onSwipe: _handleSwipe,
-                                        onEnd: () async {
-                                          // Finished locally — navigate now (waiting screen if others not done)
-                                          if (!_navigated) _goToResults();
-                                          // Also nudge watchdog
-                                          await _backend
-                                              .nudge(widget.roomCode)
-                                              .catchError((_) {});
-                                        },
-                                      ),
-                                    ),
-                                  ),
-                                ),
-
-                                if (!finishedDeck)
                                   Padding(
                                     padding: const EdgeInsets.only(
-                                      top: 20,
-                                      bottom: 6,
+                                      bottom: 8,
+                                      top: 4,
                                     ),
-                                    // Small thumbs either side of the countdown are
-                                    // a tap alternative to swiping, for anyone who
-                                    // cannot or would rather not drag a card.
-                                    child: Row(
-                                      children: [
-                                        if (!_isLeaving)
-                                          _ListButton(
-                                            visible: canMark,
-                                            label: 'Never',
-                                            tooltip: 'Never what I want',
-                                            icon: const Icon(
-                                              Icons.block,
-                                              color: Color(0xFF555451),
-                                            ),
-                                            color: const Color(0xFFF1EFE8),
-                                            onTap: () => _mark(never: true),
-                                          ),
-                                        if (!_isLeaving)
-                                          _VoteButton(
-                                            image: 'assets/images/vote-no.png',
-                                            label: 'No',
-                                            onTap:
-                                                () => _swipe(
-                                                  CardSwiperDirection.left,
-                                                ),
-                                          ),
-                                        Expanded(
-                                          child: TweenAnimationBuilder<double>(
-                                            key: ValueKey(_currentIndex),
-                                            duration: const Duration(
-                                              seconds: swipeTimeoutSeconds,
-                                            ),
-                                            tween: Tween(begin: 1.0, end: 0.0),
-                                            builder: (context, value, child) {
-                                              if (_isLeaving) {
-                                                return const SizedBox.shrink();
-                                              }
-                                              final secondsLeft =
-                                                  (swipeTimeoutSeconds * value)
-                                                      .ceil();
-                                              return Column(
-                                                children: [
-                                                  Text(
-                                                    secondsLeft > 0
-                                                        ? '$secondsLeft'
-                                                        : '',
-                                                    style: theme
-                                                        .textTheme
-                                                        .headlineMedium!
-                                                        .copyWith(
-                                                          color: Colors.orange,
-                                                          fontSize: 38,
-                                                        ),
-                                                  ),
-                                                  const SizedBox(height: 6),
-                                                  LinearProgressIndicator(
-                                                    value: value,
-                                                    color: Colors.orange,
-                                                    backgroundColor: theme
-                                                        .colorScheme
-                                                        .primary
-                                                        .withValues(
-                                                          alpha: 0.13,
-                                                        ),
-                                                    minHeight: 8,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          7,
-                                                        ),
-                                                  ),
-                                                ],
-                                              );
-                                            },
-                                            onEnd: () {
-                                              if (_isLeaving || finishedDeck) {
-                                                return;
-                                              }
-                                              WidgetsBinding.instance
-                                                  .addPostFrameCallback((_) {
-                                                    if (mounted &&
-                                                        !_isLeaving &&
-                                                        !finishedDeck) {
-                                                      _simulateLeftSwipe();
-                                                    }
-                                                  });
-                                            },
-                                          ),
-                                        ),
-                                        if (!_isLeaving)
-                                          _VoteButton(
-                                            image: 'assets/images/vote-yes.png',
-                                            label: 'Yes',
-                                            onTap:
-                                                () => _swipe(
-                                                  CardSwiperDirection.right,
-                                                ),
-                                          ),
-                                        if (!_isLeaving)
-                                          _ListButton(
-                                            visible: canMark,
-                                            label: 'Favorite',
-                                            tooltip: 'Save as favorite',
-                                            icon: const FavoriteIcon(),
-                                            color: const Color(0xFFFBEAF0),
-                                            onTap: () => _mark(never: false),
-                                          ),
-                                      ],
+                                    child: Text(
+                                      'Option ${(_currentIndex + 1).clamp(1, swipeOptions.length)} of ${swipeOptions.length}',
+                                      style: theme.textTheme.bodyMedium!
+                                          .copyWith(color: Colors.black54),
                                     ),
                                   ),
-
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                    bottom: 8,
-                                    top: 4,
-                                  ),
-                                  child: Text(
-                                    'Option ${(_currentIndex + 1).clamp(1, swipeOptions.length)} of ${swipeOptions.length}',
-                                    style: theme.textTheme.bodyMedium!.copyWith(
-                                      color: Colors.black54,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
   }
+
+  // Arrow keys vote too, for anyone using a keyboard.
+  Widget _withArrowKeys(Widget child) => CallbackShortcuts(
+    bindings: {
+      const SingleActivator(LogicalKeyboardKey.arrowLeft):
+          () => _swipe(CardSwiperDirection.left),
+      const SingleActivator(LogicalKeyboardKey.arrowRight):
+          () => _swipe(CardSwiperDirection.right),
+    },
+    child: Focus(autofocus: true, child: child),
+  );
 }
 
-/// A small thumbs-up or thumbs-down bubble. Its name is in the tooltip and
-/// what screen readers announce.
+/// The "meh" or "yum" bubble either side of the countdown. Its tail points
+/// at the timer. Its name is in the tooltip and what screen readers announce.
 class _VoteButton extends StatelessWidget {
   const _VoteButton({
-    required this.image,
+    required this.glyph,
     required this.label,
     required this.onTap,
   });
 
-  final String image;
+  final BubbleGlyph glyph;
   final String label;
   final VoidCallback onTap;
 
@@ -582,70 +617,67 @@ class _VoteButton extends StatelessWidget {
       message: 'Vote $label',
       child: InkResponse(
         onTap: onTap,
-        radius: 30,
+        radius: 32,
         child: Padding(
           padding: const EdgeInsets.all(4),
-          child: Image.asset(image, width: 48, height: 48),
+          child: BubbleIcon(
+            glyph,
+            size: 56,
+            tailRight: glyph == BubbleGlyph.no,
+          ),
         ),
       ),
     ),
   );
 }
 
-/// Never or Favorite: a vote that also saves the place to a list. Buttons
-/// only, so a list is never changed by an accidental swipe. Keeps its space
-/// when hidden, so the vote buttons do not move between cards.
-class _ListButton extends StatelessWidget {
-  const _ListButton({
-    required this.visible,
+/// Never or Favorite on the card: a vote that also saves the place to a
+/// list. Buttons only, so a list is never changed by a stray swipe.
+class _CardAction extends StatelessWidget {
+  const _CardAction({
     required this.label,
     required this.tooltip,
     required this.icon,
     required this.color,
     required this.onTap,
+    this.iconAfter = false,
   });
 
-  final bool visible;
   final String label;
   final String tooltip;
   final Widget icon;
   final Color color;
   final VoidCallback onTap;
+  final bool iconAfter;
 
   @override
-  Widget build(BuildContext context) => Visibility(
-    visible: visible,
-    maintainSize: true,
-    maintainAnimation: true,
-    maintainState: true,
-    child: Semantics(
+  Widget build(BuildContext context) {
+    final text = Text(
+      label,
+      style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 14),
+    );
+    return Semantics(
       button: true,
       label: tooltip,
       excludeSemantics: true,
       child: Tooltip(
         message: tooltip,
-        child: InkResponse(
-          onTap: visible ? onTap : null,
-          radius: 26,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-                alignment: Alignment.center,
-                child: icon,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                style: const TextStyle(fontSize: 11, color: Colors.black54),
-              ),
-            ],
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (!iconAfter) ...[icon, const SizedBox(width: 6)],
+                text,
+                if (iconAfter) ...[const SizedBox(width: 6), icon],
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }

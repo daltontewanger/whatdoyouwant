@@ -15,6 +15,7 @@ import 'join_screen.dart';
 import 'main_shell.dart';
 import 'own_list_screen.dart';
 import 'search_setup_screen.dart';
+import 'bubble_icons.dart';
 import 'step_card.dart';
 
 const _inkSoft = Color(0xFF4A5A52);
@@ -196,59 +197,84 @@ class HomeScreenState extends State<HomeScreen>
   }
 
   // The logo's butter yellow makes the room in progress stand out from the
-  // white card; dark brown text on it keeps AA contrast.
-  Widget _activeRoomBanner(ThemeData theme) => Container(
-    margin: const EdgeInsets.only(bottom: 16),
-    decoration: BoxDecoration(
-      color: const Color(0xFFFFF1C9),
-      border: Border.all(color: const Color(0xFFF7C948), width: 1.5),
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: Stack(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(44, 14, 44, 16),
-          child: Column(
-            children: [
-              Text(
-                'You have a room in progress.',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyLarge!.copyWith(
-                  color: const Color(0xFF5A4300),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _returnToRoom,
-                  child: const Text(
-                    'Return to room',
-                    style: TextStyle(fontSize: 16),
+  // white card; dark brown text on it keeps AA contrast. One compact row: a
+  // bobbing alert bubble, the message, and the same arrow as the step cards.
+  Widget _activeRoomBanner(ThemeData theme) {
+    const brown = Color(0xFF5A4300);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Material(
+        color: const Color(0xFFFFF1C9),
+        shape: RoundedRectangleBorder(
+          side: const BorderSide(color: Color(0xFFF7C948), width: 1.5),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: _isLoading ? null : _returnToRoom,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+            child: Row(
+              children: [
+                const ExcludeSemantics(
+                  child: _Bobbing(
+                    child: BubbleIcon(BubbleGlyph.notice, size: 36),
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Semantics(
+                    button: true,
+                    label: 'You have a room in progress. Return to room',
+                    excludeSemantics: true,
+                    child: Text(
+                      'You have a room in progress',
+                      style: theme.textTheme.bodyLarge!.copyWith(
+                        color: brown,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                Tooltip(
+                  message: 'Return to room',
+                  child: ExcludeSemantics(
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.arrow_forward,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Dismiss',
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.close, color: brown, size: 20),
+                  onPressed:
+                      _isLoading
+                          ? null
+                          : () async {
+                            await RoomBackendScope.of(
+                              context,
+                            ).activeRooms?.forget();
+                            await _loadActiveRoom();
+                          },
+                ),
+              ],
+            ),
           ),
         ),
-        Positioned(
-          top: 2,
-          right: 2,
-          child: IconButton(
-            tooltip: 'Dismiss',
-            icon: const Icon(Icons.close, color: Color(0xFF5A4300)),
-            onPressed:
-                _isLoading
-                    ? null
-                    : () async {
-                      await RoomBackendScope.of(context).activeRooms?.forget();
-                      await _loadActiveRoom();
-                    },
-          ),
-        ),
-      ],
-    ),
-  );
+      ),
+    );
+  }
 
   /// Live searches need a verified account; guests can still join rooms.
   /// Signing in lands back here on home rather than in what was asked for.
@@ -519,4 +545,50 @@ class HomeScreenState extends State<HomeScreen>
       ),
     );
   }
+}
+
+/// Bobs its child gently up and down, like the site's speech bubbles. Still
+/// when the device asks for reduced motion.
+class _Bobbing extends StatefulWidget {
+  const _Bobbing({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_Bobbing> createState() => _BobbingState();
+}
+
+class _BobbingState extends State<_Bobbing>
+    with SingleTickerProviderStateMixin {
+  late final _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1600),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _controller.stop();
+    } else if (!_controller.isAnimating) {
+      _controller.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _controller,
+    builder:
+        (context, child) => Transform.translate(
+          offset: Offset(0, -4 * Curves.easeInOut.transform(_controller.value)),
+          child: child,
+        ),
+    child: widget.child,
+  );
 }

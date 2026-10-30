@@ -7,6 +7,8 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../services/live_search.dart';
 import '../services/room_backend.dart';
 import '../services/room_lists.dart';
+import 'my_places_screen.dart';
+import 'place_marks.dart';
 import 'search_panel.dart';
 import 'swipe_screen.dart';
 import '../models/own_spot.dart';
@@ -246,37 +248,91 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
   }
 
   Widget _listSwitches(ThemeData theme) {
-    Widget toggle(
-      String title,
-      String subtitle,
-      bool value,
-      ValueChanged<bool> onChanged,
-    ) => SwitchListTile(
-      dense: true,
-      contentPadding: EdgeInsets.zero,
-      title: Text(title, style: theme.textTheme.bodyLarge),
-      subtitle: Text(subtitle),
-      value: value,
-      onChanged: _isLoading ? null : onChanged,
+    // The title opens the person's own list; the switch beside it decides
+    // whether everyone's lists shape this room's deck.
+    Widget row({
+      required Widget icon,
+      required String title,
+      required String subtitle,
+      required bool value,
+      required ValueChanged<bool> onChanged,
+    }) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Tooltip(
+              message: 'See your "$title" list',
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap:
+                    () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => const MyPlacesScreen(),
+                      ),
+                    ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      ExcludeSemantics(child: icon),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '$title ›',
+                              style: theme.textTheme.bodyLarge!.copyWith(
+                                color: theme.colorScheme.primary,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                            Text(subtitle, style: theme.textTheme.bodySmall),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Semantics(
+            label: "Use everyone's \"$title\" lists in this room",
+            child: Switch(
+              value: value,
+              onChanged: _isLoading ? null : onChanged,
+            ),
+          ),
+        ],
+      ),
     );
-    // The lobby card paints its own background; the switches need a
-    // Material of their own for their ripple to show on it.
+    // The lobby card paints its own background; the rows need a Material of
+    // their own for their ripple to show on it.
     return Material(
       type: MaterialType.transparency,
       child: Column(
         children: [
-          toggle(
-            'Include favorites',
-            'Up to one per person, at most half the deck',
-            _deckLists.favorites,
-            (on) =>
-                setState(() => _deckLists = _deckLists.copyWith(favorites: on)),
+          row(
+            icon: const FavoriteIcon(size: 34),
+            title: favoritesList,
+            subtitle: 'Up to one per person, at most half the deck',
+            value: _deckLists.favorites,
+            onChanged:
+                (on) => setState(
+                  () => _deckLists = _deckLists.copyWith(favorites: on),
+                ),
           ),
-          toggle(
-            'Leave out never places',
-            "Everyone's never list, kept private",
-            _deckLists.never,
-            (on) => setState(() => _deckLists = _deckLists.copyWith(never: on)),
+          row(
+            icon: const NeverIcon(size: 34),
+            title: neverList,
+            subtitle: "Everyone's exclusion list combined, kept private",
+            value: _deckLists.never,
+            onChanged:
+                (on) =>
+                    setState(() => _deckLists = _deckLists.copyWith(never: on)),
           ),
         ],
       ),

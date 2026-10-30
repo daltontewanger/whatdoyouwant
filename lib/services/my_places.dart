@@ -17,7 +17,7 @@ class ListFull implements Exception {
 
   @override
   String toString() =>
-      'Your ${never ? 'never' : 'favorites'} list is full. Remove some in Account to add more.';
+      'Your "${never ? 'Never what I want' : 'I know what I want'}" list is full. Remove some in Account to add more.';
 }
 
 /// The person's favorites ("I know what I want") and never list ("Never
