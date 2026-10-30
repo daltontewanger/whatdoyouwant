@@ -4,7 +4,9 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import '../services/live_search.dart';
 import '../services/room_backend.dart';
+import '../services/room_lists.dart';
 import 'search_panel.dart';
 import 'swipe_screen.dart';
 import '../models/own_spot.dart';
@@ -99,6 +101,7 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
     if (_roomCode != null) {
       _roomStream ??= _backend.watch(_roomCode!);
       _prepareStart();
+      _shareLists();
     } else if (widget.isCreator && !_isLoading) {
       _createRoom();
     }
@@ -116,6 +119,7 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
         _isLoading = false;
       });
       _prepareStart();
+      _shareLists();
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -126,8 +130,57 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
   }
 
   bool _prepared = false;
+  RoomListSharer? _sharer;
+
+  /// The host's switches for members' favorites and never lists.
+  DeckLists _deckLists = DeckLists.all;
 
   bool get _fromList => widget.ownSpots != null;
+
+  // A room from the host's own list has no search for the lists to shape.
+  void _shareLists() {
+    final places = RoomBackendScope.of(context).myPlaces;
+    if (_sharer != null || _roomCode == null || _fromList || places == null) {
+      return;
+    }
+    _sharer = RoomListSharer(
+      backend: _backend,
+      places: places,
+      roomId: _roomCode!,
+    );
+  }
+
+  @override
+  void dispose() {
+    _sharer?.dispose();
+    super.dispose();
+  }
+
+  /// Never lists took out so many places that the search came up short.
+  Future<bool> _offerWithoutNever(int leftOut) async {
+    final retry = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Too picky, all of you'),
+            content: Text(
+              'Never lists left out $leftOut places, so too few are left. '
+              'Start without never lists? That runs the search again.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Start without them'),
+              ),
+            ],
+          ),
+    );
+    return retry == true;
+  }
 
   /// Lets the backend find the location while the host waits for guests.
   void _prepareStart() {
@@ -150,7 +203,12 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
       }
       final finalRestaurants =
           spots == null
-              ? await _backend.start(_roomCode!, search: search, zip: zip)
+              ? await _backend.start(
+                _roomCode!,
+                search: search,
+                zip: zip,
+                lists: _deckLists,
+              )
               : await _backend.startFromList(_roomCode!, spots);
 
       if (!mounted) return;
@@ -173,10 +231,56 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
       if (!mounted) return;
       setState(() => _isLoading = false);
       if (showBlockedLocation(e)) return;
+      if (neverLeftOut(e) case final leftOut?) {
+        if (await _offerWithoutNever(leftOut) && mounted) {
+          setState(() => _deckLists = _deckLists.copyWith(never: false));
+          await _startSwiping();
+        }
+        return;
+      }
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(startRoomErrorMessage(e))));
     }
+  }
+
+  Widget _listSwitches(ThemeData theme) {
+    Widget toggle(
+      String title,
+      String subtitle,
+      bool value,
+      ValueChanged<bool> onChanged,
+    ) => SwitchListTile(
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      title: Text(title, style: theme.textTheme.bodyLarge),
+      subtitle: Text(subtitle),
+      value: value,
+      onChanged: _isLoading ? null : onChanged,
+    );
+    // The lobby card paints its own background; the switches need a
+    // Material of their own for their ripple to show on it.
+    return Material(
+      type: MaterialType.transparency,
+      child: Column(
+        children: [
+          toggle(
+            'Include favorites',
+            'Up to one per person, at most half the deck',
+            _deckLists.favorites,
+            (on) =>
+                setState(() => _deckLists = _deckLists.copyWith(favorites: on)),
+          ),
+          toggle(
+            'Leave out never places',
+            "Everyone's never list, kept private",
+            _deckLists.never,
+            (on) => setState(() => _deckLists = _deckLists.copyWith(never: on)),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _listPanel(ThemeData theme) {
@@ -328,9 +432,18 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
                                         child:
                                             _fromList
                                                 ? _listPanel(theme)
-                                                : searchPanel(
-                                                  theme,
-                                                  busy: _isLoading,
+                                                : Column(
+                                                  children: [
+                                                    searchPanel(
+                                                      theme,
+                                                      busy: _isLoading,
+                                                    ),
+                                                    if (RoomBackendScope.of(
+                                                          context,
+                                                        ).myPlaces !=
+                                                        null)
+                                                      _listSwitches(theme),
+                                                  ],
                                                 ),
                                       ),
 

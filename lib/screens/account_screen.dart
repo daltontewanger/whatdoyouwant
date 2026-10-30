@@ -1,10 +1,13 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../services/account_service.dart';
+import '../services/room_backend.dart';
 import 'create_account_screen.dart';
 import 'forgot_password_screen.dart';
 import 'help_links.dart';
 import 'main_shell.dart';
+import 'my_places_screen.dart';
+import 'place_marks.dart';
 
 /// Turns Auth errors into guidance. Projects with email enumeration protection
 /// report an unknown email and a wrong password the same way, so the specific
@@ -137,7 +140,7 @@ class _AccountScreenState extends State<AccountScreen> {
     if (user?.isAnonymous == true &&
         !await confirm(
           'Sign in to an existing account?',
-          "Rooms and votes from this guest session won't move to that account. Your We'll Decide What We Want list will.",
+          "Rooms and votes from this guest session won't move to that account. Your We'll Decide What We Want list, favorites and never list will.",
         )) {
       return;
     }
@@ -188,7 +191,7 @@ class _AccountScreenState extends State<AccountScreen> {
       // That Google account already exists; switching is allowed but never merges the accounts.
       if (await confirm(
         'Switch to your existing Google account?',
-        "This Google account already has an account here. Rooms and votes from this guest session won't move to it. Your We'll Decide What We Want list will.",
+        "This Google account already has an account here. Rooms and votes from this guest session won't move to it. Your We'll Decide What We Want list, favorites and never list will.",
         action: 'Switch',
       )) {
         if (!mounted) return;
@@ -281,6 +284,28 @@ class _AccountScreenState extends State<AccountScreen> {
                       padding: const EdgeInsets.only(top: 16),
                       child: Text(message, textAlign: TextAlign.center),
                     ),
+                  if (RoomBackendScope.maybeOf(context)?.myPlaces != null) ...[
+                    const SizedBox(height: 32),
+                    Card(
+                      margin: EdgeInsets.zero,
+                      clipBehavior: Clip.antiAlias,
+                      child: ListTile(
+                        leading: const FavoriteIcon(),
+                        title: const Text('Your lists'),
+                        subtitle: const Text(
+                          'I know what I want · Never what I want',
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap:
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute<void>(
+                                builder: (_) => const MyPlacesScreen(),
+                              ),
+                            ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 32),
                   Padding(
                     padding: const EdgeInsets.only(left: 4, bottom: 8),

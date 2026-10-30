@@ -5,6 +5,7 @@ import '../models/restaurant.dart';
 import 'account_service.dart';
 import 'active_room_store.dart';
 import 'live_search.dart';
+import 'my_places.dart';
 import 'own_list.dart';
 import 'search_defaults.dart';
 
@@ -120,11 +121,21 @@ abstract class RoomBackend {
   Stream<RoomState> watch(String roomId);
 
   /// Starts voting and returns the deck. With a [zip] code the search starts
-  /// there instead of at the device.
+  /// there instead of at the device. [lists] are the host's switches for the
+  /// members' favorites and never lists.
   Future<List<Restaurant>> start(
     String roomId, {
     required SearchPreferences search,
     String? zip,
+    DeckLists lists = DeckLists.none,
+  });
+
+  /// Shares this person's favorites and never card IDs with a room while it
+  /// waits, for the deck the host starts.
+  Future<void> shareLists(
+    String roomId, {
+    required List<String> favorites,
+    required List<String> never,
   });
 
   /// Starts voting on spots from the host's own list. No search runs, so it
@@ -173,6 +184,35 @@ abstract class RoomBackend {
 
 /// Makes the backend and, where accounts exist, the account service available
 /// to every screen without passing them through each constructor.
+/// The host's room switches: whether members' favorites go into the deck
+/// and whether their never places are left out.
+@immutable
+class DeckLists {
+  const DeckLists({required this.favorites, required this.never});
+
+  static const none = DeckLists(favorites: false, never: false);
+  static const all = DeckLists(favorites: true, never: true);
+
+  final bool favorites;
+  final bool never;
+
+  DeckLists copyWith({bool? favorites, bool? never}) => DeckLists(
+    favorites: favorites ?? this.favorites,
+    never: never ?? this.never,
+  );
+
+  Map<String, bool> toJson() => {'favorites': favorites, 'never': never};
+
+  @override
+  bool operator ==(Object other) =>
+      other is DeckLists &&
+      other.favorites == favorites &&
+      other.never == never;
+
+  @override
+  int get hashCode => Object.hash(favorites, never);
+}
+
 class RoomBackendScope extends InheritedWidget {
   const RoomBackendScope({
     super.key,
@@ -181,6 +221,7 @@ class RoomBackendScope extends InheritedWidget {
     this.activeRooms,
     this.searchDefaults,
     this.ownList,
+    this.myPlaces,
     required super.child,
   });
 
@@ -195,6 +236,9 @@ class RoomBackendScope extends InheritedWidget {
 
   /// The person's own list for We'll Decide What We Want.
   final OwnListStore? ownList;
+
+  /// The person's favorites and never list.
+  final MyPlacesStore? myPlaces;
 
   static RoomBackendScope of(BuildContext context) {
     final scope =
@@ -217,5 +261,6 @@ class RoomBackendScope extends InheritedWidget {
       accounts != oldWidget.accounts ||
       activeRooms != oldWidget.activeRooms ||
       searchDefaults != oldWidget.searchDefaults ||
-      ownList != oldWidget.ownList;
+      ownList != oldWidget.ownList ||
+      myPlaces != oldWidget.myPlaces;
 }

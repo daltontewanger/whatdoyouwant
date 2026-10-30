@@ -8,6 +8,7 @@ import '../services/live_search.dart';
 import '../services/place_links.dart';
 import '../services/room_backend.dart';
 import 'place_card.dart';
+import 'place_marks.dart';
 import 'search_panel.dart';
 
 /// What to tell someone whose Quick Pick could not start.
@@ -213,9 +214,14 @@ class _QuickPickScreenState extends State<QuickPickScreen> with SearchStarter {
         const SizedBox(height: 14),
         PlaceCard(restaurant: restaurant),
         const SizedBox(height: 20),
-        if (_chosen)
-          PlaceActions(links: placeLinksFor(restaurant))
-        else if (_busy)
+        if (_chosen) ...[
+          PlaceActions(links: placeLinksFor(restaurant)),
+          const SizedBox(height: 10),
+          PlaceListButtons(
+            restaurant: restaurant,
+            alignment: WrapAlignment.center,
+          ),
+        ] else if (_busy)
           const CircularProgressIndicator()
         else ...[
           ElevatedButton(

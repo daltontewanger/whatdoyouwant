@@ -3,10 +3,13 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 import '../models/restaurant.dart';
+import '../models/saved_place.dart';
 import '../models/user.dart';
 import '../services/result_nudges.dart';
 import '../services/room_backend.dart';
+import '../services/my_places.dart';
 import '../services/search_defaults.dart';
+import 'place_marks.dart';
 import 'results_screen.dart';
 
 const Color cardSwipeBackground = Color(0xFFE7F8F3);
@@ -60,6 +63,7 @@ class SwipeScreenState extends State<SwipeScreen> {
   StreamSubscription<RoomState>? _roomSub;
   ResultNudges? _nudges;
   late RoomBackend _backend;
+  MyPlacesStore? _places;
 
   @override
   void initState() {
@@ -77,10 +81,26 @@ class SwipeScreenState extends State<SwipeScreen> {
         .listen(_onRoomUpdate, onError: (_) {});
 
     _nudges = ResultNudges(() => _backend.nudge(widget.roomCode));
+    _places =
+        RoomBackendScope.of(context).myPlaces?..addListener(_placesChanged);
+    // Favorites in this deck get their details refreshed.
+    _places?.seen(swipeOptions).catchError((_) {});
+  }
+
+  void _placesChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// Never counts as No and Favorite as Yes; both also save the place.
+  void _mark({required bool never}) {
+    if (_currentIndex >= swipeOptions.length) return;
+    markPlace(context, swipeOptions[_currentIndex], never: never);
+    _swipe(never ? CardSwiperDirection.left : CardSwiperDirection.right);
   }
 
   @override
   void dispose() {
+    _places?.removeListener(_placesChanged);
     _isLeaving = true;
     _nudges?.stop();
     _roomSub?.cancel();
@@ -190,57 +210,66 @@ class SwipeScreenState extends State<SwipeScreen> {
 
   List<Widget> get _cardWidgets {
     return swipeOptions.map((restaurant) {
+      final favorite = _places?.isFavorite(restaurant.id) ?? false;
       return Card(
         color: cardSwipeBackground,
         shape: Theme.of(context).cardTheme.shape,
         elevation: Theme.of(context).cardTheme.elevation ?? 6,
         margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        child: Padding(
-          padding: const EdgeInsets.all(28.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                restaurant.name,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.headlineMedium!.copyWith(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 26,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+        child: Stack(
+          // Expanded so the text stays centred in the card around the badge.
+          fit: StackFit.expand,
+          children: [
+            if (favorite)
+              const Positioned(top: 12, right: 12, child: FavoriteBadge()),
+            Padding(
+              padding: const EdgeInsets.all(28.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    restaurant.name,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.headlineMedium!.copyWith(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 26,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    restaurant.address,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  const SizedBox(height: 14),
+                  // Spots from the host's own list were never looked up, so they
+                  // have the host's note in place of a distance.
+                  if (restaurant.userEntered)
+                    Text(
+                      restaurant.note ?? '',
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                        fontStyle: FontStyle.italic,
+                      ),
+                    )
+                  else
+                    Text(
+                      'Distance: ${distanceText(restaurant.distance, RoomBackendScope.distanceUnitOf(context))}',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium!.copyWith(color: Colors.black54),
+                    ),
+                ],
               ),
-              const SizedBox(height: 14),
-              Text(
-                restaurant.address,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-              const SizedBox(height: 14),
-              // Spots from the host's own list were never looked up, so they
-              // have the host's note in place of a distance.
-              if (restaurant.userEntered)
-                Text(
-                  restaurant.note ?? '',
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium!.copyWith(fontStyle: FontStyle.italic),
-                )
-              else
-                Text(
-                  'Distance: ${distanceText(restaurant.distance, RoomBackendScope.distanceUnitOf(context))}',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium!.copyWith(color: Colors.black54),
-                ),
-            ],
-          ),
+            ),
+          ],
         ),
       );
     }).toList();
@@ -260,6 +289,12 @@ class SwipeScreenState extends State<SwipeScreen> {
     }
 
     final bool finishedDeck = _currentIndex >= swipeOptions.length;
+    // Typed spots from the host's own list are already the host's; they
+    // cannot be favorites or never places.
+    final bool canMark =
+        _places != null &&
+        !finishedDeck &&
+        SavedPlace.canSave(swipeOptions[_currentIndex]);
 
     return Scaffold(
       backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.10),
@@ -392,6 +427,18 @@ class SwipeScreenState extends State<SwipeScreen> {
                                     child: Row(
                                       children: [
                                         if (!_isLeaving)
+                                          _ListButton(
+                                            visible: canMark,
+                                            label: 'Never',
+                                            tooltip: 'Never what I want',
+                                            icon: const Icon(
+                                              Icons.block,
+                                              color: Color(0xFF555451),
+                                            ),
+                                            color: const Color(0xFFF1EFE8),
+                                            onTap: () => _mark(never: true),
+                                          ),
+                                        if (!_isLeaving)
                                           _VoteButton(
                                             image: 'assets/images/vote-no.png',
                                             label: 'No',
@@ -471,6 +518,15 @@ class SwipeScreenState extends State<SwipeScreen> {
                                                   CardSwiperDirection.right,
                                                 ),
                                           ),
+                                        if (!_isLeaving)
+                                          _ListButton(
+                                            visible: canMark,
+                                            label: 'Favorite',
+                                            tooltip: 'Save as favorite',
+                                            icon: const FavoriteIcon(),
+                                            color: const Color(0xFFFBEAF0),
+                                            onTap: () => _mark(never: false),
+                                          ),
                                       ],
                                     ),
                                   ),
@@ -530,6 +586,64 @@ class _VoteButton extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(4),
           child: Image.asset(image, width: 48, height: 48),
+        ),
+      ),
+    ),
+  );
+}
+
+/// Never or Favorite: a vote that also saves the place to a list. Buttons
+/// only, so a list is never changed by an accidental swipe. Keeps its space
+/// when hidden, so the vote buttons do not move between cards.
+class _ListButton extends StatelessWidget {
+  const _ListButton({
+    required this.visible,
+    required this.label,
+    required this.tooltip,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  final bool visible;
+  final String label;
+  final String tooltip;
+  final Widget icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Visibility(
+    visible: visible,
+    maintainSize: true,
+    maintainAnimation: true,
+    maintainState: true,
+    child: Semantics(
+      button: true,
+      label: tooltip,
+      excludeSemantics: true,
+      child: Tooltip(
+        message: tooltip,
+        child: InkResponse(
+          onTap: visible ? onTap : null,
+          radius: 26,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                alignment: Alignment.center,
+                child: icon,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: const TextStyle(fontSize: 11, color: Colors.black54),
+              ),
+            ],
+          ),
         ),
       ),
     ),

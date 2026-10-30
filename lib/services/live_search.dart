@@ -32,6 +32,15 @@ class LiveSearchAllowance {
 }
 
 /// The reason a room callable attached to its error, such as `weekly-cap`.
+/// How many places never lists took out of a search that then came up
+/// short, or null when that is not why it failed.
+int? neverLeftOut(Object error) {
+  if (callableReason(error) != 'too-few-results') return null;
+  final left =
+      ((error as FirebaseFunctionsException).details as Map)['neverLeftOut'];
+  return left is num && left > 0 ? left.toInt() : null;
+}
+
 String? callableReason(Object error) {
   if (error is! FirebaseFunctionsException) return null;
   final details = error.details;

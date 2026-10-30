@@ -5,6 +5,7 @@ import '../models/user.dart';
 import '../services/active_room_store.dart';
 import '../services/callable_room_backend.dart';
 import '../services/room_backend.dart';
+import '../services/room_lists.dart';
 import 'results_screen.dart';
 import 'swipe_screen.dart';
 
@@ -221,11 +222,26 @@ class WaitingForOptionsScreen extends StatefulWidget {
 class _WaitingForOptionsScreenState extends State<WaitingForOptionsScreen> {
   Stream<RoomState>? _room;
   bool _navigated = false;
+  RoomListSharer? _sharer;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _room ??= RoomBackendScope.of(context).backend.watch(widget.roomCode);
+    final scope = RoomBackendScope.of(context);
+    _room ??= scope.backend.watch(widget.roomCode);
+    if (scope.myPlaces case final places? when _sharer == null) {
+      _sharer = RoomListSharer(
+        backend: scope.backend,
+        places: places,
+        roomId: widget.roomCode,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _sharer?.dispose();
+    super.dispose();
   }
 
   @override

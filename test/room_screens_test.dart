@@ -64,14 +64,24 @@ class FakeRoomBackend implements RoomBackend {
       throw createError ?? UnimplementedError();
   final started = <SearchPreferences>[];
   final startedZips = <String?>[];
+  final startedLists = <DeckLists>[];
+  final shared = <(String, List<String>, List<String>)>[];
+  @override
+  Future<void> shareLists(
+    String roomId, {
+    required List<String> favorites,
+    required List<String> never,
+  }) async => shared.add((roomId, favorites, never));
   @override
   Future<List<Restaurant>> start(
     String roomId, {
     required SearchPreferences search,
     String? zip,
+    DeckLists lists = DeckLists.none,
   }) async {
     started.add(search);
     startedZips.add(zip);
+    startedLists.add(lists);
     throw startError ?? UnimplementedError();
   }
 

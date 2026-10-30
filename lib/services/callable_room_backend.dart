@@ -264,17 +264,30 @@ class CallableRoomBackend implements RoomBackend {
     String roomId, {
     required SearchPreferences search,
     String? zip,
+    DeckLists lists = DeckLists.none,
   }) async {
     final origin = zip == null ? await _locate() : null;
     final started = await _call('startRoom', {
       'roomId': roomId,
       'search': startSearchFor(origin, search, zip: zip),
+      'lists': lists.toJson(),
     });
     // A fresh start returns its cards; a repeat start points at the stored deck.
     if (started['candidates'] is List) return deckRestaurants(started);
     final deck = await _db.doc('restaurantDecks/${started['deckId']}').get();
     return deckRestaurants(deck.data()!);
   }
+
+  @override
+  Future<void> shareLists(
+    String roomId, {
+    required List<String> favorites,
+    required List<String> never,
+  }) => _call('shareRoomLists', {
+    'roomId': roomId,
+    'favorites': favorites,
+    'never': never,
+  });
 
   @override
   Future<List<Restaurant>> startFromList(

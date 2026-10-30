@@ -3,10 +3,12 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import '../models/restaurant.dart';
+import '../models/saved_place.dart';
 import '../services/place_links.dart';
 import '../services/result_nudges.dart';
 import '../services/room_backend.dart';
 import 'place_card.dart';
+import 'place_marks.dart';
 
 /// The banner over a room's result, from how many voters liked the winner.
 String resultBanner({required int likes, required int voters}) {
@@ -288,8 +290,16 @@ class _ResultViewState extends State<_ResultView> {
 
   String _likedNote(int likes) => '$likes of ${widget.voters} liked it';
 
-  Widget _actions(Restaurant place) =>
-      PlaceActions(links: placeLinksFor(place), alignment: WrapAlignment.start);
+  Widget _actions(Restaurant place) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      PlaceActions(links: placeLinksFor(place), alignment: WrapAlignment.start),
+      if (SavedPlace.canSave(place)) ...[
+        const SizedBox(height: 10),
+        PlaceListButtons(restaurant: place),
+      ],
+    ],
+  );
 
   Widget _tile({
     required Widget label,
