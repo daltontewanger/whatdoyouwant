@@ -74,6 +74,7 @@
       <li>contact or authentication data</li>
       <li>search preferences: if you have an account, the search settings you choose (distance unit, search radius, number of options, cuisines to prefer or leave out, and whether to show places open now first), so they follow you between devices. They never include your location.</li>
       <li>your own list: if you have an account, the places you type into We'll Decide What We Want (a name, and optionally an address and a note, for up to 50 places), so your list follows you between devices. Without an account, your list stays only on your device. We never look these places up or connect them to your location.</li>
+      <li>your favorites and never list: places you mark as a favorite or as never what you want, so rooms can include or leave them out. For each place we keep an identifier; for a favorite we also keep the name and address shown, and drop them 30 days after the place last appeared in one of your searches; for a never place we keep its name. With an account they are kept with your account; without one they stay only on your device.</li>
     </ul>
     <p id="sensitiveinfo"><strong>Sensitive information.</strong> When necessary, with your consent or as otherwise permitted by applicable law, we process the following categories of sensitive information: account login information and precise geolocation.</p>
     <p><strong>Google sign-in data.</strong> You can choose to register or sign in with your Google account. If you do, we receive certain profile information from Google, as described in <a href="#sociallogins">How do we handle your social logins?</a> below.</p>
@@ -159,7 +160,7 @@
 
     <h2 id="cookies">5. Do we use cookies and other tracking technologies?</h2>
     <p><em><strong>In short:</strong> We use only what is needed to sign you in and keep the Services secure. We do not use advertising or analytics trackers.</em></p>
-    <p>We use a small amount of storage in your browser or device to keep you signed in, to remember the room you are in, and to remember your last search settings and your own list. Our bot-protection provider may set a cookie to help tell genuine visitors from automated abuse. These technologies are needed for the Services to work and to keep them secure. We do not use cookies or similar technologies for analytics, advertising, or tracking you across other websites.</p>
+    <p>We use a small amount of storage in your browser or device to keep you signed in, to remember the room you are in, and to remember your last search settings, your own list, and your favorites and never list. Our bot-protection provider may set a cookie to help tell genuine visitors from automated abuse. These technologies are needed for the Services to work and to keep them secure. We do not use cookies or similar technologies for analytics, advertising, or tracking you across other websites.</p>
     <p>Specific information about these technologies and how you can refuse certain cookies is set out in our Cookie Policy: <a href="https://getwhatdoyouwant.app/cookies">https://getwhatdoyouwant.app/cookies</a>.</p>
 
     <h2 id="sociallogins">6. How do we handle your social logins?</h2>
@@ -179,6 +180,8 @@
       <li>Account details (email, and name and ID if you sign in with Google) are kept until you delete your account.</li>
       <li>Search preferences saved to an account are kept until you delete your account. Without an account, they stay only on your device.</li>
       <li>Your own list saved to an account is kept until you change it or delete your account. Without an account, it stays only on your device.</li>
+      <li>Your favorites and never list saved to an account are kept until you remove a place or delete your account; a favorite's name and address are dropped 30 days after the place last appeared in one of your searches. Without an account, they stay only on your device.</li>
+      <li>While you wait in a room, your device shares the identifiers of your favorites and never places so the deck can include or leave them out. Nobody else in the room sees them, and they are deleted when the deck is made or, at the latest, when the room expires within about a day.</li>
       <li>Guest identifiers are deleted after 30 days of inactivity.</li>
       <li>Accounts whose email address is never verified are deleted after 30 days of inactivity.</li>
       <li>Rooms and votes are deleted automatically within about a day.</li>
@@ -246,7 +249,7 @@
     <p>We may also collect other personal information outside of these categories when you contact us for help through our support channels, and to respond to your inquiries.</p>
     <p>We will use and retain the collected personal information as needed to provide the Services or for:</p>
     <ul>
-      <li>Category A: Account details (email, and name and ID if you sign in with Google) are kept until you delete your account, except that accounts whose email is never verified are deleted after 30 days of inactivity. Guest IDs are deleted after 30 days of inactivity. IP addresses in server logs are deleted after 30 days. Search preferences and your own list saved to an account are kept until you delete your account.</li>
+      <li>Category A: Account details (email, and name and ID if you sign in with Google) are kept until you delete your account, except that accounts whose email is never verified are deleted after 30 days of inactivity. Guest IDs are deleted after 30 days of inactivity. IP addresses in server logs are deleted after 30 days. Search preferences, your own list, and your favorites and never list saved to an account are kept until you delete your account (a favorite's name and address are dropped 30 days after the place last appeared in one of your searches).</li>
       <li>Category G: Not stored. When a host starts a search, the device's location, rounded to about 100 meters, is used for that search only and then discarded. A host can search around a ZIP code instead; this ZIP code is not saved and will be forgotten after the app is closed. Guests who join a room never share their location.</li>
       <li>Category L: Sign-in details are kept until you delete your account. Location is not stored: it is used for the search a host starts and then discarded.</li>
     </ul>
