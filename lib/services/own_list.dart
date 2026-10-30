@@ -62,6 +62,13 @@ abstract class OwnListAccount {
   /// unverified accounts, whose list stays on the device.
   String? get verifiedUid;
 
+  /// Whether a guest session is signed in, as after signing out. False while
+  /// the app is still restoring a session at start.
+  bool get isGuest;
+
+  /// Fires whenever someone signs in or out.
+  Stream<void> get changes;
+
   /// The account's list, or null when it has never saved one.
   Future<List<OwnSpot>?> read(String uid);
   Future<void> write(List<OwnSpot> spots);
@@ -87,6 +94,12 @@ class FirebaseOwnListAccount implements OwnListAccount {
         ? user.uid
         : null;
   }
+
+  @override
+  bool get isGuest => _auth.currentUser?.isAnonymous == true;
+
+  @override
+  Stream<void> get changes => _auth.authStateChanges();
 
   @override
   Future<List<OwnSpot>?> read(String uid) async {
@@ -135,7 +148,17 @@ List<OwnSpot> spotsFrom(Object? raw) => [
 /// A guest list is merged into the account once, the first time the account
 /// loads on this device.
 class SyncedOwnList extends OwnListStore {
-  SyncedOwnList({required this.account});
+  SyncedOwnList({required this.account}) {
+    _changes = account.changes.listen((_) => load().catchError((_) => spots));
+  }
+
+  late final StreamSubscription<void> _changes;
+
+  @override
+  void dispose() {
+    _changes.cancel();
+    super.dispose();
+  }
 
   final OwnListAccount account;
 
@@ -209,6 +232,9 @@ class SyncedOwnList extends OwnListStore {
     final guest = await _readGuest();
     final uid = account.verifiedUid;
     if (uid == null) {
+      // Signed out: the account's list leaves this device with it, along
+      // with any edits that never reached the server.
+      if (account.isGuest) await (await _prefs).remove(_accountKey);
       _show(guest, const []);
       return spots;
     }

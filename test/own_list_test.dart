@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -22,6 +23,11 @@ OwnSpot spot(String id, String name, {String address = '', String note = ''}) =>
 class FakeOwnListAccount implements OwnListAccount {
   @override
   String? verifiedUid;
+  @override
+  bool isGuest = false;
+  final signIns = StreamController<void>.broadcast();
+  @override
+  Stream<void> get changes => signIns.stream;
   List<OwnSpot>? server;
   bool offline = false;
   final writes = <List<OwnSpot>>[];
@@ -121,6 +127,30 @@ void main() {
     account.offline = false;
     await SyncedOwnList(account: account).load();
     expect(account.server!.map((s) => s.name), ['Taco Truck', 'Pho Real']);
+  });
+
+  test('signing out removes the account list from the device', () async {
+    final account =
+        FakeOwnListAccount()
+          ..verifiedUid = 'u1'
+          ..server = [spot('s1', 'Taco Truck')];
+    final store = SyncedOwnList(account: account);
+    addTearDown(store.dispose);
+    await store.load();
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('ownList.account'), contains('Taco Truck'));
+
+    // Starting up, before the saved session is restored: nothing is removed.
+    account.verifiedUid = null;
+    await store.load();
+    expect(prefs.getString('ownList.account'), contains('Taco Truck'));
+
+    // Signed out, so a guest session follows. Unsent edits go too.
+    account.isGuest = true;
+    account.signIns.add(null);
+    await pumpEventQueue();
+    expect(prefs.getString('ownList.account'), isNull);
+    expect(store.spots, isEmpty);
   });
 
   test('typed spots open a Google Maps search, never HERE', () {
