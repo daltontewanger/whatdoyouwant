@@ -63,15 +63,27 @@ class PlaceCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(restaurant.address, style: theme.textTheme.bodyLarge),
               ],
-              const SizedBox(height: 4),
-              Text(
-                note == null
-                    ? 'Distance: $distance'
-                    : 'Distance: $distance · $note',
-                style: theme.textTheme.bodyMedium!.copyWith(
-                  color: Colors.black54,
+              if (restaurant.note case final typed?) ...[
+                const SizedBox(height: 4),
+                Text(
+                  typed,
+                  style: theme.textTheme.bodyMedium!.copyWith(
+                    fontStyle: FontStyle.italic,
+                  ),
                 ),
-              ),
+              ],
+              if (!restaurant.userEntered || note != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  [
+                    if (!restaurant.userEntered) 'Distance: $distance',
+                    if (note case final note?) note,
+                  ].join(' · '),
+                  style: theme.textTheme.bodyMedium!.copyWith(
+                    color: Colors.black54,
+                  ),
+                ),
+              ],
               if (child case final child?) ...[
                 const SizedBox(height: 14),
                 child,
@@ -252,7 +264,7 @@ class _DirectionsChoice extends StatelessWidget {
     final apple =
         platform == TargetPlatform.iOS || platform == TargetPlatform.macOS;
     final choices = [
-      (links.directions, 'HERE WeGo', 'Default'),
+      (links.directions, links.mapsName, 'Default'),
       (links.googleDirections, 'Google Maps', null),
       if (apple) (links.appleDirections, 'Apple Maps', null),
       if (platform == TargetPlatform.android)

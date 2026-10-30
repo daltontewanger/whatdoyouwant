@@ -220,12 +220,25 @@ class SwipeScreenState extends State<SwipeScreen> {
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
               const SizedBox(height: 14),
-              Text(
-                'Distance: ${distanceText(restaurant.distance, RoomBackendScope.distanceUnitOf(context))}',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium!.copyWith(color: Colors.black54),
-              ),
+              // Spots from the host's own list were never looked up, so they
+              // have the host's note in place of a distance.
+              if (restaurant.userEntered)
+                Text(
+                  restaurant.note ?? '',
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium!.copyWith(fontStyle: FontStyle.italic),
+                )
+              else
+                Text(
+                  'Distance: ${distanceText(restaurant.distance, RoomBackendScope.distanceUnitOf(context))}',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium!.copyWith(color: Colors.black54),
+                ),
             ],
           ),
         ),

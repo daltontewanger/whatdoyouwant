@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../models/own_spot.dart';
 import '../models/user.dart';
 import '../services/active_room_store.dart';
 import '../services/room_backend.dart';
+import '../services/search_defaults.dart';
 import '../services/site_links.dart';
 import 'account_action_screen.dart';
 import 'account_screen.dart';
@@ -11,6 +13,35 @@ import 'quick_pick_screen.dart';
 import 'room_screen.dart';
 import 'join_screen.dart';
 import 'main_shell.dart';
+import 'own_list_screen.dart';
+import 'search_setup_screen.dart';
+import 'step_card.dart';
+
+const _inkSoft = Color(0xFF4A5A52);
+
+/// How the app works, then the other ways to decide.
+const _steps = [
+  HomeStep(
+    1,
+    'Start a room',
+    'Invite friends with a code, link or QR code.',
+    StepColor.yellow,
+  ),
+  HomeStep(
+    2,
+    'Everyone swipes',
+    'Yes or no on nearby spots, each on your own phone.',
+    StepColor.blue,
+  ),
+  HomeStep(
+    3,
+    'See where to eat',
+    'The winner, a backup and directions.',
+    StepColor.green,
+  ),
+  quickPickStep,
+  ownListStep,
+];
 
 class HomeScreen extends StatefulWidget {
   final String currentUid;
@@ -236,6 +267,37 @@ class HomeScreenState extends State<HomeScreen>
     return false;
   }
 
+  /// The extra ways to decide, shared by the step cards and the bar's menu.
+  Future<void> openQuickPick() => _quickPick();
+  Future<void> openOwnList() => _ownList();
+  Future<void> openSearchSettings() => _searchSettings();
+  void openJoin() => _joinRoom();
+
+  VoidCallback? _stepAction(HomeStep step) => switch (step.number) {
+    4 => _isLoading ? null : _quickPick,
+    5 => _isLoading ? null : _ownList,
+    _ => null,
+  };
+
+  Future<void> _ownList() => Navigator.push(
+    context,
+    MaterialPageRoute<void>(
+      builder: (_) => OwnListScreen(onStartRoom: _createRoom),
+    ),
+  );
+
+  /// Saved search choices, edited without starting a room or pick.
+  Future<void> _searchSettings() async {
+    final defaults = RoomBackendScope.of(context).searchDefaults;
+    final current = await defaults?.load() ?? const SearchPreferences();
+    if (!mounted) return;
+    final chosen = await Navigator.push<SearchPreferences>(
+      context,
+      MaterialPageRoute(builder: (_) => SearchSetupScreen(initial: current)),
+    );
+    if (chosen != null) await defaults?.save(chosen);
+  }
+
   Future<void> _quickPick() async {
     if (!await _verifiedOrSignIn('use Tell Me What I Want') || !mounted) return;
     await Navigator.push(
@@ -244,7 +306,9 @@ class HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Future<void> _createRoom() async {
+  /// Creates a room and opens its lobby; with [ownSpots], the room swipes on
+  /// those spots from the person's own list instead of a search.
+  Future<void> _createRoom([List<OwnSpot>? ownSpots]) async {
     final scope = RoomBackendScope.of(context);
     final messenger = ScaffoldMessenger.of(context);
     if (!await _verifiedOrSignIn('create a room')) return;
@@ -262,6 +326,7 @@ class HomeScreenState extends State<HomeScreen>
                 isCreator: true,
                 roomCode: room.id,
                 joinCode: room.joinCode,
+                ownSpots: ownSpots,
               ),
         ),
       ).then((_) => _loadActiveRoom());
@@ -328,123 +393,37 @@ class HomeScreenState extends State<HomeScreen>
                     ],
                   ),
                   child: Column(
-                    mainAxisSize: MainAxisSize.max,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Top - Logo and Title
-                      Column(
-                        children: [
-                          Image.asset(
-                            'assets/icon/wdywicon2.png',
-                            width: 88,
-                            height: 88,
-                            fit: BoxFit.contain,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            "What Do You Want?!",
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.headlineMedium!.copyWith(
-                              fontSize: 36,
-                              color: theme.colorScheme.primary,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 2,
-                              shadows: [
-                                const Shadow(
-                                  color: Colors.black12,
-                                  blurRadius: 4,
-                                  offset: Offset(1, 2),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.only(top: 20.0, bottom: 10.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "1. ",
-                                  style: theme.textTheme.bodyLarge?.copyWith(
-                                    color: theme.colorScheme.primary,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 17,
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Text(
-                                    "Create a room and invite your friends, or join one with a code.",
-                                    style: theme.textTheme.bodyLarge?.copyWith(
-                                      color: theme.colorScheme.primary,
-                                      fontWeight: FontWeight.w500,
-                                      fontSize: 17,
-                                      height: 1.4,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "2. ",
-                                  style: theme.textTheme.bodyLarge?.copyWith(
-                                    color: theme.colorScheme.primary,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 17,
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Text(
-                                    "Swipe through food options and vote on your favorites.",
-                                    style: theme.textTheme.bodyLarge?.copyWith(
-                                      color: theme.colorScheme.primary,
-                                      fontWeight: FontWeight.w500,
-                                      fontSize: 17,
-                                      height: 1.4,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "3. ",
-                                  style: theme.textTheme.bodyLarge?.copyWith(
-                                    color: theme.colorScheme.primary,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 17,
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Text(
-                                    "When everyone matches on a spot, you'll instantly see where to eat!",
-                                    style: theme.textTheme.bodyLarge?.copyWith(
-                                      color: theme.colorScheme.primary,
-                                      fontWeight: FontWeight.w500,
-                                      fontSize: 17,
-                                      height: 1.4,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                      Text(
+                        "What Do You Want?!",
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.headlineMedium!.copyWith(
+                          fontSize: 36,
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 2,
+                          shadows: [
+                            const Shadow(
+                              color: Colors.black12,
+                              blurRadius: 4,
+                              offset: Offset(1, 2),
                             ),
                           ],
                         ),
                       ),
-                      // Center - Image
+                      const SizedBox(height: 8),
+                      Text(
+                        "I know, it's not that simple. Swipe together and let "
+                        'the group decide where to eat.',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: _inkSoft,
+                          height: 1.4,
+                        ),
+                      ),
                       Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
                         child: ScaleTransition(
                           scale: _scaleAnimation,
                           child: AspectRatio(
@@ -453,20 +432,19 @@ class HomeScreenState extends State<HomeScreen>
                               decoration: BoxDecoration(
                                 border: Border.all(
                                   color: theme.colorScheme.primary,
-                                  width: 4,
+                                  width: 3,
                                 ),
-                                borderRadius: BorderRadius.circular(24),
+                                borderRadius: BorderRadius.circular(20),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.33),
-                                    blurRadius: 18,
-                                    spreadRadius: 2,
-                                    offset: const Offset(0, 5),
+                                    color: Colors.black.withValues(alpha: 0.25),
+                                    blurRadius: 14,
+                                    offset: const Offset(0, 4),
                                   ),
                                 ],
                               ),
                               child: ClipRRect(
-                                borderRadius: BorderRadius.circular(20),
+                                borderRadius: BorderRadius.circular(17),
                                 child: FittedBox(
                                   fit: BoxFit.contain,
                                   child: Image.asset('assets/images/wdyw.png'),
@@ -476,23 +454,21 @@ class HomeScreenState extends State<HomeScreen>
                           ),
                         ),
                       ),
-                      // Bottom - Buttons and Privacy
-                      Column(
+                      if (_activeRoom != null) _activeRoomBanner(theme),
+                      Row(
                         children: [
-                          if (_activeRoom != null) _activeRoomBanner(theme),
-                          SizedBox(
-                            width: double.infinity,
+                          Expanded(
                             child: ElevatedButton(
-                              onPressed: _isLoading ? null : _createRoom,
+                              onPressed:
+                                  _isLoading ? null : () => _createRoom(),
                               child: const Text(
                                 'Create Room',
                                 style: TextStyle(fontSize: 16),
                               ),
                             ),
                           ),
-                          const SizedBox(height: 18),
-                          SizedBox(
-                            width: double.infinity,
+                          const SizedBox(width: 12),
+                          Expanded(
                             child: ElevatedButton(
                               onPressed: _isLoading ? null : _joinRoom,
                               style: ElevatedButton.styleFrom(
@@ -510,31 +486,15 @@ class HomeScreenState extends State<HomeScreen>
                               ),
                             ),
                           ),
-                          // Having one place picked is the side option, so
-                          // it sits under the two main buttons as a link.
-                          Padding(
-                            padding: const EdgeInsets.only(top: 14),
-                            child: Text(
-                              'Still too much pressure swiping through options? We can help pick for you.',
-                              textAlign: TextAlign.center,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: Colors.grey[800],
-                              ),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: _isLoading ? null : _quickPick,
-                            child: const Text(
-                              'Tell Me What I Want',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                decoration: TextDecoration.underline,
-                              ),
-                            ),
-                          ),
                         ],
                       ),
+                      // The buttons come first so regulars can get going;
+                      // the steps below are there for first-timers.
+                      const SizedBox(height: 24),
+                      for (final step in _steps) ...[
+                        StepCard(step: step, onTap: _stepAction(step)),
+                        const SizedBox(height: 10),
+                      ],
                     ],
                   ),
                 ),

@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
+import '../models/own_spot.dart';
 import '../models/restaurant.dart';
 import 'device_location.dart';
 import 'live_search.dart';
@@ -65,6 +66,8 @@ Restaurant cardRestaurant(Map raw) => Restaurant(
   longitude: (raw['longitude'] as num?)?.toDouble(),
   phone: raw['phone'] as String?,
   website: raw['website'] as String?,
+  userEntered: raw['userEntered'] == true,
+  note: raw['note'] as String?,
 );
 
 /// The cards of a stored deck, in deck order.
@@ -262,6 +265,20 @@ class CallableRoomBackend implements RoomBackend {
       'search': startSearchFor(origin, search),
     });
     // A fresh start returns its cards; a repeat start points at the stored deck.
+    if (started['candidates'] is List) return deckRestaurants(started);
+    final deck = await _db.doc('restaurantDecks/${started['deckId']}').get();
+    return deckRestaurants(deck.data()!);
+  }
+
+  @override
+  Future<List<Restaurant>> startFromList(
+    String roomId,
+    List<OwnSpot> spots,
+  ) async {
+    final started = await _call('startRoomFromList', {
+      'roomId': roomId,
+      'spots': [for (final spot in spots) spot.toJson()],
+    });
     if (started['candidates'] is List) return deckRestaurants(started);
     final deck = await _db.doc('restaurantDecks/${started['deckId']}').get();
     return deckRestaurants(deck.data()!);

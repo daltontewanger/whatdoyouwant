@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:whatdoyouwant/models/own_spot.dart';
 import 'package:whatdoyouwant/models/restaurant.dart';
 import 'package:whatdoyouwant/models/user.dart';
 import 'package:whatdoyouwant/screens/join_screen.dart';
@@ -68,6 +69,16 @@ class FakeRoomBackend implements RoomBackend {
     required SearchPreferences search,
   }) async {
     started.add(search);
+    throw startError ?? UnimplementedError();
+  }
+
+  final startedFromList = <List<OwnSpot>>[];
+  @override
+  Future<List<Restaurant>> startFromList(
+    String roomId,
+    List<OwnSpot> spots,
+  ) async {
+    startedFromList.add(spots);
     throw startError ?? UnimplementedError();
   }
 

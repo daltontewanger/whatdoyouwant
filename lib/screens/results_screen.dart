@@ -507,8 +507,11 @@ class _ResultViewState extends State<_ResultView> {
               child: const Text('Back to Home'),
             ),
           ),
-          const SizedBox(height: 12),
-          const PlaceCredit(),
+          // A room from the host's own list has nothing from HERE in it.
+          if (!widget.winner.userEntered) ...[
+            const SizedBox(height: 12),
+            const PlaceCredit(),
+          ],
         ],
       ),
     );

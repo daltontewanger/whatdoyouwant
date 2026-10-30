@@ -1,9 +1,11 @@
 import 'package:flutter/widgets.dart';
 
+import '../models/own_spot.dart';
 import '../models/restaurant.dart';
 import 'account_service.dart';
 import 'active_room_store.dart';
 import 'live_search.dart';
+import 'own_list.dart';
 import 'search_defaults.dart';
 
 /// A room as the screens need to see it, whichever backend stores it.
@@ -122,6 +124,10 @@ abstract class RoomBackend {
     String roomId, {
     required SearchPreferences search,
   });
+
+  /// Starts voting on spots from the host's own list. No search runs, so it
+  /// never uses a live search.
+  Future<List<Restaurant>> startFromList(String roomId, List<OwnSpot> spots);
   Future<void> vote(
     String roomId,
     Restaurant restaurant, {
@@ -171,6 +177,7 @@ class RoomBackendScope extends InheritedWidget {
     this.accounts,
     this.activeRooms,
     this.searchDefaults,
+    this.ownList,
     required super.child,
   });
 
@@ -182,6 +189,9 @@ class RoomBackendScope extends InheritedWidget {
 
   /// The setup each search starts from, saved for the person.
   final SearchDefaultsStore? searchDefaults;
+
+  /// The person's own list for We'll Decide What We Want.
+  final OwnListStore? ownList;
 
   static RoomBackendScope of(BuildContext context) {
     final scope =
@@ -203,5 +213,6 @@ class RoomBackendScope extends InheritedWidget {
       backend != oldWidget.backend ||
       accounts != oldWidget.accounts ||
       activeRooms != oldWidget.activeRooms ||
-      searchDefaults != oldWidget.searchDefaults;
+      searchDefaults != oldWidget.searchDefaults ||
+      ownList != oldWidget.ownList;
 }

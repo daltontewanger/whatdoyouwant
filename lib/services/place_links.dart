@@ -15,6 +15,7 @@ class PlaceLinks {
     this.deviceMaps,
     this.website,
     this.phone,
+    this.mapsName = 'HERE WeGo',
   });
 
   final Uri? map;
@@ -27,11 +28,15 @@ class PlaceLinks {
   final Uri? website;
   final Uri? phone;
 
+  /// The maps service [map] and [directions] open by default.
+  final String mapsName;
+
   bool get isEmpty =>
       map == null && directions == null && website == null && phone == null;
 }
 
 PlaceLinks placeLinksFor(Restaurant restaurant) {
+  if (restaurant.userEntered) return _typedPlaceLinks(restaurant);
   final lat = restaurant.latitude;
   final lng = restaurant.longitude;
   final hasPosition =
@@ -89,4 +94,26 @@ Uri? _phoneLink(String? value) {
   final digits = value.replaceAll(RegExp(r'[^\d+]'), '');
   if (!RegExp(r'^\+?\d{7,15}$').hasMatch(digits)) return null;
   return Uri(scheme: 'tel', path: digits);
+}
+
+// A spot the person typed is their own words, not HERE content, so it can
+// open Google Maps: a search for the name and any address they gave.
+PlaceLinks _typedPlaceLinks(Restaurant restaurant) {
+  final query = [
+    restaurant.name,
+    restaurant.address,
+  ].where((part) => part.trim().isNotEmpty).join(', ');
+  return PlaceLinks(
+    map: Uri.https('www.google.com', '/maps/search/', {
+      'api': '1',
+      'query': query,
+    }),
+    directions: Uri.https('www.google.com', '/maps/dir/', {
+      'api': '1',
+      'destination': query,
+    }),
+    appleDirections: Uri.https('maps.apple.com', '/', {'daddr': query}),
+    deviceMaps: Uri(scheme: 'geo', path: '0,0', query: 'q=$query'),
+    mapsName: 'Google Maps',
+  );
 }

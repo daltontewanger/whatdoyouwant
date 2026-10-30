@@ -7,6 +7,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../services/room_backend.dart';
 import 'search_panel.dart';
 import 'swipe_screen.dart';
+import '../models/own_spot.dart';
 import '../models/user.dart';
 
 /// What to tell a host whose room could not be created. Covers both callable
@@ -49,12 +50,16 @@ class RoomScreen extends StatefulWidget {
   final String? joinCode;
   final AppUser currentUser;
 
+  /// Spots from the host's own list to swipe on in place of a search.
+  final List<OwnSpot>? ownSpots;
+
   const RoomScreen({
     super.key,
     required this.currentUser,
     this.isCreator = true,
     this.roomCode,
     this.joinCode,
+    this.ownSpots,
   });
 
   @override
@@ -122,9 +127,16 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
 
   bool _prepared = false;
 
+  bool get _fromList => widget.ownSpots != null;
+
   /// Lets the backend find the location while the host waits for guests.
   void _prepareStart() {
-    if (_prepared || !widget.isCreator || !_backend.usesDeviceLocation) return;
+    if (_prepared ||
+        !widget.isCreator ||
+        _fromList ||
+        !_backend.usesDeviceLocation) {
+      return;
+    }
     _prepared = true;
     unawaited(_backend.prepareStart().catchError((_) {}));
   }
@@ -134,11 +146,17 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
     setState(() => _isLoading = true);
 
     try {
-      if (_backend.usesDeviceLocation && !await locationReady()) {
+      final spots = widget.ownSpots;
+      if (spots == null &&
+          _backend.usesDeviceLocation &&
+          !await locationReady()) {
         if (mounted) setState(() => _isLoading = false);
         return;
       }
-      final finalRestaurants = await _backend.start(_roomCode!, search: search);
+      final finalRestaurants =
+          spots == null
+              ? await _backend.start(_roomCode!, search: search)
+              : await _backend.startFromList(_roomCode!, spots);
 
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -151,7 +169,7 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
                 roomCode: _roomCode!,
                 currentUser: widget.currentUser,
                 radius: search.radius.toDouble(),
-                maxOptions: search.deckSize,
+                maxOptions: finalRestaurants.length,
                 restaurants: finalRestaurants,
               ),
         ),
@@ -164,6 +182,34 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
         context,
       ).showSnackBar(SnackBar(content: Text(startRoomErrorMessage(e))));
     }
+  }
+
+  Widget _listPanel(ThemeData theme) {
+    final spots = widget.ownSpots!;
+    return Column(
+      children: [
+        Text('From your list', style: theme.textTheme.titleLarge),
+        const SizedBox(height: 4),
+        Text(
+          '${spots.length} spots',
+          style: theme.textTheme.bodyLarge!.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        Text(
+          spots.map((spot) => spot.name).join(', '),
+          textAlign: TextAlign.center,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          "Doesn't use a live search.",
+          style: theme.textTheme.bodySmall!.copyWith(color: Colors.grey[800]),
+        ),
+      ],
+    );
   }
 
   @override
@@ -284,10 +330,13 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
                                         padding: const EdgeInsets.symmetric(
                                           vertical: 8,
                                         ),
-                                        child: searchPanel(
-                                          theme,
-                                          busy: _isLoading,
-                                        ),
+                                        child:
+                                            _fromList
+                                                ? _listPanel(theme)
+                                                : searchPanel(
+                                                  theme,
+                                                  busy: _isLoading,
+                                                ),
                                       ),
 
                                     // Participant count
@@ -326,7 +375,8 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
                                                 child: ElevatedButton(
                                                   onPressed:
                                                       widget.isCreator &&
-                                                              !cannotSearch
+                                                              (_fromList ||
+                                                                  !cannotSearch)
                                                           ? _startSwiping
                                                           : null,
                                                   style: ElevatedButton.styleFrom(
