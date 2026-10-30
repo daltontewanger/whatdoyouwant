@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import '../services/accessibility.dart';
 import '../services/live_search.dart';
 import '../services/room_backend.dart';
 import '../services/room_lists.dart';
@@ -139,8 +140,14 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
 
   bool get _fromList => widget.ownSpots != null;
 
+  bool _announced = false;
+
   // A room from the host's own list has no search for the lists to shape.
   void _shareLists() {
+    if (!_announced && _roomCode != null) {
+      _announced = true;
+      announceNoTimer(context, _roomCode!);
+    }
     final places = RoomBackendScope.of(context).myPlaces;
     if (_sharer != null || _roomCode == null || _fromList || places == null) {
       return;
@@ -522,6 +529,8 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
                                         ),
                                       ),
                                     ),
+                                    if (snapshot.data?.untimed == true)
+                                      const UntimedNotice(),
 
                                     // Bottom - Start Swiping Button
                                     Padding(
@@ -628,4 +637,39 @@ class _JoinLink extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Shown in a waiting room when someone votes without a card timer. It
+/// never says who, or why.
+class UntimedNotice extends StatelessWidget {
+  const UntimedNotice({super.key});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 8),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.timer_off_outlined, size: 18, color: Colors.black54),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            'Someone in this room votes without a timer, so it may take a little longer.',
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall!.copyWith(color: Colors.black54),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+/// Tells the room, once, that this person votes without a card timer.
+void announceNoTimer(BuildContext context, String roomId) {
+  if (!votesWithoutTimer(context)) return;
+  RoomBackendScope.of(
+    context,
+  ).backend.setNoTimer(roomId, noTimer: true).catchError((_) {});
 }

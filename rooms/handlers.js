@@ -18,6 +18,10 @@ const VOTING_WINDOW_MS = 30 * 60000;
 // The winner and backup are copied onto the room's results first.
 const DECK_AFTER_VOTING_MS = 30 * 60000;
 const DECK_AFTER_CLOSE_MS = 15 * 60000;
+// A member who has not voted by hand for this long is counted out: their
+// remaining cards count as No and the room stops waiting for them. Votes the
+// app casts when a card's time runs out do not count as taking part.
+const AWAY_MS = 3 * 60000;
 const SWEEP_BATCH = 200;
 const RECEIPT_TTL_MS = 24 * 3600000;
 // A Quick Pick and its deck last an hour: long enough to decide, short enough
@@ -188,10 +192,14 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
     const likes = Object.fromEntries(deckIds.map(id => [id, 0]));
     let voters = 0;
     let complete = true;
+    const startedAt = state.startedAt?.toMillis?.() ?? null;
     for (const member of members.docs) {
       const ballots = await tx.get(room.collection('votes').doc(member.id).collection('ballot'));
       if (!ballots.empty) voters++;
-      if (ballots.size < (state.candidateCount ?? deckIds.length)) complete = false;
+      const lastByHand = Math.max(startedAt ?? 0, ...ballots.docs.filter(ballot => ballot.data().auto !== true)
+        .map(ballot => ballot.data().at?.toMillis?.() ?? 0));
+      const away = startedAt !== null && now() - lastByHand >= AWAY_MS;
+      if (ballots.size < (state.candidateCount ?? deckIds.length) && !away) complete = false;
       for (const ballot of ballots.docs) {
         if (ballot.data().liked === true && ballot.id in likes) likes[ballot.id]++;
       }
@@ -455,6 +463,30 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       return { eligible: true, ...(await generation.allowance(actor.uid)) };
     },
 
+    // Whether this member votes without a card timer, for a screen reader or
+    // by their own choice. The room learns only that someone does, never who
+    // or why, so the lobby can say voting may take longer.
+    async setNoTimer(request) {
+      const actor = identity(request);
+      const value = request.data ?? {};
+      if (typeof value !== 'object' || Array.isArray(value) ||
+        Object.keys(value).sort().join() !== 'noTimer,roomId' || typeof value.roomId !== 'string' ||
+        !ROOM_ID.test(value.roomId) || typeof value.noTimer !== 'boolean') {
+        invalid();
+      }
+      await limit(actor.uid, 'noTimer', 30, 60000);
+      return db.runTransaction(async tx => {
+        const { room, state } = await memberView(tx, value.roomId, actor.uid);
+        if (state.status === 'closed') return { untimed: state.untimed === true };
+        const others = await tx.get(room.collection('members').where('active', '==', true)
+          .where('noTimer', '==', true));
+        const untimed = value.noTimer || others.docs.some(member => member.id !== actor.uid);
+        tx.update(room.collection('members').doc(actor.uid), { noTimer: value.noTimer });
+        if ((state.untimed === true) !== untimed) tx.update(room, { untimed });
+        return { untimed };
+      });
+    },
+
     async closeRoom(request) {
       const actor = identity(request);
       const { roomId } = input(request, { roomId: ROOM_ID });
@@ -706,6 +738,6 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
 const CALLABLES = ['createRoom', 'joinRoom', 'startRoom', 'closeRoom', 'roomResults',
   'revokeMember', 'rotateJoinCode', 'deleteAccount', 'liveSearchStatus', 'createQuickPick', 'rerollQuickPick',
   'appStatus', 'reportClientError', 'checkEmailDomain', 'saveOwnList',
-  'startRoomFromList', 'saveMyPlaces', 'shareRoomLists'];
+  'startRoomFromList', 'saveMyPlaces', 'shareRoomLists', 'setNoTimer'];
 
 module.exports = { createRoomHandlers, CALLABLES, CODE_ALPHABET, CAPACITY };

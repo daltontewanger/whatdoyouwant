@@ -14,6 +14,7 @@ import 'services/account_service.dart';
 import 'services/active_room_store.dart';
 import 'services/callable_room_backend.dart';
 import 'services/error_reporter.dart';
+import 'services/accessibility.dart';
 import 'services/my_places.dart';
 import 'services/own_list.dart';
 import 'services/search_defaults.dart';
@@ -105,6 +106,7 @@ Future<void> main() async {
       ownList: SyncedOwnList(account: FirebaseOwnListAccount())..load(),
       // Loads itself whenever someone signs in or out, including at start.
       myPlaces: SyncedMyPlaces(account: FirebaseMyPlacesAccount()),
+      accessibility: AccessibilitySettings()..load(),
     ),
   );
 }

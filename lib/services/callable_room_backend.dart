@@ -182,6 +182,7 @@ class CallableRoomBackend implements RoomBackend {
           resultsReady: status == 'closed',
           results: callableResults(data['results'], members),
           votingEndsAt: (data['votingEndsAt'] as Timestamp?)?.toDate(),
+          untimed: data['untimed'] == true,
         ),
       );
     }
@@ -317,14 +318,20 @@ class CallableRoomBackend implements RoomBackend {
     required bool liked,
     required int index,
     required int total,
+    bool auto = false,
   }) async {
     // Ballots carry the room's expiry so they are cleaned up with it.
     await _db.doc('rooms/$roomId/votes/$_uid/ballot/${restaurant.id}').set({
       'liked': liked,
       'at': FieldValue.serverTimestamp(),
       'expiresAt': await _expiryOf(roomId),
+      if (auto) 'auto': true,
     });
   }
+
+  @override
+  Future<void> setNoTimer(String roomId, {required bool noTimer}) =>
+      _call('setNoTimer', {'roomId': roomId, 'noTimer': noTimer});
 
   @override
   Future<void> nudge(String roomId) async {

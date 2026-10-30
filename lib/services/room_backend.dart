@@ -5,6 +5,7 @@ import '../models/restaurant.dart';
 import 'account_service.dart';
 import 'active_room_store.dart';
 import 'live_search.dart';
+import 'accessibility.dart';
 import 'my_places.dart';
 import 'own_list.dart';
 import 'search_defaults.dart';
@@ -24,7 +25,11 @@ class RoomState {
     this.results,
     this.votedIds = const {},
     this.votingEndsAt,
+    this.untimed = false,
   });
+
+  /// Someone in the room votes without a card timer, so it may take longer.
+  final bool untimed;
 
   /// Identifier used for every later call; also how members reconnect.
   final String id;
@@ -141,13 +146,21 @@ abstract class RoomBackend {
   /// Starts voting on spots from the host's own list. No search runs, so it
   /// never uses a live search.
   Future<List<Restaurant>> startFromList(String roomId, List<OwnSpot> spots);
+
+  /// Records a vote. [auto] marks a No the app cast because the card's time
+  /// ran out, which does not count as the person taking part.
   Future<void> vote(
     String roomId,
     Restaurant restaurant, {
     required bool liked,
     required int index,
     required int total,
+    bool auto = false,
   });
+
+  /// Tells the room this person votes without a card timer. The room only
+  /// learns that someone does, never who or why.
+  Future<void> setNoTimer(String roomId, {required bool noTimer});
 
   /// Gets ready to start while the host waits in the lobby, for example by
   /// finding the device location. Never prompts the person.
@@ -222,8 +235,12 @@ class RoomBackendScope extends InheritedWidget {
     this.searchDefaults,
     this.ownList,
     this.myPlaces,
+    this.accessibility,
     required super.child,
   });
+
+  /// The person's accessibility choices on this device.
+  final AccessibilitySettings? accessibility;
 
   final RoomBackend backend;
   final AccountService? accounts;
@@ -262,5 +279,6 @@ class RoomBackendScope extends InheritedWidget {
       activeRooms != oldWidget.activeRooms ||
       searchDefaults != oldWidget.searchDefaults ||
       ownList != oldWidget.ownList ||
-      myPlaces != oldWidget.myPlaces;
+      myPlaces != oldWidget.myPlaces ||
+      accessibility != oldWidget.accessibility;
 }

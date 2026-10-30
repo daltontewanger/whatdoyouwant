@@ -59,13 +59,15 @@ const join = (joinCode, member) => call('joinRoom', { joinCode }, member);
 const reconnect = (roomId, member) => call('joinRoom', { roomId }, member);
 const expiryOf = async roomId => (await db.doc(`rooms/${roomId}`).get()).data().expiresAt;
 const ballotPath = (roomId, uid, candidate) => `projects/${PROJECT}/databases/(default)/documents/rooms/${roomId}/votes/${uid}/ballot/${candidate}`;
-async function vote(roomId, voter, candidate, liked = true) {
+async function vote(roomId, voter, candidate, liked = true, extra = {}) {
   const expiresAt = (await expiryOf(roomId)).toDate().toISOString();
   return request(`${documents}:commit`, { writes: [{ update: { name: ballotPath(roomId, voter.uid, candidate),
-    fields: { liked: { booleanValue: liked }, expiresAt: { timestampValue: expiresAt } } },
+    fields: { liked: { booleanValue: liked }, expiresAt: { timestampValue: expiresAt }, ...extra } },
     updateTransforms: [{ fieldPath: 'at', setToServerValue: 'REQUEST_TIME' }] }] }, voter.token);
 }
 const readRoom = (roomId, reader) => request(`${documents}/rooms/${roomId}`, undefined, reader.token, 'GET');
+const readMember = (roomId, uid, reader) =>
+  request(`${documents}/rooms/${roomId}/members/${uid}`, undefined, reader.token, 'GET');
 const readBallot = (roomId, uid, candidate, reader) =>
   request(`${documents}/rooms/${roomId}/votes/${uid}/ballot/${candidate}`, undefined, reader.token, 'GET');
 const listBallots = (roomId, uid, reader) =>
@@ -636,4 +638,66 @@ test('quick pick: never suggests a place on the person\'s own never list', async
   const off = await call('createQuickPick', { requestId: randomUUID(), search: { ...SEARCH, deckSize: 10 } }, host);
   const all = (await db.doc(`restaurantDecks/${off.data.result.deckId}`).get()).data().candidateIds;
   assert.equal(all.length, 10, 'with the switch off the list is not applied');
+});
+
+// Calls a handler directly as a signed-in member, with the clock moved on.
+function later(minutes) {
+  const handlers = createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthUser: async () => {},
+    now: () => Date.now() + minutes * 60000 });
+  return (name, who, data) => handlers[name]({ auth: { uid: who.uid, token: { firebase: { sign_in_provider: 'password' },
+    email_verified: true } }, data });
+}
+const AUTO = { auto: { booleanValue: true } };
+
+test('away: timer No votes do not count as taking part; 3 minutes without a tap counts a member out', async () => {
+  const host = await user(true, true); const guest = await user();
+  const { roomId, joinCode } = await room(host);
+  assert.equal((await join(joinCode, guest)).status, 200);
+  assert.equal((await start(roomId, host)).status, 200);
+  const D = (await deckOf(roomId)).candidateIds;
+  for (const id of D) assert.equal((await vote(roomId, host, id)).status, 200);
+  // The guest's phone cast two No votes on its own as their cards ran out.
+  assert.equal((await vote(roomId, guest, D[0], false, AUTO)).status, 200);
+  assert.equal((await vote(roomId, guest, D[1], false, AUTO)).status, 200);
+  assert.equal((await vote(roomId, guest, D[2], true, AUTO)).status, 403, 'a timer vote is always No');
+  assert.equal((await vote(roomId, guest, D[2], false, { auto: { stringValue: 'yes' } })).status, 403);
+
+  assert.equal((await later(2)('roomResults', host, { roomId })).status, 'voting', 'two minutes is still waiting');
+  const closed = await later(3.5)('roomResults', host, { roomId });
+  assert.equal(closed.status, 'closed', 'no tap for three minutes counts the guest out');
+  assert.equal(closed.results.likes[D[0]], 1, 'their missing cards count as No');
+});
+
+test('away: a slow member still voting by hand is not cut off', async () => {
+  const host = await user(true, true); const guest = await user();
+  const { roomId, joinCode } = await room(host);
+  assert.equal((await join(joinCode, guest)).status, 200);
+  assert.equal((await start(roomId, host)).status, 200);
+  const D = (await deckOf(roomId)).candidateIds;
+  for (const id of D) assert.equal((await vote(roomId, host, id)).status, 200);
+  // Voting started a while ago, but the guest just voted by hand.
+  await db.doc(`rooms/${roomId}`).update({ startedAt: Timestamp.fromMillis(Date.now() - 10 * 60000) });
+  assert.equal((await vote(roomId, guest, D[0], true)).status, 200);
+  assert.equal((await later(2)('roomResults', host, { roomId })).status, 'voting');
+  assert.equal((await later(3.5)('roomResults', host, { roomId })).status, 'closed');
+});
+
+test('no timer: the room learns that someone votes without one, never who', async () => {
+  const host = await user(true, true); const guest = await user(); const outsider = await user();
+  const { roomId, joinCode } = await room(host);
+  assert.equal((await join(joinCode, guest)).status, 200);
+  const set = (who, noTimer) => call('setNoTimer', { roomId, noTimer }, who);
+  assert.deepEqual((await set(guest, true)).data.result, { untimed: true });
+  const seen = await readRoom(roomId, host);
+  assert.equal(seen.data.fields.untimed.booleanValue, true);
+  assert.ok(!JSON.stringify(seen.data).includes(guest.uid), 'the room does not say who');
+  assert.deepEqual((await set(host, true)).data.result, { untimed: true });
+  assert.deepEqual((await set(guest, false)).data.result, { untimed: true }, 'the host still has none');
+  assert.deepEqual((await set(host, false)).data.result, { untimed: false });
+  assert.equal((await db.doc(`rooms/${roomId}`).get()).data().untimed, false);
+  assert.equal((await set(outsider, true)).status, 403);
+  for (const data of [{ roomId }, { roomId, noTimer: 'yes' }, { roomId, noTimer: true, reason: 'screen reader' }]) {
+    assert.equal((await call('setNoTimer', data, guest)).status, 400, JSON.stringify(data));
+  }
+  assert.equal((await readMember(roomId, guest.uid, host)).status, 403, 'members cannot read each other');
 });

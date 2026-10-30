@@ -8,6 +8,7 @@ import '../models/saved_place.dart';
 import '../models/user.dart';
 import '../services/result_nudges.dart';
 import '../services/room_backend.dart';
+import '../services/accessibility.dart';
 import '../services/my_places.dart';
 import '../services/search_defaults.dart';
 import 'bubble_icons.dart';
@@ -161,7 +162,14 @@ class SwipeScreenState extends State<SwipeScreen> {
     } catch (_) {}
   }
 
-  void _simulateLeftSwipe() => _swipe(CardSwiperDirection.left);
+  // Set while the timer swipes a card away, so that No is marked as the
+  // app's rather than the person's.
+  bool _timedOut = false;
+
+  void _simulateLeftSwipe() {
+    _timedOut = true;
+    _swipe(CardSwiperDirection.left);
+  }
 
   bool _handleSwipe(
     int previousIndex,
@@ -174,6 +182,8 @@ class SwipeScreenState extends State<SwipeScreen> {
     if (_localVotes.length > previousIndex) return true; // de-dupe
 
     final bool liked = (direction == CardSwiperDirection.right);
+    final bool auto = _timedOut && !liked;
+    _timedOut = false;
     final Restaurant restaurant = swipeOptions[previousIndex];
 
     _localVotes.add(liked);
@@ -188,6 +198,7 @@ class SwipeScreenState extends State<SwipeScreen> {
           liked: liked,
           index: previousIndex,
           total: swipeOptions.length,
+          auto: auto,
         )
         .then((_) async {
           if (finishedDeck && !_navigated) {
@@ -328,6 +339,8 @@ class SwipeScreenState extends State<SwipeScreen> {
     }
 
     final bool finishedDeck = _currentIndex >= swipeOptions.length;
+    // No countdown for anyone who votes without a timer.
+    final bool untimed = votesWithoutTimer(context);
 
     return _withArrowKeys(
       Scaffold(
@@ -402,8 +415,8 @@ class SwipeScreenState extends State<SwipeScreen> {
                                     child: Text(
                                       'Swipe right, tap the thumbs up or Favorite for a place you want'
                                       ' · Swipe left, tap the thumbs down or Never for a place you '
-                                      "don't want\nAfter $swipeTimeoutSeconds seconds it will auto vote "
-                                      "that you don't want this place",
+                                      "don't want\n"
+                                      '${untimed ? "No timer for you, so take your time. If you don't vote for 3 minutes, the rest count as places you don't want" : "After $swipeTimeoutSeconds seconds it will auto vote that you don't want this place"}',
                                       textAlign: TextAlign.center,
                                       style: theme.textTheme.bodyMedium!
                                           .copyWith(
@@ -473,74 +486,102 @@ class SwipeScreenState extends State<SwipeScreen> {
                                                   ),
                                             ),
                                           Expanded(
-                                            child: TweenAnimationBuilder<
-                                              double
-                                            >(
-                                              key: ValueKey(_currentIndex),
-                                              duration: const Duration(
-                                                seconds: swipeTimeoutSeconds,
-                                              ),
-                                              tween: Tween(
-                                                begin: 1.0,
-                                                end: 0.0,
-                                              ),
-                                              builder: (context, value, child) {
-                                                if (_isLeaving) {
-                                                  return const SizedBox.shrink();
-                                                }
-                                                final secondsLeft =
-                                                    (swipeTimeoutSeconds *
-                                                            value)
-                                                        .ceil();
-                                                return Column(
-                                                  children: [
-                                                    Text(
-                                                      secondsLeft > 0
-                                                          ? '$secondsLeft'
-                                                          : '',
+                                            child:
+                                                untimed
+                                                    ? Text(
+                                                      'No timer',
+                                                      textAlign:
+                                                          TextAlign.center,
                                                       style: theme
                                                           .textTheme
-                                                          .headlineMedium!
+                                                          .titleMedium!
                                                           .copyWith(
                                                             color:
-                                                                Colors.orange,
-                                                            fontSize: 38,
+                                                                Colors.black54,
                                                           ),
+                                                    )
+                                                    : TweenAnimationBuilder<
+                                                      double
+                                                    >(
+                                                      key: ValueKey(
+                                                        _currentIndex,
+                                                      ),
+                                                      duration: const Duration(
+                                                        seconds:
+                                                            swipeTimeoutSeconds,
+                                                      ),
+                                                      tween: Tween(
+                                                        begin: 1.0,
+                                                        end: 0.0,
+                                                      ),
+                                                      builder: (
+                                                        context,
+                                                        value,
+                                                        child,
+                                                      ) {
+                                                        if (_isLeaving) {
+                                                          return const SizedBox.shrink();
+                                                        }
+                                                        final secondsLeft =
+                                                            (swipeTimeoutSeconds *
+                                                                    value)
+                                                                .ceil();
+                                                        return Column(
+                                                          children: [
+                                                            Text(
+                                                              secondsLeft > 0
+                                                                  ? '$secondsLeft'
+                                                                  : '',
+                                                              style: theme
+                                                                  .textTheme
+                                                                  .headlineMedium!
+                                                                  .copyWith(
+                                                                    color:
+                                                                        Colors
+                                                                            .orange,
+                                                                    fontSize:
+                                                                        38,
+                                                                  ),
+                                                            ),
+                                                            const SizedBox(
+                                                              height: 6,
+                                                            ),
+                                                            LinearProgressIndicator(
+                                                              value: value,
+                                                              color:
+                                                                  Colors.orange,
+                                                              backgroundColor: theme
+                                                                  .colorScheme
+                                                                  .primary
+                                                                  .withValues(
+                                                                    alpha: 0.13,
+                                                                  ),
+                                                              minHeight: 8,
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                    7,
+                                                                  ),
+                                                            ),
+                                                          ],
+                                                        );
+                                                      },
+                                                      onEnd: () {
+                                                        if (_isLeaving ||
+                                                            finishedDeck) {
+                                                          return;
+                                                        }
+                                                        WidgetsBinding.instance
+                                                            .addPostFrameCallback((
+                                                              _,
+                                                            ) {
+                                                              if (mounted &&
+                                                                  !_isLeaving &&
+                                                                  !finishedDeck) {
+                                                                _simulateLeftSwipe();
+                                                              }
+                                                            });
+                                                      },
                                                     ),
-                                                    const SizedBox(height: 6),
-                                                    LinearProgressIndicator(
-                                                      value: value,
-                                                      color: Colors.orange,
-                                                      backgroundColor: theme
-                                                          .colorScheme
-                                                          .primary
-                                                          .withValues(
-                                                            alpha: 0.13,
-                                                          ),
-                                                      minHeight: 8,
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            7,
-                                                          ),
-                                                    ),
-                                                  ],
-                                                );
-                                              },
-                                              onEnd: () {
-                                                if (_isLeaving ||
-                                                    finishedDeck) {
-                                                  return;
-                                                }
-                                                WidgetsBinding.instance
-                                                    .addPostFrameCallback((_) {
-                                                      if (mounted &&
-                                                          !_isLeaving &&
-                                                          !finishedDeck) {
-                                                        _simulateLeftSwipe();
-                                                      }
-                                                    });
-                                              },
-                                            ),
                                           ),
                                           if (!_isLeaving)
                                             _VoteButton(

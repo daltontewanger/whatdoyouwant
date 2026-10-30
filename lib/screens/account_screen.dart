@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../services/accessibility.dart';
 import '../services/account_service.dart';
 import '../services/room_backend.dart';
 import 'create_account_screen.dart';
@@ -284,6 +285,11 @@ class _AccountScreenState extends State<AccountScreen> {
                       padding: const EdgeInsets.only(top: 16),
                       child: Text(message, textAlign: TextAlign.center),
                     ),
+                  if (RoomBackendScope.maybeOf(context)?.accessibility
+                      case final settings?) ...[
+                    const SizedBox(height: 32),
+                    AccessibilitySection(settings: settings),
+                  ],
                   if (RoomBackendScope.maybeOf(context)?.myPlaces != null) ...[
                     const SizedBox(height: 32),
                     Card(
@@ -577,4 +583,50 @@ class _DeletePromptState extends State<_DeletePrompt> {
       ),
     ],
   );
+}
+
+/// The person's accessibility choices: for now, voting without the card
+/// timer. A screen reader or switch control turns that on by itself.
+class AccessibilitySection extends StatelessWidget {
+  const AccessibilitySection({super.key, required this.settings});
+
+  final AccessibilitySettings settings;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final automatic = assistiveTechOn(context);
+    return ListenableBuilder(
+      listenable: settings,
+      builder:
+          (context, _) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(left: 4, bottom: 8),
+                child: Text(
+                  'Accessibility',
+                  style: theme.textTheme.titleMedium,
+                ),
+              ),
+              Card(
+                margin: EdgeInsets.zero,
+                clipBehavior: Clip.antiAlias,
+                child: SwitchListTile(
+                  secondary: const Icon(Icons.timer_off_outlined),
+                  title: const Text('No vote timer'),
+                  subtitle: Text(
+                    "${automatic ? 'On while your screen reader or switch control is in use. ' : ''}"
+                    'Vote at your own pace instead of 15 seconds a card. Rooms still '
+                    "finish 30 minutes after voting starts, and if you don't vote for "
+                    "3 minutes, the rest count as places you don't want.",
+                  ),
+                  value: automatic || settings.noTimer,
+                  onChanged: automatic ? null : settings.setNoTimer,
+                ),
+              ),
+            ],
+          ),
+    );
+  }
 }

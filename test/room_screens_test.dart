@@ -102,12 +102,19 @@ class FakeRoomBackend implements RoomBackend {
     required bool liked,
     required int index,
     required int total,
+    bool auto = false,
   }) async {
     if (voteError != null) throw voteError!;
     votes.add((index, liked));
+    autoVotes.add(auto);
   }
 
   final votes = <(int, bool)>[];
+  final autoVotes = <bool>[];
+  final noTimers = <bool>[];
+  @override
+  Future<void> setNoTimer(String roomId, {required bool noTimer}) async =>
+      noTimers.add(noTimer);
 
   /// Each Quick Pick request as (requestId, search).
   final picks = <(String, SearchPreferences)>[];
@@ -155,6 +162,7 @@ RoomState state({
   Set<String> voted = const {},
   List<Restaurant>? restaurants,
   DateTime? votingEndsAt,
+  bool untimed = false,
 }) => RoomState(
   id: 'ROOM-ID',
   joinCode: null,
@@ -168,6 +176,7 @@ RoomState state({
   remainingVoters: remaining,
   results: results,
   votingEndsAt: votingEndsAt,
+  untimed: untimed,
 );
 
 Widget app(

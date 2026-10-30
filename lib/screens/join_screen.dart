@@ -7,6 +7,7 @@ import '../services/callable_room_backend.dart';
 import '../services/room_backend.dart';
 import '../services/room_lists.dart';
 import 'results_screen.dart';
+import 'room_screen.dart' show UntimedNotice, announceNoTimer;
 import 'swipe_screen.dart';
 
 /// What to tell someone whose join failed. The server answers a wrong code,
@@ -229,6 +230,7 @@ class _WaitingForOptionsScreenState extends State<WaitingForOptionsScreen> {
     super.didChangeDependencies();
     final scope = RoomBackendScope.of(context);
     _room ??= scope.backend.watch(widget.roomCode);
+    if (_sharer == null) announceNoTimer(context, widget.roomCode);
     if (scope.myPlaces case final places? when _sharer == null) {
       _sharer = RoomListSharer(
         backend: scope.backend,
@@ -359,6 +361,7 @@ class _WaitingForOptionsScreenState extends State<WaitingForOptionsScreen> {
                           ),
                           textAlign: TextAlign.center,
                         ),
+                        if (room.untimed) const UntimedNotice(),
                       ],
                     );
                   },

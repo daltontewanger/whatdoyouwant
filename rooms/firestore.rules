@@ -44,8 +44,10 @@ service cloud.firestore {
       return data.status == 'voting' && 'votingEndsAt' in data && request.time < data.votingEndsAt;
     }
     function validBallot(room, data) {
+      // `auto` marks a No the app cast when the card's time ran out.
       return data.keys().hasAll(['liked', 'at', 'expiresAt']) &&
-        data.keys().hasOnly(['liked', 'at', 'expiresAt']) &&
+        data.keys().hasOnly(['liked', 'at', 'expiresAt', 'auto']) &&
+        (!('auto' in data) || (data.auto == true && data.liked == false)) &&
         data.liked is bool && data.at is timestamp && data.at == request.time &&
         data.expiresAt == roomDoc(room).data.expiresAt;
     }

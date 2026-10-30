@@ -16,6 +16,7 @@ import 'services/callable_room_backend.dart';
 import 'services/error_reporter.dart';
 import 'services/site_links.dart';
 import 'services/room_backend.dart';
+import 'services/accessibility.dart';
 import 'services/my_places.dart';
 import 'services/own_list.dart';
 import 'services/search_defaults.dart';
@@ -84,6 +85,7 @@ Future<void> main() async {
       ownList: SyncedOwnList(account: FirebaseOwnListAccount())..load(),
       // Loads itself whenever someone signs in or out, including at start.
       myPlaces: SyncedMyPlaces(account: FirebaseMyPlacesAccount()),
+      accessibility: AccessibilitySettings()..load(),
     ),
   );
 }
@@ -96,6 +98,7 @@ class MyApp extends StatelessWidget {
   final SearchDefaultsStore? searchDefaults;
   final OwnListStore? ownList;
   final MyPlacesStore? myPlaces;
+  final AccessibilitySettings? accessibility;
   const MyApp({
     super.key,
     required this.currentUid,
@@ -105,6 +108,7 @@ class MyApp extends StatelessWidget {
     this.searchDefaults,
     this.ownList,
     this.myPlaces,
+    this.accessibility,
   });
 
   @override
@@ -116,6 +120,7 @@ class MyApp extends StatelessWidget {
       searchDefaults: searchDefaults,
       ownList: ownList,
       myPlaces: myPlaces,
+      accessibility: accessibility,
       child: MaterialApp(
         title: 'What Do You Want?!',
         debugShowCheckedModeBanner: false,
