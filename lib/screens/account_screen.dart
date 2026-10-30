@@ -137,7 +137,7 @@ class _AccountScreenState extends State<AccountScreen> {
     if (user?.isAnonymous == true &&
         !await confirm(
           'Sign in to an existing account?',
-          'Activity from this guest session will not move to that account. To keep it, create an account instead.',
+          "Rooms and votes from this guest session won't move to that account. Your We'll Decide What We Want list will.",
         )) {
       return;
     }
@@ -185,10 +185,10 @@ class _AccountScreenState extends State<AccountScreen> {
         setState(() => message = accountErrorMessage(error));
         return;
       }
-      // That Google account already exists; switching is allowed but never merges.
+      // That Google account already exists; switching is allowed but never merges the accounts.
       if (await confirm(
         'Switch to your existing Google account?',
-        'This Google account already has an account here. Activity from this guest session will not move to it.',
+        "This Google account already has an account here. Rooms and votes from this guest session won't move to it. Your We'll Decide What We Want list will.",
         action: 'Switch',
       )) {
         if (!mounted) return;
