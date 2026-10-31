@@ -17,6 +17,7 @@ import 'own_list_screen.dart';
 import 'search_setup_screen.dart';
 import 'bubble_icons.dart';
 import 'step_card.dart';
+import '../themes/main_theme.dart';
 
 const _inkSoft = Color(0xFF4A5A52);
 
@@ -26,19 +27,19 @@ const _steps = [
     1,
     'Start a room',
     'Invite friends with a code, link or QR code.',
-    StepColor.yellow,
+    StepColor.mintGreen,
   ),
   HomeStep(
     2,
     'Everyone swipes',
     'Yes or no on nearby spots, each on your own phone.',
-    StepColor.blue,
+    StepColor.green,
   ),
   HomeStep(
     3,
     'See where to eat',
     'The winner, a backup and directions.',
-    StepColor.green,
+    StepColor.darkGreen,
   ),
   quickPickStep,
   ownListStep,
@@ -146,7 +147,11 @@ class HomeScreenState extends State<HomeScreen>
     _loadActiveRoom();
   }
 
+  bool _opening = false;
+
   Future<void> _loadActiveRoom() async {
+    // Home stays still while a new room slides in over it.
+    if (_opening) return;
     final room = await _activeRooms?.load();
     if (mounted) setState(() => _activeRoom = room);
   }
@@ -347,9 +352,10 @@ class HomeScreenState extends State<HomeScreen>
     setState(() => _isLoading = true);
     try {
       final room = await scope.backend.createRoom();
+      _opening = true;
       await scope.activeRooms?.remember(ActiveRoom(room.id, host: true));
       if (!mounted) return;
-      Navigator.push(
+      await Navigator.push(
         context,
         MaterialPageRoute(
           builder:
@@ -361,7 +367,7 @@ class HomeScreenState extends State<HomeScreen>
                 ownSpots: ownSpots,
               ),
         ),
-      ).then((_) => _loadActiveRoom());
+      );
     } catch (e) {
       messenger.showSnackBar(
         const SnackBar(
@@ -371,7 +377,11 @@ class HomeScreenState extends State<HomeScreen>
         ),
       );
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      _opening = false;
+      if (mounted) {
+        setState(() => _isLoading = false);
+        await _loadActiveRoom();
+      }
     }
   }
 
@@ -390,7 +400,7 @@ class HomeScreenState extends State<HomeScreen>
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.10),
+      backgroundColor: screenBackground,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {

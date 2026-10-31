@@ -115,9 +115,9 @@ void main() {
     expect(find.byTooltip('Share'), findsOneWidget);
 
     await tester.tap(find.text("It's always good to have a backup plan..."));
-    // The backup grows into place over about half a second.
+    // The winner fades out, then the backup grows into place.
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(milliseconds: 600));
     expect(find.text('Your backup plan'), findsOneWidget);
     expect(find.text('Demo Tacos'), findsOneWidget);
     expect(find.textContaining('2 of 4 liked it'), findsOneWidget);
@@ -125,7 +125,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Close the backup'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(milliseconds: 600));
     expect(find.text('Demo Tacos'), findsNothing);
     expect(find.text('Well, most of you wanted it'), findsOneWidget);
   });

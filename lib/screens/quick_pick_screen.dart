@@ -10,6 +10,7 @@ import '../services/room_backend.dart';
 import 'place_card.dart';
 import 'place_marks.dart';
 import 'search_panel.dart';
+import '../themes/main_theme.dart';
 
 /// What to tell someone whose Quick Pick could not start.
 String quickPickErrorMessage(Object error) {
@@ -261,7 +262,7 @@ class _QuickPickScreenState extends State<QuickPickScreen> with SearchStarter {
         if (!didPop) _confirmLeave();
       },
       child: Scaffold(
-        backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.10),
+        backgroundColor: screenBackground,
         body: SafeArea(
           child: LayoutBuilder(
             builder:

@@ -14,6 +14,7 @@ import 'search_panel.dart';
 import 'swipe_screen.dart';
 import '../models/own_spot.dart';
 import '../models/user.dart';
+import '../themes/main_theme.dart';
 
 /// What to tell a host whose room could not be created. Covers both callable
 /// and Firestore errors; anything else gets the generic retry message.
@@ -379,7 +380,7 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.10),
+      backgroundColor: screenBackground,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {

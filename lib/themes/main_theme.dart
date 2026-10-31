@@ -21,6 +21,13 @@ final Color brandGreen = Color(0xFF65B292); // #65b292
 final Color primaryGreen = Color(0xFF2F7A5C); // #2f7a5c
 final Color lightBackground = Color(0xFFFAFAFA);
 
+// The pale green behind the main screens. Solid rather than see-through, so
+// the page underneath never shows through while a new one slides in.
+final Color screenBackground = Color.alphaBlend(
+  primaryGreen.withValues(alpha: 0.10),
+  Colors.white,
+);
+
 final ThemeData appTheme = ThemeData(
   brightness: Brightness.light,
   primaryColor: primaryGreen,

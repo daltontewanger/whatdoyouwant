@@ -9,6 +9,7 @@ import '../services/room_lists.dart';
 import 'results_screen.dart';
 import 'room_screen.dart' show UntimedNotice, announceNoTimer;
 import 'swipe_screen.dart';
+import '../themes/main_theme.dart';
 
 /// What to tell someone whose join failed. The server answers a wrong code,
 /// a started room and a closed room the same way, so codes cannot be probed.
@@ -106,7 +107,7 @@ class JoinRoomScreenState extends State<JoinRoomScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.10),
+      backgroundColor: screenBackground,
       body: Center(
         child: SingleChildScrollView(
           child: Container(
@@ -251,7 +252,7 @@ class _WaitingForOptionsScreenState extends State<WaitingForOptionsScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.10),
+      backgroundColor: screenBackground,
       body: Center(
         child: SingleChildScrollView(
           child: Container(

@@ -9,6 +9,7 @@ import '../services/result_nudges.dart';
 import '../services/room_backend.dart';
 import 'place_card.dart';
 import 'place_marks.dart';
+import '../themes/main_theme.dart';
 
 /// The banner over a room's result, from how many voters liked the winner.
 String resultBanner({required int likes, required int voters}) {
@@ -75,7 +76,7 @@ class ResultsScreenState extends State<ResultsScreen> {
         if (!didPop) _returnToHome();
       },
       child: Scaffold(
-        backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.10),
+        backgroundColor: screenBackground,
         body: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -337,6 +338,11 @@ class _ResultViewState extends State<_ResultView> {
     ),
   );
 
+  static Duration _switchTime(BuildContext context) =>
+      MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 550);
+
   Widget _winnerView(ThemeData theme) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
@@ -475,81 +481,117 @@ class _ResultViewState extends State<_ResultView> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return IntrinsicHeight(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              Text(
-                'Results',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.headlineMedium!.copyWith(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 34,
-                  letterSpacing: 1.2,
-                  color: theme.colorScheme.primary,
-                  shadows: const [
-                    Shadow(
-                      color: Colors.black12,
-                      blurRadius: 4,
-                      offset: Offset(1, 2),
-                    ),
-                  ],
-                ),
-              ),
-              Align(
-                alignment: Alignment.centerRight,
-                child: PlaceShareButtons(restaurant: _shown),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          const Spacer(),
-          // Like the site's tiles: the card opening grows into place while
-          // the other fades back, and closing runs it in reverse.
-          AnimatedSwitcher(
-            duration:
-                MediaQuery.disableAnimationsOf(context)
-                    ? Duration.zero
-                    : const Duration(milliseconds: 450),
-            switchInCurve: const Cubic(0.2, 0.8, 0.2, 1),
-            switchOutCurve: Curves.easeIn,
-            transitionBuilder:
-                (child, animation) => FadeTransition(
-                  opacity: animation,
-                  child: ScaleTransition(
-                    scale: Tween(begin: 0.94, end: 1.0).animate(animation),
-                    child: child,
+    // Title, card and Back to Home spread down the screen. Without flexible
+    // gaps the page never has to measure its height ahead, so the card can
+    // ease between sizes even when big text makes the page scroll.
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                Text(
+                  'Results',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.headlineMedium!.copyWith(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 34,
+                    letterSpacing: 1.2,
+                    color: theme.colorScheme.primary,
+                    shadows: const [
+                      Shadow(
+                        color: Colors.black12,
+                        blurRadius: 4,
+                        offset: Offset(1, 2),
+                      ),
+                    ],
                   ),
                 ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: PlaceShareButtons(restaurant: _shown),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+        // The card leaving fades out first, then the other grows in with a
+        // little bounce, and the space between them eases to its new height.
+        AnimatedSize(
+          duration: _switchTime(context) * 0.7,
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: AnimatedSwitcher(
+            duration: _switchTime(context),
+            transitionBuilder: (child, animation) {
+              final entering = child.key == ValueKey(_backupOpen);
+              final fade = CurvedAnimation(
+                parent: animation,
+                curve:
+                    entering
+                        ? const Interval(0.35, 0.8, curve: Curves.easeOut)
+                        : const Interval(0.6, 1, curve: Curves.easeIn),
+              );
+              final scale =
+                  entering
+                      ? Tween(begin: 0.9, end: 1.0).animate(
+                        CurvedAnimation(
+                          parent: animation,
+                          curve: const Interval(
+                            0.35,
+                            1,
+                            curve: Curves.easeOutBack,
+                          ),
+                        ),
+                      )
+                      : Tween(begin: 0.96, end: 1.0).animate(animation);
+              return FadeTransition(
+                opacity: fade,
+                child: ScaleTransition(scale: scale, child: child),
+              );
+            },
+            // Only the card shown sets the height; the one leaving is laid
+            // over it while it fades.
             layoutBuilder:
                 (current, previous) => Stack(
                   alignment: Alignment.topCenter,
-                  children: [...previous, if (current case final shown?) shown],
+                  clipBehavior: Clip.none,
+                  children: [
+                    for (final old in previous)
+                      Positioned(top: 0, left: 0, right: 0, child: old),
+                    if (current case final shown?) shown,
+                  ],
                 ),
             child: KeyedSubtree(
               key: ValueKey(_backupOpen),
               child: _backupOpen ? _backupView(theme) : _winnerView(theme),
             ),
           ),
-          const Spacer(),
-          const SizedBox(height: 20),
-          Center(
-            child: ElevatedButton(
-              onPressed: widget.onHome,
-              style: theme.elevatedButtonTheme.style,
-              child: const Text('Back to Home'),
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 20),
+            Center(
+              child: ElevatedButton(
+                onPressed: widget.onHome,
+                style: theme.elevatedButtonTheme.style,
+                child: const Text('Back to Home'),
+              ),
             ),
-          ),
-          // A room from the host's own list has nothing from HERE in it.
-          if (!widget.winner.userEntered) ...[
-            const SizedBox(height: 12),
-            const PlaceCredit(),
+            // A room from the host's own list has nothing from HERE in it.
+            if (!widget.winner.userEntered) ...[
+              const SizedBox(height: 12),
+              const PlaceCredit(),
+            ],
           ],
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

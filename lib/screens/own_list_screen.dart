@@ -8,6 +8,7 @@ import '../services/own_list.dart';
 import '../services/place_links.dart';
 import '../services/room_backend.dart';
 import 'place_card.dart';
+import '../themes/main_theme.dart';
 
 /// We'll Decide What We Want: the person's own list of spots, and a pick
 /// from it. Everything here runs on the device; it never searches.
@@ -367,7 +368,7 @@ class _OwnListScreenState extends State<OwnListScreen> {
         if (!didPop) setState(() => _pick = null);
       },
       child: Scaffold(
-        backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.10),
+        backgroundColor: screenBackground,
         body: SafeArea(
           child: LayoutBuilder(
             builder:
