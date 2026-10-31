@@ -79,6 +79,8 @@ void tell(
       SnackBar(
         content: Text(text),
         duration: const Duration(seconds: 3),
+        // An Undo would otherwise keep it up until it is closed.
+        persist: false,
         showCloseIcon: true,
         action:
             undo == null
@@ -175,7 +177,8 @@ bool _onOwnList(BuildContext context, Restaurant restaurant) {
   return store?.spots.any((spot) => spot.matchKey == key) ?? false;
 }
 
-/// "Save as favorite" and "Add to my list" for a place from a search.
+/// "Save as favorite" for a place from a search, with a "⋯" menu for the
+/// less common step of adding it to the person's own list.
 class PlaceListButtons extends StatelessWidget {
   const PlaceListButtons({
     super.key,
@@ -222,13 +225,29 @@ class PlaceListButtons extends StatelessWidget {
                   ),
             ),
             if (scope?.ownList != null)
-              OutlinedButton.icon(
-                icon: Icon(
-                  onList ? Icons.playlist_add_check : Icons.playlist_add,
-                ),
-                label: Text(onList ? 'On my list' : 'Add to my list'),
-                onPressed:
-                    onList ? null : () => addToOwnList(context, restaurant),
+              PopupMenuButton<void>(
+                tooltip: 'More options',
+                icon: const Icon(Icons.more_horiz),
+                itemBuilder:
+                    (context) => [
+                      PopupMenuItem(
+                        enabled: !onList,
+                        onTap: () => addToOwnList(context, restaurant),
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(
+                            onList
+                                ? Icons.playlist_add_check
+                                : Icons.playlist_add,
+                          ),
+                          title: Text(
+                            onList
+                                ? "Already on We'll Decide What We Want"
+                                : "Add to We'll Decide What We Want",
+                          ),
+                        ),
+                      ),
+                    ],
               ),
           ],
         );

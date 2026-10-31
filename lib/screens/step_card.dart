@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 
-/// The logo's colors, as the public site uses them for its numbered steps:
-/// each badge with a dark text of its own hue for contrast.
+/// The logo's colors for the numbered steps, each badge with a text color
+/// that keeps contrast on it. The room steps go from mint to the app's own
+/// dark green, so the home screen stays mostly green.
 enum StepColor {
+  mintGreen(Color(0xFFB4E0CB), Color(0xFF1E5641)),
+  green(Color(0xFF65B292), Color(0xFF173404)),
+  darkGreen(Color(0xFF2F7A5C), Colors.white),
   yellow(Color(0xFFF7C948), Color(0xFF5A4300)),
   blue(Color(0xFF6FB7E9), Color(0xFF0C3A5C)),
-  green(Color(0xFF65B292), Color(0xFF173404)),
-  coral(Color(0xFFF59E84), Color(0xFF6A2A17)),
-  lavender(Color(0xFFAFA9EC), Color(0xFF26215C)),
   mint(Color(0xFFE3F2EA), Color(0xFF1E5641));
 
   const StepColor(this.badge, this.ink);
@@ -31,14 +32,14 @@ const quickPickStep = HomeStep(
   4,
   'Tell Me What I Want',
   'Still too much pressure swiping? We can help pick for you.',
-  StepColor.coral,
+  StepColor.yellow,
 );
 
 const ownListStep = HomeStep(
   5,
   "We'll Decide What We Want",
   "Already have spots in mind? We'll pick from your own list.",
-  StepColor.lavender,
+  StepColor.blue,
 );
 
 /// A numbered card like the site's "how it works" steps. With [onTap] the

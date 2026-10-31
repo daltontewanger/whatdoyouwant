@@ -345,6 +345,11 @@ void main() {
       find.text('Saved to your "I know what I want" list'),
       findsOneWidget,
     );
+    // Even with its Undo, the message goes by itself after a few seconds.
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(find.text('Saved to your "I know what I want" list'), findsNothing);
 
     await tester.tap(find.byTooltip(neverButton).hitTestable());
     await settle(tester);
@@ -444,10 +449,18 @@ void main() {
     await tester.pump();
     expect(store.isFavorite(placeId(1)), isTrue);
     expect(find.text('Saved to favorites'), findsOneWidget);
-    await tester.tap(find.text('Add to my list'));
-    await tester.pump();
+    // Adding to the person's own list sits behind the "⋯" menu.
+    expect(find.text("Add to We'll Decide What We Want"), findsNothing);
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text("Add to We'll Decide What We Want"));
+    await tester.pumpAndSettle();
     expect(ownList.spots.single.name, 'Demo Taco');
-    expect(find.text('On my list'), findsOneWidget);
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    expect(find.text("Already on We'll Decide What We Want"), findsOneWidget);
+    await tester.tapAt(Offset.zero);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Saved to favorites'));
     await tester.pump();
     expect(
