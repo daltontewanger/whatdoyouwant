@@ -356,6 +356,7 @@ class _ResultViewState extends State<_ResultView> {
       PlaceCard(
         restaurant: widget.winner,
         note: _likedNote(widget.winnerLikes),
+        menu: PlaceMenu(restaurant: widget.winner),
         child: _actions(widget.winner),
       ),
       if (_hasBackupTile) ...[
@@ -372,18 +373,7 @@ class _ResultViewState extends State<_ResultView> {
     ],
   );
 
-  Widget _closeButton(VoidCallback close) => Positioned(
-    top: -8,
-    right: -8,
-    child: IconButton(
-      icon: const Icon(Icons.close),
-      tooltip: 'Close the backup',
-      onPressed: close,
-    ),
-  );
-
   Widget _backupView(ThemeData theme) {
-    void close() => setState(() => _backupOpen = false);
     final backup = widget.backup;
     final random = _randomBackup;
     return Column(
@@ -408,7 +398,7 @@ class _ResultViewState extends State<_ResultView> {
             ],
           ),
           tooltip: 'Show the winner',
-          onTap: close,
+          onTap: () => setState(() => _backupOpen = false),
         ),
         const SizedBox(height: 14),
         if (_votedBackup) ...[
@@ -419,8 +409,7 @@ class _ResultViewState extends State<_ResultView> {
           PlaceCard(
             restaurant: backup!,
             note: _likedNote(widget.backupLikes),
-            onClose: close,
-            closeTooltip: 'Close the backup',
+            menu: PlaceMenu(restaurant: backup),
             child: _actions(backup),
           ),
         ] else if (random != null) ...[
@@ -431,8 +420,7 @@ class _ResultViewState extends State<_ResultView> {
           PlaceCard(
             restaurant: random,
             note: 'picked at random',
-            onClose: close,
-            closeTooltip: 'Close the backup',
+            menu: PlaceMenu(restaurant: random),
             child: _actions(random),
           ),
         ] else
@@ -442,35 +430,27 @@ class _ResultViewState extends State<_ResultView> {
               color: Colors.black.withValues(alpha: 0.04),
               borderRadius: BorderRadius.circular(18),
             ),
-            child: Stack(
+            child: Column(
               children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 22),
-                  child: Column(
-                    children: [
-                      Text(
-                        'You were all too picky to have a backup plan! '
-                        'Nothing else had even 1 vote.',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodyLarge,
-                      ),
-                      if (widget.others.isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        Text(
-                          'But, because I like you...',
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                        const SizedBox(height: 12),
-                        ElevatedButton.icon(
-                          icon: const Icon(Icons.casino),
-                          label: const Text('Pick a random one for me'),
-                          onPressed: _pickRandom,
-                        ),
-                      ],
-                    ],
-                  ),
+                Text(
+                  'You were all too picky to have a backup plan! '
+                  'Nothing else had even 1 vote.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyLarge,
                 ),
-                _closeButton(close),
+                if (widget.others.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    'But, because I like you...',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.casino),
+                    label: const Text('Pick a random one for me'),
+                    onPressed: _pickRandom,
+                  ),
+                ],
               ],
             ),
           ),

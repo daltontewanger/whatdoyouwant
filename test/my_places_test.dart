@@ -10,6 +10,7 @@ import 'package:whatdoyouwant/models/restaurant.dart';
 import 'package:whatdoyouwant/models/saved_place.dart';
 import 'package:whatdoyouwant/models/user.dart';
 import 'package:whatdoyouwant/screens/my_places_screen.dart';
+import 'package:whatdoyouwant/screens/place_card.dart';
 import 'package:whatdoyouwant/screens/results_screen.dart';
 import 'package:whatdoyouwant/screens/room_screen.dart';
 import 'package:whatdoyouwant/screens/swipe_screen.dart';
@@ -449,8 +450,15 @@ void main() {
     await tester.pump();
     expect(store.isFavorite(placeId(1)), isTrue);
     expect(find.text('Saved to favorites'), findsOneWidget);
-    // Adding to the person's own list sits behind the "⋯" menu.
+    // Adding to the person's own list sits behind the "⋯" in the card corner.
     expect(find.text("Add to We'll Decide What We Want"), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byType(PlaceCard),
+        matching: find.byTooltip('More options'),
+      ),
+      findsOneWidget,
+    );
     await tester.tap(find.byTooltip('More options'));
     await tester.pumpAndSettle();
     await tester.tap(find.text("Add to We'll Decide What We Want"));

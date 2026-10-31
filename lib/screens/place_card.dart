@@ -18,17 +18,15 @@ class PlaceCard extends StatelessWidget {
     required this.restaurant,
     this.note,
     this.child,
-    this.onClose,
-    this.closeTooltip = 'Close',
+    this.menu,
   });
 
   final Restaurant restaurant;
   final String? note;
   final Widget? child;
 
-  /// Shows a close button in the corner when set.
-  final VoidCallback? onClose;
-  final String closeTooltip;
+  /// Sits in the top right corner, usually a [PlaceMenu].
+  final Widget? menu;
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +48,7 @@ class PlaceCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: EdgeInsets.only(right: onClose == null ? 0 : 36),
+                padding: EdgeInsets.only(right: menu == null ? 0 : 36),
                 child: Text(
                   restaurant.name,
                   style: theme.textTheme.headlineSmall!.copyWith(
@@ -90,16 +88,8 @@ class PlaceCard extends StatelessWidget {
               ],
             ],
           ),
-          if (onClose != null)
-            Positioned(
-              top: -8,
-              right: -8,
-              child: IconButton(
-                icon: const Icon(Icons.close),
-                tooltip: closeTooltip,
-                onPressed: onClose,
-              ),
-            ),
+          if (menu case final menu?)
+            Positioned(top: -8, right: -8, child: menu),
         ],
       ),
     );

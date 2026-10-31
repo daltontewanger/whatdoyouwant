@@ -123,7 +123,7 @@ void main() {
     expect(find.textContaining('2 of 4 liked it'), findsOneWidget);
     expect(find.text('Winner'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Close the backup'));
+    await tester.tap(find.text('Winner'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
     expect(find.text('Demo Tacos'), findsNothing);

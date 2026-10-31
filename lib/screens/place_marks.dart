@@ -177,8 +177,7 @@ bool _onOwnList(BuildContext context, Restaurant restaurant) {
   return store?.spots.any((spot) => spot.matchKey == key) ?? false;
 }
 
-/// "Save as favorite" for a place from a search, with a "⋯" menu for the
-/// less common step of adding it to the person's own list.
+/// "Save as favorite" for a place from a search.
 class PlaceListButtons extends StatelessWidget {
   const PlaceListButtons({
     super.key,
@@ -191,19 +190,14 @@ class PlaceListButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scope = RoomBackendScope.maybeOf(context);
-    final places = scope?.myPlaces;
+    final places = RoomBackendScope.maybeOf(context)?.myPlaces;
     if (places == null || !SavedPlace.canSave(restaurant)) {
       return const SizedBox.shrink();
     }
     return ListenableBuilder(
-      listenable: Listenable.merge([
-        places,
-        if (scope?.ownList case final list?) list,
-      ]),
+      listenable: places,
       builder: (context, _) {
         final saved = places.isFavorite(restaurant.id);
-        final onList = _onOwnList(context, restaurant);
         return Wrap(
           alignment: alignment,
           spacing: 10,
@@ -224,33 +218,48 @@ class PlaceListButtons extends StatelessWidget {
                     remove: saved,
                   ),
             ),
-            if (scope?.ownList != null)
-              PopupMenuButton<void>(
-                tooltip: 'More options',
-                icon: const Icon(Icons.more_horiz),
-                itemBuilder:
-                    (context) => [
-                      PopupMenuItem(
-                        enabled: !onList,
-                        onTap: () => addToOwnList(context, restaurant),
-                        child: ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(
-                            onList
-                                ? Icons.playlist_add_check
-                                : Icons.playlist_add,
-                          ),
-                          title: Text(
-                            onList
-                                ? "Already on We'll Decide What We Want"
-                                : "Add to We'll Decide What We Want",
-                          ),
-                        ),
-                      ),
-                    ],
-              ),
           ],
         );
+      },
+    );
+  }
+}
+
+/// The "⋯" in a place card's corner for the less common steps, such as
+/// adding the place to the person's own list.
+class PlaceMenu extends StatelessWidget {
+  const PlaceMenu({super.key, required this.restaurant});
+
+  final Restaurant restaurant;
+
+  @override
+  Widget build(BuildContext context) {
+    final ownList = RoomBackendScope.maybeOf(context)?.ownList;
+    if (ownList == null || !SavedPlace.canSave(restaurant)) {
+      return const SizedBox.shrink();
+    }
+    return PopupMenuButton<void>(
+      tooltip: 'More options',
+      icon: const Icon(Icons.more_horiz),
+      itemBuilder: (context) {
+        final onList = _onOwnList(context, restaurant);
+        return [
+          PopupMenuItem(
+            enabled: !onList,
+            onTap: () => addToOwnList(context, restaurant),
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(
+                onList ? Icons.playlist_add_check : Icons.playlist_add,
+              ),
+              title: Text(
+                onList
+                    ? "Already on We'll Decide What We Want"
+                    : "Add to We'll Decide What We Want",
+              ),
+            ),
+          ),
+        ];
       },
     );
   }

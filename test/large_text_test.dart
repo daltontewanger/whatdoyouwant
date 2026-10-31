@@ -117,7 +117,7 @@ void main() {
         await tester.ensureVisible(backup);
         await tester.tap(backup);
         await tester.pumpAndSettle();
-        final close = find.byTooltip('Close the backup').first;
+        final close = find.text('Winner');
         await tester.ensureVisible(close);
         await tester.tap(close);
         await tester.pumpAndSettle();

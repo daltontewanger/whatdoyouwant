@@ -213,7 +213,10 @@ class _QuickPickScreenState extends State<QuickPickScreen> with SearchStarter {
           ),
         ),
         const SizedBox(height: 14),
-        PlaceCard(restaurant: restaurant),
+        PlaceCard(
+          restaurant: restaurant,
+          menu: _chosen ? PlaceMenu(restaurant: restaurant) : null,
+        ),
         const SizedBox(height: 20),
         if (_chosen) ...[
           PlaceActions(links: placeLinksFor(restaurant)),
