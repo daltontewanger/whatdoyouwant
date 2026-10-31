@@ -19,6 +19,7 @@ import 'themes/main_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  exposeToScreenReaders();
   useBundledFonts();
   checkFirebaseEnvironment('local', 'demo-whatdoyouwant');
   if (!kDebugMode) {

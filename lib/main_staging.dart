@@ -36,6 +36,7 @@ class _StagingDebugTokens {
 // shows the connection check instead.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  exposeToScreenReaders();
   useBundledFonts();
   final options = StagingFirebaseOptions.currentPlatform;
   checkFirebaseEnvironment('staging', options.projectId);

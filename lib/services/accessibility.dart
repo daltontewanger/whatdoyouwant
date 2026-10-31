@@ -1,7 +1,18 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'room_backend.dart';
+
+SemanticsHandle? _screenReaderTree;
+
+/// Flutter's web build leaves out what screen readers read until a hidden
+/// "Enable accessibility" button is pressed, and most readers never find it.
+/// Phones build that tree on their own as soon as a reader starts.
+void exposeToScreenReaders() {
+  if (kIsWeb) _screenReaderTree ??= SemanticsBinding.instance.ensureSemantics();
+}
 
 /// The person's own accessibility choices. Kept on this device only: they
 /// describe how this person uses this phone, and nothing else needs them.

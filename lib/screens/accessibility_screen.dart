@@ -10,7 +10,7 @@ class AccessibilityScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Accessibility')),
+    appBar: AppBar(title: const Text('Accessibility features')),
     body: Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520),

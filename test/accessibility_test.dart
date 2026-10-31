@@ -232,7 +232,7 @@ void main() {
     expect(find.text('30.0'), findsOneWidget);
   });
 
-  testWidgets('Account opens Accessibility as a page of its own', (
+  testWidgets('Account opens Accessibility features as a page of its own', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(800, 2400);
@@ -258,6 +258,7 @@ void main() {
     expect(find.byTooltip('Email verified'), findsOneWidget);
     await tester.tap(find.text('Text size · Vote timer'));
     await tester.pumpAndSettle();
+    expect(find.text('Accessibility features'), findsOneWidget);
     expect(find.text('No vote timer'), findsOneWidget);
     expect(find.text('Text size'), findsOneWidget);
   });
