@@ -1,8 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import '../services/accessibility.dart';
 import '../services/account_service.dart';
 import '../services/room_backend.dart';
+import 'accessibility_screen.dart';
 import 'create_account_screen.dart';
 import 'forgot_password_screen.dart';
 import 'help_links.dart';
@@ -285,11 +285,6 @@ class _AccountScreenState extends State<AccountScreen> {
                       padding: const EdgeInsets.only(top: 16),
                       child: Text(message, textAlign: TextAlign.center),
                     ),
-                  if (RoomBackendScope.maybeOf(context)?.accessibility
-                      case final settings?) ...[
-                    const SizedBox(height: 32),
-                    AccessibilitySection(settings: settings),
-                  ],
                   if (RoomBackendScope.maybeOf(context)?.myPlaces != null) ...[
                     const SizedBox(height: 32),
                     Card(
@@ -312,6 +307,29 @@ class _AccountScreenState extends State<AccountScreen> {
                       ),
                     ),
                   ],
+                  if (RoomBackendScope.maybeOf(context)?.accessibility
+                      case final settings?) ...[
+                    const SizedBox(height: 12),
+                    Card(
+                      margin: EdgeInsets.zero,
+                      clipBehavior: Clip.antiAlias,
+                      child: ListTile(
+                        leading: const Icon(Icons.accessibility_new),
+                        title: const Text('Accessibility'),
+                        subtitle: const Text('Text size · Vote timer'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap:
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute<void>(
+                                builder:
+                                    (_) =>
+                                        AccessibilityScreen(settings: settings),
+                              ),
+                            ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 32),
                   Padding(
                     padding: const EdgeInsets.only(left: 4, bottom: 8),
@@ -321,6 +339,20 @@ class _AccountScreenState extends State<AccountScreen> {
                     ),
                   ),
                   const HelpList(),
+                  // Rarely needed, so it sits quietly at the very bottom.
+                  if (registered) ...[
+                    const SizedBox(height: 32),
+                    Center(
+                      child: TextButton(
+                        onPressed: busy ? null : () => deleteAccount(user),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.black54,
+                          textStyle: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        child: const Text('Delete account'),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -352,32 +384,43 @@ class _AccountScreenState extends State<AccountScreen> {
                 style: theme.textTheme.titleMedium,
               ),
               const SizedBox(height: 4),
-              Text(
-                google ? 'Google account' : 'Email account',
-                style: theme.textTheme.bodySmall,
-              ),
-              const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    user.emailVerified
-                        ? Icons.verified
-                        : Icons.mark_email_unread_outlined,
-                    size: 18,
-                    color:
-                        user.emailVerified
-                            ? theme.colorScheme.primary
-                            : Colors.orange,
-                  ),
-                  const SizedBox(width: 6),
+                  // Once verified, a check by the account type is enough.
+                  if (user.emailVerified) ...[
+                    Tooltip(
+                      message: 'Email verified',
+                      triggerMode: TooltipTriggerMode.tap,
+                      child: Icon(
+                        Icons.verified,
+                        size: 18,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
                   Text(
-                    user.emailVerified
-                        ? 'Email verified'
-                        : 'Email not verified yet',
+                    google ? 'Google account' : 'Email account',
+                    style: theme.textTheme.bodySmall,
                   ),
                 ],
               ),
+              if (!user.emailVerified) ...[
+                const SizedBox(height: 12),
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.mark_email_unread_outlined,
+                      size: 18,
+                      color: Colors.orange,
+                    ),
+                    SizedBox(width: 6),
+                    Text('Email not verified yet'),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
@@ -425,12 +468,6 @@ class _AccountScreenState extends State<AccountScreen> {
                   'Signed out. You are playing as a guest.',
                 ),
         child: const Text('Sign out'),
-      ),
-      const SizedBox(height: 24),
-      TextButton(
-        onPressed: busy ? null : () => deleteAccount(user),
-        style: TextButton.styleFrom(foregroundColor: theme.colorScheme.error),
-        child: const Text('Delete account'),
       ),
     ];
   }
@@ -583,50 +620,4 @@ class _DeletePromptState extends State<_DeletePrompt> {
       ),
     ],
   );
-}
-
-/// The person's accessibility choices: for now, voting without the card
-/// timer. A screen reader or switch control turns that on by itself.
-class AccessibilitySection extends StatelessWidget {
-  const AccessibilitySection({super.key, required this.settings});
-
-  final AccessibilitySettings settings;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final automatic = assistiveTechOn(context);
-    return ListenableBuilder(
-      listenable: settings,
-      builder:
-          (context, _) => Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(left: 4, bottom: 8),
-                child: Text(
-                  'Accessibility',
-                  style: theme.textTheme.titleMedium,
-                ),
-              ),
-              Card(
-                margin: EdgeInsets.zero,
-                clipBehavior: Clip.antiAlias,
-                child: SwitchListTile(
-                  secondary: const Icon(Icons.timer_off_outlined),
-                  title: const Text('No vote timer'),
-                  subtitle: Text(
-                    "${automatic ? 'On while your screen reader or switch control is in use. ' : ''}"
-                    'Vote at your own pace instead of 15 seconds a card. Rooms still '
-                    "finish 30 minutes after voting starts, and if you don't vote for "
-                    "3 minutes, the rest count as places you don't want.",
-                  ),
-                  value: automatic || settings.noTimer,
-                  onChanged: automatic ? null : settings.setNoTimer,
-                ),
-              ),
-            ],
-          ),
-    );
-  }
 }

@@ -125,6 +125,9 @@ class MyApp extends StatelessWidget {
         title: 'What Do You Want?!',
         debugShowCheckedModeBanner: false,
         theme: appTheme,
+        builder:
+            (context, child) =>
+                AppTextSize(settings: accessibility, child: child!),
         home: UpdateGate(child: MainShell(currentUid: currentUid)),
       ),
     );

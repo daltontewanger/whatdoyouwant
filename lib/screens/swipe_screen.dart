@@ -14,6 +14,7 @@ import '../services/search_defaults.dart';
 import 'bubble_icons.dart';
 import 'place_marks.dart';
 import 'results_screen.dart';
+import '../themes/main_theme.dart';
 
 const Color cardSwipeBackground = Color(0xFFE7F8F3);
 
@@ -222,6 +223,13 @@ class SwipeScreenState extends State<SwipeScreen> {
     return true;
   }
 
+  // Every card has the same height, taller with bigger text so the name
+  // and address still fit; the page scrolls if it gets too tall.
+  static double _cardHeight(BuildContext context) {
+    final growth = MediaQuery.textScalerOf(context).scale(10) / 10 - 1;
+    return 380 + 150 * growth.clamp(0.0, 2.0);
+  }
+
   List<Widget> get _cardWidgets {
     return swipeOptions.indexed.map((entry) {
       final (index, restaurant) = entry;
@@ -331,7 +339,7 @@ class SwipeScreenState extends State<SwipeScreen> {
 
     if (swipeOptions.isEmpty) {
       return Scaffold(
-        backgroundColor: theme.scaffoldBackgroundColor.withValues(alpha: 0.10),
+        backgroundColor: screenBackground,
         body: const Center(
           child: Text('No restaurants available within the selected radius.'),
         ),
@@ -344,7 +352,7 @@ class SwipeScreenState extends State<SwipeScreen> {
 
     return _withArrowKeys(
       Scaffold(
-        backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.10),
+        backgroundColor: screenBackground,
         body: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -436,7 +444,7 @@ class SwipeScreenState extends State<SwipeScreen> {
                                       // and sits at the left edge.
                                       child: SizedBox(
                                         width: double.infinity,
-                                        height: 380,
+                                        height: _cardHeight(context),
                                         child: CardSwiper(
                                           controller: _cardSwiperController,
                                           cardsCount: _cardWidgets.length,

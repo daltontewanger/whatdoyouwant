@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:whatdoyouwant/models/user.dart';
+import 'package:whatdoyouwant/screens/accessibility_screen.dart';
 import 'package:whatdoyouwant/screens/account_screen.dart';
 import 'package:whatdoyouwant/screens/room_screen.dart';
 import 'package:whatdoyouwant/screens/swipe_screen.dart';
 import 'package:whatdoyouwant/services/accessibility.dart';
+import 'package:whatdoyouwant/services/account_service.dart';
 import 'package:whatdoyouwant/services/room_backend.dart';
 
+import 'account_service_test.dart' show FakeAuth, FakeUser;
 import 'room_screens_test.dart' show FakeRoomBackend, deck, state;
 
 Widget scoped(
@@ -179,5 +182,83 @@ void main() {
     final tile = tester.widget<SwitchListTile>(find.byType(SwitchListTile));
     expect((tile.value, tile.onChanged), (true, null));
     expect(find.textContaining('screen reader'), findsOneWidget);
+  });
+
+  testWidgets('the text size is kept on this device and enlarges the app', (
+    tester,
+  ) async {
+    final settings = AccessibilitySettings();
+    await tester.pumpWidget(
+      MaterialApp(
+        builder:
+            (context, child) => AppTextSize(settings: settings, child: child!),
+        home: AccessibilityScreen(settings: settings),
+      ),
+    );
+    double scale() => MediaQuery.textScalerOf(
+      tester.element(find.text('Text size')),
+    ).scale(10);
+    expect(scale(), 10);
+    expect(find.text('100%'), findsOneWidget);
+    await tester.drag(find.byType(Slider), const Offset(1000, 0));
+    await tester.pump();
+    expect(settings.textSize, AccessibilitySettings.maxTextSize);
+    expect(find.text('200%'), findsOneWidget);
+    expect(scale(), 20);
+    final again = AccessibilitySettings();
+    await again.load();
+    expect(again.textSize, AccessibilitySettings.maxTextSize);
+  });
+
+  testWidgets('the app text size multiplies the device text size', (
+    tester,
+  ) async {
+    final settings = AccessibilitySettings()..textSize = 1.5;
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+        child: AppTextSize(
+          settings: settings,
+          child: Builder(
+            builder:
+                (context) => Text(
+                  '${MediaQuery.textScalerOf(context).scale(10)}',
+                  textDirection: TextDirection.ltr,
+                ),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('30.0'), findsOneWidget);
+  });
+
+  testWidgets('Account opens Accessibility as a page of its own', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final user =
+        FakeUser()
+          ..anonymous = false
+          ..verified = true;
+    await tester.pumpWidget(
+      RoomBackendScope(
+        backend: FakeRoomBackend(),
+        accessibility: AccessibilitySettings(),
+        child: MaterialApp(
+          home: AccountScreen(accounts: AccountService(FakeAuth(user))),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('No vote timer'), findsNothing);
+    // Verified shows as a check by the account type, explained on a tap.
+    expect(find.text('Email verified'), findsNothing);
+    expect(find.byTooltip('Email verified'), findsOneWidget);
+    await tester.tap(find.text('Text size · Vote timer'));
+    await tester.pumpAndSettle();
+    expect(find.text('No vote timer'), findsOneWidget);
+    expect(find.text('Text size'), findsOneWidget);
   });
 }
