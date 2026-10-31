@@ -84,6 +84,14 @@ class _AccountScreenState extends State<AccountScreen> {
     super.dispose();
   }
 
+  static const leaveRoomWarning =
+      "The room you're in won't move to that account. Your We'll Decide What We Want list, favorites and never list will.";
+
+  /// A guest only loses something by switching accounts while in a room; there
+  /// is no room history to lose otherwise.
+  Future<bool> guestInRoom() async =>
+      await RoomBackendScope.maybeOf(context)?.activeRooms?.load() != null;
+
   Future<bool> confirm(
     String title,
     String explanation, {
@@ -139,10 +147,8 @@ class _AccountScreenState extends State<AccountScreen> {
       return;
     }
     if (user?.isAnonymous == true &&
-        !await confirm(
-          'Sign in to an existing account?',
-          "Rooms and votes from this guest session won't move to that account. Your We'll Decide What We Want list, favorites and never list will.",
-        )) {
+        await guestInRoom() &&
+        !await confirm('Sign in to an existing account?', leaveRoomWarning)) {
       return;
     }
     if (!mounted) return;
@@ -189,15 +195,17 @@ class _AccountScreenState extends State<AccountScreen> {
         setState(() => message = accountErrorMessage(error));
         return;
       }
-      // That Google account already exists; switching is allowed but never merges the accounts.
-      if (await confirm(
-        'Switch to your existing Google account?',
-        "This Google account already has an account here. Rooms and votes from this guest session won't move to it. Your We'll Decide What We Want list, favorites and never list will.",
-        action: 'Switch',
-      )) {
+      // That Google account already exists; switching is allowed but never
+      // merges the accounts. Asking only matters when a room would be left.
+      if (!await guestInRoom() ||
+          await confirm(
+            'Switch to your existing Google account?',
+            'This Google account already has an account here. $leaveRoomWarning',
+            action: 'Switch',
+          )) {
         if (!mounted) return;
         if (await perform(
-          accounts.signInWithGoogle,
+          () => accounts.signInWithGoogle(credential: error.credential),
           'Signed in with Google.',
         )) {
           returnIfReady();
@@ -315,7 +323,7 @@ class _AccountScreenState extends State<AccountScreen> {
                       clipBehavior: Clip.antiAlias,
                       child: ListTile(
                         leading: const Icon(Icons.accessibility_new),
-                        title: const Text('Accessibility'),
+                        title: const Text('Accessibility features'),
                         subtitle: const Text('Text size · Vote timer'),
                         trailing: const Icon(Icons.chevron_right),
                         onTap:

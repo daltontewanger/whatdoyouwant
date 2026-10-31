@@ -5,6 +5,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:whatdoyouwant/services/account_service.dart';
 import 'package:whatdoyouwant/screens/account_screen.dart';
+import 'package:whatdoyouwant/services/active_room_store.dart';
+import 'package:whatdoyouwant/services/room_backend.dart';
+
+import 'room_screens_test.dart' show FakeRoomBackend;
 
 class FakeUser extends Fake implements User {
   bool anonymous = true;
@@ -21,7 +25,11 @@ class FakeUser extends Fake implements User {
   Future<UserCredential> linkWithProvider(AuthProvider provider) async {
     calls.add('link:${provider.providerId}');
     if (failLink) {
-      throw FirebaseAuthException(code: 'credential-already-in-use');
+      // Google hands back the credential it just issued, as the SDKs do.
+      throw FirebaseAuthException(
+        code: 'credential-already-in-use',
+        credential: GoogleAuthProvider.credential(idToken: 'fixture'),
+      );
     }
     anonymous = false;
     return FakeCredential();
@@ -109,6 +117,7 @@ class FakeAuth extends Fake implements FirebaseAuth {
   int guests = 0;
   int signOuts = 0;
   int providerSignIns = 0;
+  int credentialSignIns = 0;
   int emailSignIns = 0;
   String? resetError;
   ActionCodeSettings? resetSettings;
@@ -145,6 +154,13 @@ class FakeAuth extends Fake implements FirebaseAuth {
   Stream<User?> userChanges() async* {
     yield user;
     yield* _changes.stream;
+  }
+
+  @override
+  Future<UserCredential> signInWithCredential(AuthCredential credential) async {
+    credentialSignIns++;
+    _set(FakeUser()..anonymous = false);
+    return FakeCredential();
   }
 
   @override
@@ -213,12 +229,28 @@ class FakeAuth extends Fake implements FirebaseAuth {
   }
 }
 
+/// Puts [child] under a scope whose active room store does or doesn't hold a
+/// room in progress.
+Widget withRoom(bool inRoom, Widget child) => RoomBackendScope(
+  backend: FakeRoomBackend(),
+  activeRooms:
+      MemoryActiveRoomStore()
+        ..room = inRoom ? const ActiveRoom('ROOM-ID', host: false) : null,
+  child: child,
+);
+
 void main() {
   group('sign in', () {
-    Future<FakeAuth> openAsGuest(WidgetTester tester) async {
+    Future<FakeAuth> openAsGuest(
+      WidgetTester tester, {
+      bool inRoom = true,
+    }) async {
       final auth = FakeAuth(FakeUser());
       await tester.pumpWidget(
-        MaterialApp(home: AccountScreen(accounts: AccountService(auth))),
+        withRoom(
+          inRoom,
+          MaterialApp(home: AccountScreen(accounts: AccountService(auth))),
+        ),
       );
       await tester.pumpAndSettle();
       await tester.enterText(
@@ -250,6 +282,16 @@ void main() {
         expect(find.byType(TextField), findsNothing);
       },
     );
+
+    testWidgets('a guest who is not in a room signs in without a warning', (
+      tester,
+    ) async {
+      final auth = await openAsGuest(tester, inRoom: false);
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Sign in'));
+      await tester.pumpAndSettle();
+      expect(find.text('Sign in to an existing account?'), findsNothing);
+      expect(auth.emailSignIns, 1);
+    });
 
     for (final (code, text) in [
       (
@@ -629,9 +671,12 @@ void main() {
       final user = FakeUser()..failLink = true;
       final auth = FakeAuth(user);
       await tester.pumpWidget(
-        MaterialApp(
-          home: AccountScreen(
-            accounts: AccountService(auth, googleEnabled: true, web: false),
+        withRoom(
+          true,
+          MaterialApp(
+            home: AccountScreen(
+              accounts: AccountService(auth, googleEnabled: true, web: false),
+            ),
           ),
         ),
       );
@@ -652,8 +697,39 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Switch'));
       await tester.pumpAndSettle();
-      expect(auth.providerSignIns, 1);
-      expect(find.text('Signed in as'), findsOneWidget);
+      expect(
+        (auth.credentialSignIns, auth.providerSignIns),
+        (1, 0),
+        reason: "Google's answer is reused, so there is no second sign-in",
+      );
+      expect(find.text('Sign out'), findsOneWidget);
+    });
+
+    testWidgets('a guest not in a room switches to Google without asking', (
+      tester,
+    ) async {
+      final user = FakeUser()..failLink = true;
+      final auth = FakeAuth(user);
+      await tester.pumpWidget(
+        withRoom(
+          false,
+          MaterialApp(
+            home: AccountScreen(
+              accounts: AccountService(auth, googleEnabled: true, web: false),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Continue with Google'));
+      await tester.tap(find.text('Continue with Google'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Switch to your existing Google account?'),
+        findsNothing,
+      );
+      expect((auth.credentialSignIns, auth.providerSignIns), (1, 0));
+      expect(find.text('Sign out'), findsOneWidget);
     });
 
     testWidgets('a Google-only account sees no password form', (tester) async {
