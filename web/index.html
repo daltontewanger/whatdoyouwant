@@ -29,10 +29,46 @@
 
   <title>What Do You Want?!</title>
   <link rel="manifest" href="manifest.json">
+  <!-- Starts the app's code downloading while the loader script runs. -->
+  <link rel="preload" href="main.dart.js" as="script">
+  <style>
+    /* Same pale green as the app's screens, so nothing flashes when it takes over. */
+    html, body { margin: 0; background: #EAF2EF; }
+    #loading {
+      position: fixed; inset: 0; display: flex; align-items: center;
+      justify-content: center; padding: 24px; box-sizing: border-box;
+    }
+    #loading img {
+      width: min(100%, 460px); height: auto; aspect-ratio: 1080 / 579;
+      border: 3px solid #2F7A5C; border-radius: 20px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, .25);
+      animation: breathe 1.6s ease-in-out infinite alternate;
+    }
+    @keyframes breathe { to { transform: scale(1.03); } }
+    @media (prefers-reduced-motion: reduce) { #loading img { animation: none; } }
+    /* Read out by screen readers and shown to keyboard users when it has focus. */
+    .reader-only {
+      position: absolute; width: 1px; height: 1px; overflow: hidden;
+      clip-path: inset(50%); white-space: nowrap;
+    }
+    .reader-only:focus {
+      position: fixed; top: 12px; left: 12px; z-index: 10; width: auto; height: auto;
+      clip-path: none; padding: 10px 14px; border-radius: 10px;
+      background: #2F7A5C; color: #fff; font: 600 16px/1.2 system-ui, sans-serif;
+    }
+  </style>
 </head>
 
 <body>
+  <!-- Flutter's own "Enable accessibility" button disappears after a few taps
+       on phones; this one stays. startup.js sets its words and handles it. -->
+  <a id="reader-support" class="reader-only" href="#">Turn on screen reader support</a>
+  <div id="loading" role="status">
+    <span class="reader-only">Loading What Do You Want?!</span>
+    <img src="assets/assets/images/wdyw.jpg" alt="">
+  </div>
   <script src="text_size.js"></script>
+  <script src="startup.js"></script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 
