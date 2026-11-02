@@ -44,6 +44,18 @@ class FakeRoomBackend implements RoomBackend {
 
   @override
   Stream<RoomState> watch(String roomId) => room.stream;
+  String? savedNickname;
+  Object? nicknameError;
+  final nicknames = <String>[];
+  @override
+  Future<String?> nickname() async => savedNickname;
+  @override
+  Future<String?> setNickname(String nickname) async {
+    nicknames.add(nickname);
+    if (nicknameError case final error?) throw error;
+    return savedNickname = nickname.isEmpty ? null : nickname;
+  }
+
   @override
   Future<void> nudge(String roomId) async => nudges++;
   LiveSearchAllowance? allowance;

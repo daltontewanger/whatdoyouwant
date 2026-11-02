@@ -8,6 +8,7 @@ import '../services/room_backend.dart';
 import '../services/room_lists.dart';
 import 'food_loader.dart';
 import 'results_screen.dart';
+import 'room_roster.dart';
 import 'room_screen.dart' show UntimedNotice, announceNoTimer;
 import 'swipe_screen.dart';
 import '../themes/main_theme.dart';
@@ -22,7 +23,7 @@ String joinErrorMessage(Object error) {
       case 'not-found':
         return 'No open room uses that code. Check it with the host; rooms stop taking new people once voting starts.';
       case 'failed-precondition':
-        return 'This room is full. Rooms hold up to 15 people.';
+        return 'This room is full. Rooms hold up to $roomCapacity people.';
       case 'resource-exhausted':
         return 'Too many attempts. Wait a minute and try again.';
       case 'unauthenticated':
@@ -368,6 +369,16 @@ class _WaitingForOptionsScreenState extends State<WaitingForOptionsScreen> {
                           textAlign: TextAlign.center,
                         ),
                         if (room.untimed) const UntimedNotice(),
+                        const SizedBox(height: 20),
+                        RoomRoster(
+                          people: room.people,
+                          memberCount: room.memberCount,
+                        ),
+                        if (room.people.any(
+                              (person) => person.you && person.guest,
+                            ) &&
+                            canHaveNickname(context))
+                          const NicknameNudge(),
                       ],
                     );
                   },

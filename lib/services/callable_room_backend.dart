@@ -80,6 +80,36 @@ List<Restaurant> deckRestaurants(Map<String, dynamic> deck) => [
   for (final raw in deck['candidates'] as List) cardRestaurant(raw as Map),
 ];
 
+/// The room's roster as people see it: host first, then you, then everyone
+/// else by name, with guests last. Seats are the server's random keys; the
+/// one matching [mySeat] is this person.
+List<RoomPerson> roomPeople(Object? roster, String? mySeat) {
+  if (roster is! Map) return const [];
+  final people = [
+    for (final entry in roster.entries)
+      if (entry.value is Map)
+        RoomPerson(
+          name: (entry.value as Map)['name'] as String?,
+          host: (entry.value as Map)['host'] == true,
+          you: entry.key == mySeat,
+        ),
+  ];
+  int rank(RoomPerson person) =>
+      person.host
+          ? 0
+          : person.you
+          ? 1
+          : person.guest
+          ? 3
+          : 2;
+  people.sort((a, b) {
+    final order = rank(a).compareTo(rank(b));
+    if (order != 0) return order;
+    return (a.name ?? '').toLowerCase().compareTo((b.name ?? '').toLowerCase());
+  });
+  return people;
+}
+
 RoomResults? callableResults(Object? raw, int members) {
   if (raw is! Map) return null;
   final likes = <String, int>{
@@ -160,6 +190,7 @@ class CallableRoomBackend implements RoomBackend {
     late final StreamController<RoomState> controller;
     final subscriptions = <StreamSubscription<Object?>>[];
     Map<String, dynamic>? roomData;
+    String? mySeat;
     var deck = <Restaurant>[];
     var myVotes = <String>{};
     var deckRequested = false;
@@ -183,6 +214,7 @@ class CallableRoomBackend implements RoomBackend {
           results: callableResults(data['results'], members),
           votingEndsAt: (data['votingEndsAt'] as Timestamp?)?.toDate(),
           untimed: data['untimed'] == true,
+          people: roomPeople(data['roster'], mySeat),
         ),
       );
     }
@@ -241,6 +273,14 @@ class CallableRoomBackend implements RoomBackend {
             (snapshot) => apply(snapshot.data()),
             onError: controller.addError,
           ),
+        );
+        // Only this person's own membership is readable; it says which seat
+        // on the roster is theirs. Without it the roster just has no "you".
+        subscriptions.add(
+          room.collection('members').doc(_uid).snapshots().listen((snapshot) {
+            mySeat = snapshot.data()?['seat'] as String?;
+            emit();
+          }, onError: (Object _) {}),
         );
         subscriptions.add(
           room.collection('votes/$_uid/ballot').snapshots().listen((snapshot) {
@@ -390,6 +430,19 @@ class CallableRoomBackend implements RoomBackend {
     });
     return quickPickFrom(view, pick.cards);
   }
+
+  @override
+  Future<String?> nickname() async {
+    final user = _auth.currentUser;
+    if (user == null || user.isAnonymous || !user.emailVerified) return null;
+    final profile = await _db.doc('userProfiles/${user.uid}').get();
+    return profile.data()?['nickname'] as String?;
+  }
+
+  @override
+  Future<String?> setNickname(String nickname) async =>
+      (await _call('setNickname', {'nickname': nickname}))['nickname']
+          as String?;
 }
 
 /// A Quick Pick as the server reports it, with the deck's cards.

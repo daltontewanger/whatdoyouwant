@@ -9,6 +9,7 @@ import 'help_links.dart';
 import 'main_shell.dart';
 import 'my_places_screen.dart';
 import 'place_marks.dart';
+import 'room_roster.dart';
 
 /// Turns Auth errors into guidance. Projects with email enumeration protection
 /// report an unknown email and a wrong password the same way, so the specific
@@ -263,6 +264,10 @@ class _AccountScreenState extends State<AccountScreen> {
       builder: (context, snapshot) {
         final user = snapshot.data;
         final registered = user != null && !user.isAnonymous;
+        final nicknames =
+            registered &&
+            user.emailVerified &&
+            RoomBackendScope.maybeOf(context) != null;
         return Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
@@ -293,8 +298,14 @@ class _AccountScreenState extends State<AccountScreen> {
                       padding: const EdgeInsets.only(top: 16),
                       child: Text(message, textAlign: TextAlign.center),
                     ),
-                  if (RoomBackendScope.maybeOf(context)?.myPlaces != null) ...[
+                  if (nicknames) ...[
                     const SizedBox(height: 32),
+                    const NicknameTile(),
+                  ],
+                  if (RoomBackendScope.maybeOf(context)?.myPlaces != null) ...[
+                    SizedBox(
+                      height: registered && user.emailVerified ? 12 : 32,
+                    ),
                     Card(
                       margin: EdgeInsets.zero,
                       clipBehavior: Clip.antiAlias,

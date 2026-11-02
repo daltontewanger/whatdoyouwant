@@ -10,6 +10,9 @@ import 'my_places.dart';
 import 'own_list.dart';
 import 'search_defaults.dart';
 
+/// People per room, host included; the server turns away anyone past it.
+const roomCapacity = 15;
+
 /// A room as the screens need to see it, whichever backend stores it.
 class RoomState {
   const RoomState({
@@ -26,7 +29,12 @@ class RoomState {
     this.votedIds = const {},
     this.votingEndsAt,
     this.untimed = false,
+    this.people = const [],
   });
+
+  /// Who is in the room, where the backend lists them. Empty when it does
+  /// not, in which case only [memberCount] is known.
+  final List<RoomPerson> people;
 
   /// Someone in the room votes without a card timer, so it may take longer.
   final bool untimed;
@@ -55,6 +63,19 @@ class RoomState {
 
   /// When the server stops taking votes.
   final DateTime? votingEndsAt;
+}
+
+/// One person in a room as everyone in it sees them: a nickname, or none for
+/// a guest. Nothing else about them is shared.
+class RoomPerson {
+  const RoomPerson({this.name, this.host = false, this.you = false});
+  final String? name;
+  final bool host;
+
+  /// This device's own person.
+  final bool you;
+
+  bool get guest => name == null;
 }
 
 class RoomResults {
@@ -193,6 +214,14 @@ abstract class RoomBackend {
 
   /// The next card from the same deck, without a search or a charge.
   Future<QuickPick> rerollQuickPick(QuickPick pick);
+
+  /// This account's nickname, or null when it has none (and for guests).
+  Future<String?> nickname();
+
+  /// Saves the nickname shown to people in this account's rooms and returns
+  /// it as stored; an empty one clears it and returns null. Lobbies the person
+  /// is waiting in show the change.
+  Future<String?> setNickname(String nickname);
 }
 
 /// Makes the backend and, where accounts exist, the account service available

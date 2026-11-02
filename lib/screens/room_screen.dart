@@ -11,6 +11,7 @@ import '../services/room_lists.dart';
 import 'food_loader.dart';
 import 'my_places_screen.dart';
 import 'place_marks.dart';
+import 'room_roster.dart';
 import 'search_panel.dart';
 import 'swipe_screen.dart';
 import '../models/own_spot.dart';
@@ -348,6 +349,24 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
     );
   }
 
+  Widget _whoIsHere(RoomState? room, int memberCount) {
+    final people = room?.people ?? const <RoomPerson>[];
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        RoomRoster(
+          people: people,
+          memberCount: memberCount,
+          capacity: roomCapacity,
+        ),
+        if (people.any((person) => person.you && person.guest) &&
+            canHaveNickname(context))
+          const NicknameNudge(),
+      ],
+    );
+  }
+
   Widget _listPanel(ThemeData theme) {
     final spots = widget.ownSpots!;
     return Column(
@@ -512,22 +531,18 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
                                                 ),
                                       ),
 
-                                    // Participant count
                                     Expanded(
                                       flex: 1,
                                       child: Align(
                                         alignment: Alignment.center,
-                                        child: Text(
-                                          participantCount == 1
-                                              ? "Participants in the lobby: 1 (only you)"
-                                              : "Participants in the lobby: $participantCount",
-                                          style: const TextStyle(
-                                            color: Colors.grey,
-                                            fontSize: 16,
-                                            fontStyle: FontStyle.italic,
-                                            fontWeight: FontWeight.w600,
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 8,
                                           ),
-                                          textAlign: TextAlign.center,
+                                          child: _whoIsHere(
+                                            snapshot.data,
+                                            participantCount,
+                                          ),
                                         ),
                                       ),
                                     ),
