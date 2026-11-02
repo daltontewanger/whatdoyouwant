@@ -489,7 +489,11 @@ class HomeScreenState extends State<HomeScreen>
                                 borderRadius: BorderRadius.circular(17),
                                 child: FittedBox(
                                   fit: BoxFit.contain,
-                                  child: Image.asset('assets/images/wdyw.png'),
+                                  child: Image.asset(
+                                    'assets/images/wdyw.jpg',
+                                    semanticLabel:
+                                        "A man asks, 'What do you want?!' and a woman answers, 'It's not that simple!'",
+                                  ),
                                 ),
                               ),
                             ),
