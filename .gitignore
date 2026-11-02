@@ -85,3 +85,5 @@ firebase-export-*/
 
 # Live HERE benchmark recordings stay on the machine that made them.
 local-testing/search/benchmark/recordings/
+# Widget Preview related
+.widget_preview/
