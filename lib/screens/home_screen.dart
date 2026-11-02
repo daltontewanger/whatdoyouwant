@@ -57,7 +57,7 @@ class HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   // Read on use: signing in, out or deleting an account changes the user.
   AppUser get _currentUser {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = _auth.currentUser;
     return AppUser(
       id: user != null && user.uid.isNotEmpty ? user.uid : 'guest',
       name: 'Guest',
@@ -108,8 +108,12 @@ class HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
+  FirebaseAuth get _auth =>
+      RoomBackendScope.maybeOf(context)?.accounts?.auth ??
+      FirebaseAuth.instance;
+
   bool get _verifiedHost {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = _auth.currentUser;
     return user != null && !user.isAnonymous && user.emailVerified;
   }
 
@@ -183,6 +187,7 @@ class HomeScreenState extends State<HomeScreen>
                         isCreator: true,
                         roomCode: active.id,
                         joinCode: room.joinCode,
+                        ownSpots: active.ownSpots,
                       )
                       : WaitingForOptionsScreen(
                         roomCode: active.id,
@@ -353,7 +358,9 @@ class HomeScreenState extends State<HomeScreen>
     try {
       final room = await scope.backend.createRoom();
       _opening = true;
-      await scope.activeRooms?.remember(ActiveRoom(room.id, host: true));
+      await scope.activeRooms?.remember(
+        ActiveRoom(room.id, host: true, ownSpots: ownSpots),
+      );
       if (!mounted) return;
       await Navigator.push(
         context,

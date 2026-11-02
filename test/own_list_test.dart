@@ -11,6 +11,7 @@ import 'package:whatdoyouwant/screens/main_shell.dart';
 import 'package:whatdoyouwant/screens/own_list_screen.dart';
 import 'package:whatdoyouwant/screens/room_screen.dart';
 import 'package:whatdoyouwant/services/account_service.dart';
+import 'package:whatdoyouwant/services/active_room_store.dart';
 import 'package:whatdoyouwant/services/own_list.dart';
 import 'package:whatdoyouwant/services/place_links.dart';
 import 'package:whatdoyouwant/services/room_backend.dart';
@@ -381,6 +382,60 @@ void main() {
     await tester.pump();
     expect(backend.startedFromList.single, spots);
     expect(backend.started, isEmpty);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  test('the spots of a list room are remembered with it', () async {
+    final store = PreferencesActiveRoomStore();
+    final spots = [spot('a', 'Pho Real', note: 'Ask for Kim')];
+    await store.remember(ActiveRoom('ROOM-ID', host: true, ownSpots: spots));
+    expect((await store.load())?.ownSpots, spots);
+
+    await store.remember(const ActiveRoom('OTHER', host: false));
+    expect((await store.load())?.ownSpots, isNull);
+
+    await store.remember(ActiveRoom('ROOM-ID', host: true, ownSpots: spots));
+    await store.forget();
+    await store.remember(const ActiveRoom('NEXT', host: true));
+    expect((await store.load())?.ownSpots, isNull);
+  });
+
+  testWidgets('returning to a list lobby after a restart keeps its spots', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final backend = FakeRoomBackend();
+    final rooms =
+        MemoryActiveRoomStore()
+          ..room = ActiveRoom(
+            'ROOM-ID',
+            host: true,
+            ownSpots: [spot('a', 'Pho Real'), spot('b', 'Taco Truck')],
+          );
+    await tester.pumpWidget(
+      RoomBackendScope(
+        backend: backend,
+        accounts: AccountService(ShellAuth()),
+        activeRooms: rooms,
+        ownList: MemoryOwnList(),
+        child: const MaterialApp(home: MainShell(currentUid: 'guest')),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('You have a room in progress'));
+    await tester.pump();
+    backend.room.add(state(status: 'lobby'));
+    // The banner keeps bobbing, so the page never settles.
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    backend.room.add(state(status: 'lobby'));
+    await tester.pump();
+    expect(find.text('From your list'), findsOneWidget);
+    expect(find.text('Pho Real, Taco Truck'), findsOneWidget);
+    expect(find.text('Change search'), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
 }
