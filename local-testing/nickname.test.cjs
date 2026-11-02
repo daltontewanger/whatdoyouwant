@@ -7,7 +7,7 @@ test('nickname: ordinary names in any language are kept, tidied', () => {
     ['J.R.', 'J.R.'], ["O'Brien", "O'Brien"], ['Mary-Kate_2', 'Mary-Kate_2'], ['Zoë', 'Zoë'],
     ['José María', 'José María'], ['Nguyễn', 'Nguyễn'], ['李小龙', '李小龙'],
     ['Ｆｕｌｌ', 'Full'], ['Dickens', 'Dickens'], ['Hancock', 'Hancock'], ['Cassie', 'Cassie'],
-    ['Glass', 'Glass'], ['Swanky', 'Swanky'], ['Nigel', 'Nigel'], ['Fukuoka', 'Fukuoka']]) {
+    ['Glass', 'Glass'], ['Blue Tit', 'Blue Tit'], ['Sussex Sexton', 'Sussex Sexton'], ['Analise', 'Analise'], ['Swanky', 'Swanky'], ['Nigel', 'Nigel'], ['Fukuoka', 'Fukuoka']]) {
     assert.equal(parseNickname(raw), kept, raw);
   }
   assert.equal(parseNickname('tab\tand\nline'), 'tab and line', 'breaks become plain spaces');

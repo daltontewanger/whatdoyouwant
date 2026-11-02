@@ -23,17 +23,17 @@ class BlockedNickname extends Error {}
 const ANYWHERE = [
   'fuck', 'fck', 'shit', 'cunt', 'nigger', 'nigga', 'faggot', 'bitch', 'whore', 'slut',
   'pussy', 'asshole', 'bastard', 'wanker', 'twat', 'retard', 'rapist', 'kike', 'wetback', 'tranny',
-  'nazi', 'hitler', 'kkk', 'porn', 'penis', 'vagina', 'dildo', 'jizz', 'boob', 'molest',
-  'pedophile', 'paedophile', 'skank', 'douche', 'bollocks', 'bellend', 'piss', 'beaner',
-  'raghead', 'towelhead', 'cocksuck', 'blowjob', 'handjob', 'motherf', 'orgasm',
-  'testicle', 'clitoris', 'masturbat', 'jackoff', 'jerkoff', 'horny', 'milf', 'hentai',
+  'nazi', 'hitler', 'kkk', 'porn', 'penis', 'vagina', 'dildo', 'jizz', 'molest',
+  'pedophile', 'paedophile', 'douche', 'bellend', 'beaner',
+  'raghead', 'towelhead', 'cocksuck', 'blowjob', 'handjob', 'motherf',
+  'testicle', 'clitoris', 'masturbat', 'jackoff', 'jerkoff', 'horny', 'milf',
 ];
 
 // Matched only as a whole word (or the whole name), because each also hides
 // inside innocent names: Dickens, Hancock, grape, Scunthorpe's neighbours.
 const WHOLE_WORD = [
-  'ass', 'arse', 'dick', 'cock', 'cum', 'tit', 'tits', 'titty', 'hoe', 'fag', 'rape', 'chink',
-  'spic', 'dyke', 'coon', 'gook', 'paki', 'negro', 'sex', 'sexy', 'anal', 'anus', 'pedo', 'nonce',
+  'ass', 'arse', 'dick', 'cock', 'cum', 'hoe', 'fag', 'rape', 'chink',
+  'spic', 'dyke', 'coon', 'gook', 'paki', 'negro', 'pedo', 'nonce',
   'prick', 'heil', 'nude', 'nudes', 'xxx', 'jap', 'homo', 'lesbo', 'thot', 'fuk', 'wank',
   'semen',
 ];
