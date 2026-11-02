@@ -409,6 +409,7 @@ test('account deletion removes memberships, ballots, hosted rooms, receipts and 
   assert.equal((await db.doc(`rooms/${roomId}/members/${guest.uid}`).get()).exists, false);
   assert.equal((await db.collection(`rooms/${roomId}/votes/${guest.uid}/ballot`).get()).size, 0);
   assert.equal((await db.doc(`rooms/${roomId}`).get()).data().memberCount, 2);
+  assert.equal(Object.keys((await db.doc(`rooms/${roomId}`).get()).data().roster).length, 2, 'off the roster too');
   assert.equal((await db.doc(`rooms/${hosted.roomId}/members/${guest.uid}`).get()).exists, false);
   assert.equal((await auth('lookup', { idToken: guest.token })).status, 400);
   assert.equal((await readRoom(roomId, other)).status, 200, 'other members are unaffected');
@@ -419,7 +420,9 @@ test('account deletion removes memberships, ballots, hosted rooms, receipts and 
   await db.doc(`userSettings/${host.uid}`).set({ unit: 'km', radius: 3 });
   await db.doc(`userLists/${host.uid}`).set({ spots: [{ id: 'a', name: 'Pizza Place' }] });
   await db.doc(`userPlaces/${host.uid}`).set({ favorites: [], never: [], useFavorites: true, useNever: true });
+  assert.equal((await call('setNickname', { nickname: 'Dalton' }, host)).status, 200);
   assert.equal((await call('deleteAccount', {}, host)).status, 200);
+  assert.equal((await db.doc(`userProfiles/${host.uid}`).get()).exists, false, 'the nickname goes too');
   assert.equal((await db.doc(`userPlaces/${host.uid}`).get()).exists, false, 'favorites and never list go too');
   assert.equal((await db.doc(`userSettings/${host.uid}`).get()).exists, false, 'saved defaults go too');
   assert.equal((await db.doc(`userLists/${host.uid}`).get()).exists, false, 'and the own list');
@@ -700,4 +703,53 @@ test('no timer: the room learns that someone votes without one, never who', asyn
     assert.equal((await call('setNoTimer', data, guest)).status, 400, JSON.stringify(data));
   }
   assert.equal((await readMember(roomId, guest.uid, host)).status, 403, 'members cannot read each other');
+});
+
+test('nicknames: verified accounts only, checked by the server, shown on the roster by seat', async () => {
+  const host = await user(true, true); const guest = await user(); const unverified = await user(true, false);
+  const nickname = (who, value) => call('setNickname', { nickname: value }, who);
+  assert.equal((await nickname(guest, 'Sneaky')).status, 403, 'guests stay "Guest"');
+  assert.equal((await nickname(unverified, 'Sneaky')).status, 403);
+  for (const [value, reason] of [['<script>', 'nickname-format'], ['evil.com', 'nickname-format'], ['a', 'nickname-format'],
+    ['sh1t', 'nickname-blocked'], ['Host', 'nickname-blocked']]) {
+    const refused = await nickname(host, value);
+    assert.equal(refused.status, 400, value);
+    assert.deepEqual(refused.data.error.details, { reason }, value);
+  }
+  for (const data of [{}, { nickname: 5 }, { nickname: 'Dalton', uid: guest.uid }]) {
+    assert.equal((await call('setNickname', data, host)).status, 400, JSON.stringify(data));
+  }
+  assert.deepEqual((await nickname(host, '  Dalton ')).data.result, { nickname: 'Dalton' });
+  assert.equal((await db.doc(`userProfiles/${host.uid}`).get()).data().nickname, 'Dalton');
+
+  const { roomId, joinCode } = await room(host);
+  const member = await user(true, true);
+  assert.equal((await nickname(member, 'WinnerDinner')).status, 200);
+  for (const who of [guest, member]) assert.equal((await join(joinCode, who)).status, 200);
+  const roster = async () => Object.values((await db.doc(`rooms/${roomId}`).get()).data().roster)
+    .map(({ name, host: isHost }) => `${name}${isHost ? ' (host)' : ''}`).sort();
+  assert.deepEqual(await roster(), ['Dalton (host)', 'WinnerDinner', 'null']);
+  const seen = await readRoom(roomId, guest);
+  assert.ok(!JSON.stringify(seen.data).includes(member.uid), "members see seats, never each other's UIDs");
+  const seat = (await readMember(roomId, member.uid, member)).data.fields.seat.stringValue;
+  assert.equal((await db.doc(`rooms/${roomId}`).get()).data().roster[seat].name, 'WinnerDinner', 'a member finds their own seat');
+
+  // A change shows in the lobby straight away; clearing it shows them as a guest.
+  assert.equal((await nickname(member, 'Sam')).status, 200);
+  assert.deepEqual(await roster(), ['Dalton (host)', 'Sam', 'null']);
+  assert.deepEqual((await nickname(member, '')).data.result, { nickname: null });
+  assert.equal((await db.doc(`userProfiles/${member.uid}`).get()).exists, false);
+  assert.deepEqual(await roster(), ['Dalton (host)', 'null', 'null']);
+
+  // Reconnecting picks up a name changed elsewhere; a removed member leaves the roster.
+  await db.doc(`userProfiles/${member.uid}`).set({ nickname: 'Rando1122' });
+  assert.equal((await reconnect(roomId, member)).status, 200);
+  assert.deepEqual(await roster(), ['Dalton (host)', 'Rando1122', 'null']);
+  assert.equal((await call('revokeMember', { roomId, memberUid: guest.uid }, host)).status, 200);
+  assert.deepEqual(await roster(), ['Dalton (host)', 'Rando1122']);
+
+  // Once voting starts the roster stays as it was.
+  assert.equal((await start(roomId, host)).status, 200);
+  assert.equal((await nickname(member, 'Late')).status, 200);
+  assert.deepEqual(await roster(), ['Dalton (host)', 'Rando1122']);
 });

@@ -10,6 +10,7 @@ const { createClientErrorReporter } = require('./client-errors');
 const { parseOwnList, InvalidList } = require('./own-list');
 const { parsePlaces, parseRoomLists, detailsExpireAt, withoutStaleDetails, InvalidPlaces } = require('./place-lists');
 const { createGeneration } = require('./generation');
+const { parseNickname, InvalidNickname, BlockedNickname } = require('./nickname');
 
 const ROOM_TTL_MS = 24 * 3600000;
 const VOTING_WINDOW_MS = 30 * 60000;
@@ -40,6 +41,8 @@ const REQUEST_ID = /^[A-Za-z0-9_-]{16,64}$/;
 const UID = /^[A-Za-z0-9]{1,128}$/;
 
 const digest = value => createHash('sha256').update(value).digest('hex');
+// Members are listed on the room under a random seat, never their UID.
+const newSeat = () => randomBytes(6).toString('hex');
 const newJoinCode = () => Array.from({ length: 6 }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('');
 
 function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthUser,
@@ -141,6 +144,13 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
 
   const quickPickRef = quickPickId => db.doc(`quickPicks/${quickPickId}`);
   const placesRef = uid => db.doc(`userPlaces/${uid}`);
+  const profileRef = uid => db.doc(`userProfiles/${uid}`);
+  // Only verified accounts have a nickname; guests always show as one of the guests.
+  const nicknameOf = async (tx, actor) => {
+    if (!authorize('create', actor)) return null;
+    const profile = await tx.get(profileRef(actor.uid));
+    return profile.exists ? profile.data().nickname ?? null : null;
+  };
   const expiresField = at => (at === null ? FieldValue.delete() : Timestamp.fromMillis(at));
 
   // The lists active members shared for this room, as the host's switches
@@ -181,6 +191,18 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
     if (state.expiresAt <= now() || !membership.exists || membership.data().active !== true) deny();
     return { room, snapshot, state };
   }
+
+  // Puts the member's current name on the room's roster. Rooms made before
+  // rosters existed give the member a seat the first time.
+  function seatIn(tx, room, state, member, membership, name) {
+    const seat = membership.seat ?? newSeat();
+    const listed = state.roster?.[seat];
+    if (listed && listed.name === name) return;
+    if (!membership.seat) tx.update(member, { seat });
+    tx.update(room, { [`roster.${seat}`]: { name, host: state.creator === membership.uid } });
+  }
+
+  const unseated = membership => (membership.seat ? { [`roster.${membership.seat}`]: FieldValue.delete() } : {});
 
   async function tally(tx, room, state) {
     const [members, deck] = await Promise.all([
@@ -235,7 +257,8 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       for (let attempt = 0; attempt < 3; attempt++) {
         const joinCode = newJoinCode();
         const created = await db.runTransaction(async tx => {
-          const [previous, taken] = await Promise.all([tx.get(receipt), tx.get(codeRef(joinCode))]);
+          const [previous, taken, name] = await Promise.all([tx.get(receipt), tx.get(codeRef(joinCode)),
+            nicknameOf(tx, actor)]);
           if (previous.exists) {
             const existing = await tx.get(roomRef(previous.data().roomId));
             return { roomId: existing.id, joinCode: existing.data()?.joinCode ?? null };
@@ -243,9 +266,10 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
           if (taken.exists) return null;
           const expiresAt = expiry(ROOM_TTL_MS);
           const room = roomRef(roomId);
+          const seat = newSeat();
           tx.create(room, { creator: actor.uid, status: 'lobby', memberCount: 1, joinCode,
-            createdAt: FieldValue.serverTimestamp(), expiresAt });
-          tx.create(room.collection('members').doc(actor.uid), { uid: actor.uid, active: true,
+            roster: { [seat]: { name, host: true } }, createdAt: FieldValue.serverTimestamp(), expiresAt });
+          tx.create(room.collection('members').doc(actor.uid), { uid: actor.uid, active: true, seat,
             joinedAt: FieldValue.serverTimestamp(), expiresAt });
           tx.create(codeRef(joinCode), { roomId, expiresAt });
           tx.create(receipt, { roomId, uidHash: digest(actor.uid), expiresAt: expiry(RECEIPT_TTL_MS) });
@@ -270,12 +294,15 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
         }
         const room = roomRef(roomId);
         const member = room.collection('members').doc(actor.uid);
-        const [snapshot, membership] = await Promise.all([tx.get(room), tx.get(member)]);
+        const [snapshot, membership, name] = await Promise.all([tx.get(room), tx.get(member),
+          nicknameOf(tx, actor)]);
         if (!snapshot.exists) deny();
         const state = stateOf(snapshot);
         if (state.expiresAt <= now()) deny();
         if (membership.exists) {
           if (membership.data().active !== true) deny();
+          // Reconnecting picks up a nickname changed since joining.
+          if (state.status === 'lobby') seatIn(tx, room, state, member, membership.data(), name);
           return { roomId };
         }
         // The internal room ID only reconnects existing members; joining needs the current code.
@@ -284,9 +311,10 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
         if (state.memberCount >= CAPACITY) {
           throw new HttpsError('failed-precondition', 'Room is full.', { reason: 'room-full', capacity: CAPACITY });
         }
-        tx.create(member, { uid: actor.uid, active: true, joinedAt: FieldValue.serverTimestamp(),
+        const seat = newSeat();
+        tx.create(member, { uid: actor.uid, active: true, seat, joinedAt: FieldValue.serverTimestamp(),
           expiresAt: snapshot.data().expiresAt });
-        tx.update(room, { memberCount: state.memberCount + 1 });
+        tx.update(room, { memberCount: state.memberCount + 1, [`roster.${seat}`]: { name, host: false } });
         return { roomId };
       });
     },
@@ -487,6 +515,47 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       });
     },
 
+    // A verified account's nickname, shown to people in the same room. An
+    // empty one clears it. Lobbies the person is waiting in show the change.
+    async setNickname(request) {
+      const actor = identity(request);
+      if (!authorize('create', actor)) deny();
+      const value = request.data ?? {};
+      if (typeof value !== 'object' || Array.isArray(value) || Object.keys(value).join() !== 'nickname') invalid();
+      await limit(actor.uid, 'nickname', 20, 3600000);
+      let nickname;
+      try {
+        nickname = parseNickname(value.nickname);
+      } catch (error) {
+        if (error instanceof InvalidNickname) {
+          throw new HttpsError('invalid-argument', 'Invalid nickname.', { reason: 'nickname-format' });
+        }
+        if (error instanceof BlockedNickname) {
+          throw new HttpsError('invalid-argument', 'Nickname not allowed.', { reason: 'nickname-blocked' });
+        }
+        throw error;
+      }
+      if (nickname) {
+        await profileRef(actor.uid).set({ nickname, updatedAt: FieldValue.serverTimestamp() });
+      } else {
+        await profileRef(actor.uid).delete();
+      }
+      const name = nickname || null;
+      const memberships = await db.collectionGroup('members').where('uid', '==', actor.uid).get();
+      for (const membership of memberships.docs) {
+        if (membership.data().active !== true) continue;
+        const room = membership.ref.parent.parent;
+        await retryTransient(() => db.runTransaction(async tx => {
+          const [snapshot, current] = await Promise.all([tx.get(room), tx.get(membership.ref)]);
+          if (!snapshot.exists || !current.exists || current.data().active !== true) return;
+          const state = stateOf(snapshot);
+          if (state.status !== 'lobby' || state.expiresAt <= now()) return;
+          seatIn(tx, room, state, membership.ref, current.data(), name);
+        }));
+      }
+      return { nickname: name };
+    },
+
     async closeRoom(request) {
       const actor = identity(request);
       const { roomId } = input(request, { roomId: ROOM_ID });
@@ -577,7 +646,7 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
         if (!membership.exists) deny();
         if (membership.data().active === true) {
           tx.update(member, { active: false });
-          tx.update(room, { memberCount: Math.max(1, state.memberCount - 1) });
+          tx.update(room, { memberCount: Math.max(1, state.memberCount - 1), ...unseated(membership.data()) });
         }
         return { roomId };
       });
@@ -695,7 +764,7 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
           if (!current.exists) return;
           tx.delete(membership.ref);
           if (current.data().active === true && !hostedIds.has(room.id)) {
-            tx.update(room, { memberCount: FieldValue.increment(-1) });
+            tx.update(room, { memberCount: FieldValue.increment(-1), ...unseated(current.data()) });
           }
         }));
       }
@@ -723,6 +792,7 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       await retryTransient(() => db.doc(`userSettings/${actor.uid}`).delete());
       await retryTransient(() => db.doc(`userLists/${actor.uid}`).delete());
       await retryTransient(() => placesRef(actor.uid).delete());
+      await retryTransient(() => profileRef(actor.uid).delete());
       try {
         await deleteAuthUser(actor.uid);
       } catch (error) {
@@ -738,6 +808,6 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
 const CALLABLES = ['createRoom', 'joinRoom', 'startRoom', 'closeRoom', 'roomResults',
   'revokeMember', 'rotateJoinCode', 'deleteAccount', 'liveSearchStatus', 'createQuickPick', 'rerollQuickPick',
   'appStatus', 'reportClientError', 'checkEmailDomain', 'saveOwnList',
-  'startRoomFromList', 'saveMyPlaces', 'shareRoomLists', 'setNoTimer'];
+  'startRoomFromList', 'saveMyPlaces', 'shareRoomLists', 'setNoTimer', 'setNickname'];
 
 module.exports = { createRoomHandlers, CALLABLES, CODE_ALPHABET, CAPACITY };

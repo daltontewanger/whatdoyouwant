@@ -7,8 +7,9 @@
 //
 // rooms/{id}: creator, status (lobby | voting | closed), memberCount, joinCode
 //   (lobby only), deckId, candidateCount, votingEndsAt (from start), expiresAt,
-//   results (after close)
-// rooms/{id}/members/{uid}: uid, active, expiresAt
+//   results (after close), roster {seat: {name, host}} (who is in the room,
+//   by a random seat and never a UID; name is null for guests)
+// rooms/{id}/members/{uid}: uid, active, seat, expiresAt
 // rooms/{id}/votes/{uid}/ballot/{candidateId}: liked, at, expiresAt
 // restaurantDecks/{id}: ownerUid, targetType (room | quickPick), targetId,
 //   candidateIds, candidates, filter summary and pool report, expiresAt. Immutable.
@@ -21,6 +22,8 @@
 // userLists/{uid}: spots [{id, name, address?, note?}] the person typed (at
 //   most 50), updatedAt. Written only by saveOwnList, which checks each spot;
 //   kept until the account is deleted (deleteAccount removes it).
+// userProfiles/{uid}: nickname, updatedAt. Written only by setNickname, which
+//   checks it; kept until changed or the account is deleted.
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -122,6 +125,10 @@ service cloud.firestore {
     // Favorites and never list: the verified owner reads; only saveMyPlaces
     // writes, after checking every entry.
     match /userPlaces/{uid} {
+      allow get: if verifiedAccount(uid);
+      allow list, write: if false;
+    }
+    match /userProfiles/{uid} {
       allow get: if verifiedAccount(uid);
       allow list, write: if false;
     }
