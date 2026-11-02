@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/room_backend.dart';
 import 'account_screen.dart';
+import 'faq_screen.dart';
 import 'home_screen.dart';
 import 'step_card.dart';
 
@@ -31,7 +32,7 @@ class _MainShellState extends State<MainShell> {
       builder: (context) => const _Menu(),
     );
     final home = _home.currentState;
-    if (chosen == null || home == null) return;
+    if (chosen == null || home == null || !mounted) return;
     setState(() => _tab = 0);
     switch (chosen) {
       case MenuChoice.quickPick:
@@ -42,6 +43,11 @@ class _MainShellState extends State<MainShell> {
         await home.openSearchSettings();
       case MenuChoice.join:
         home.openJoin();
+      case MenuChoice.questions:
+        await Navigator.push(
+          context,
+          MaterialPageRoute<void>(builder: (_) => const FaqScreen()),
+        );
     }
   }
 
@@ -210,7 +216,7 @@ class _FloatingBar extends StatelessWidget {
   }
 }
 
-enum MenuChoice { quickPick, ownList, searchSettings, join }
+enum MenuChoice { quickPick, ownList, searchSettings, join, questions }
 
 /// The other ways to decide, and the saved search settings. Returns the
 /// choice, so the sheet is closed before anything opens.
@@ -241,6 +247,16 @@ class _Menu extends StatelessWidget {
           icon: Icons.login,
         ),
         MenuChoice.join,
+      ),
+      (
+        const HomeStep(
+          0,
+          'Questions & answers',
+          'What the names mean, and why a place may have no website.',
+          StepColor.mint,
+          icon: Icons.help_outline,
+        ),
+        MenuChoice.questions,
       ),
     ];
     return SafeArea(

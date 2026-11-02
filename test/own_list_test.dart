@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/link.dart';
 import 'package:whatdoyouwant/models/own_spot.dart';
 import 'package:whatdoyouwant/models/user.dart';
+import 'package:whatdoyouwant/screens/faq_screen.dart';
 import 'package:whatdoyouwant/screens/main_shell.dart';
 import 'package:whatdoyouwant/screens/own_list_screen.dart';
 import 'package:whatdoyouwant/screens/room_screen.dart';
@@ -312,6 +313,7 @@ void main() {
     expect(find.text("You've been found wanting"), findsOneWidget);
     expect(find.text('Search settings'), findsOneWidget);
     expect(find.text('Join a room'), findsOneWidget);
+    expect(find.text('Questions & answers'), findsOneWidget);
     await tester.tap(find.text("We'll Decide What We Want").last);
     await tester.pumpAndSettle();
     expect(find.byType(OwnListScreen), findsOneWidget);
@@ -437,5 +439,35 @@ void main() {
     expect(find.text('Pho Real, Taco Truck'), findsOneWidget);
     expect(find.text('Change search'), findsNothing);
     await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('the menu opens the questions and answers', (tester) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      RoomBackendScope(
+        backend: FakeRoomBackend(),
+        accounts: AccountService(ShellAuth()),
+        ownList: MemoryOwnList(),
+        child: const MaterialApp(home: MainShell(currentUid: 'guest')),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byTooltip('More ways to decide'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Questions & answers'));
+    await tester.pumpAndSettle();
+    expect(find.byType(FaqScreen), findsOneWidget);
+    expect(
+      find.text('What are "I know what I want" and "Never what I want"?'),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.text("Why doesn't this place have a website or phone number?"),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining("we don't guess one"), findsOneWidget);
+    expect(find.text('Get help on our Support page'), findsOneWidget);
   });
 }

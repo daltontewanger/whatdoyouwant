@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/room_backend.dart';
+import 'faq_screen.dart';
 
 /// The public site's help and legal pages as a list. Installed apps can only
 /// reach them through here; on the web the site's home is listed too.
@@ -34,6 +35,14 @@ class HelpList extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
+          row(
+            Icons.help_outline,
+            'Questions & answers',
+            () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(builder: (_) => const FaqScreen()),
+            ),
+          ),
           if (kIsWeb)
             row(
               Icons.language,
