@@ -262,4 +262,90 @@ void main() {
     expect(find.text('No vote timer'), findsOneWidget);
     expect(find.text('Text size'), findsOneWidget);
   });
+
+  // Tests normally keep semantics on; these start from a browser's default.
+  group('screen reader support', () {
+    testWidgets(
+      'stays off in the web app until asked for, then is kept',
+      semanticsEnabled: false,
+      (tester) async {
+        final settings = AccessibilitySettings(web: true);
+        await settings.load();
+        expect(settings.screenReader, isFalse);
+        expect(tester.binding.semanticsEnabled, isFalse);
+
+        await settings.setScreenReader(true);
+        expect(tester.binding.semanticsEnabled, isTrue);
+        final prefs = await SharedPreferences.getInstance();
+        expect(prefs.getBool('accessibility.screenReader'), isTrue);
+
+        await settings.setScreenReader(false);
+        expect(tester.binding.semanticsEnabled, isFalse);
+        expect(prefs.containsKey('accessibility.screenReader'), isFalse);
+        settings.dispose();
+      },
+    );
+
+    testWidgets(
+      "the page's link turns it on for the next start",
+      semanticsEnabled: false,
+      (tester) async {
+        // What web/startup.js writes before reloading the page.
+        SharedPreferences.setMockInitialValues({
+          'accessibility.screenReader': true,
+        });
+        final settings = AccessibilitySettings(web: true);
+        await settings.load();
+        expect(settings.screenReader, isTrue);
+        expect(tester.binding.semanticsEnabled, isTrue);
+        settings.dispose();
+        expect(tester.binding.semanticsEnabled, isFalse);
+      },
+    );
+
+    testWidgets(
+      'phones ignore it; they build it for a reader themselves',
+      semanticsEnabled: false,
+      (tester) async {
+        SharedPreferences.setMockInitialValues({
+          'accessibility.screenReader': true,
+        });
+        final settings = AccessibilitySettings(web: false);
+        await settings.load();
+        await settings.setScreenReader(true);
+        expect(settings.screenReader, isFalse);
+        expect(tester.binding.semanticsEnabled, isFalse);
+        settings.dispose();
+      },
+    );
+
+    testWidgets('the switch shows only in the web app', (tester) async {
+      for (final web in [true, false]) {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: AccessibilityScreen(
+              settings: AccessibilitySettings(web: web),
+            ),
+          ),
+        );
+        expect(
+          find.text('Screen reader support'),
+          web ? findsOneWidget : findsNothing,
+        );
+      }
+    });
+
+    testWidgets('a web visitor without it keeps the vote timer', (
+      tester,
+    ) async {
+      await phone(tester);
+      final backend = FakeRoomBackend();
+      await tester.pumpWidget(
+        swiping(backend, settings: AccessibilitySettings(web: true)),
+      );
+      await tester.pump();
+      expect(find.text('No timer'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    });
+  });
 }

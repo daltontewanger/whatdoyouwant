@@ -5,20 +5,21 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'room_backend.dart';
 
-SemanticsHandle? _screenReaderTree;
-
-/// Flutter's web build leaves out what screen readers read until a hidden
-/// "Enable accessibility" button is pressed, and most readers never find it.
-/// Phones build that tree on their own as soon as a reader starts.
-void exposeToScreenReaders() {
-  if (kIsWeb) _screenReaderTree ??= SemanticsBinding.instance.ensureSemantics();
-}
-
 /// The person's own accessibility choices. Kept on this device only: they
 /// describe how this person uses this phone, and nothing else needs them.
 class AccessibilitySettings extends ChangeNotifier {
+  AccessibilitySettings({bool? web}) : web = web ?? kIsWeb;
+
   static const _noTimerKey = 'accessibility.noTimer';
   static const _textSizeKey = 'accessibility.textSize';
+
+  /// The web page's hidden "Turn on screen reader support" link writes this
+  /// too, as `flutter.accessibility.screenReader` in local storage.
+  static const _screenReaderKey = 'accessibility.screenReader';
+
+  /// Only the web app needs screen reader support turned on. Phones build
+  /// what readers read on their own as soon as a reader starts.
+  final bool web;
 
   /// The text sizes offered, as a share of the device's own size.
   static const minTextSize = 1.0;
@@ -32,6 +33,13 @@ class AccessibilitySettings extends ChangeNotifier {
   /// the way to make the text bigger there.
   double textSize = minTextSize;
 
+  /// Builds what screen readers read in the web app. Flutter leaves it off
+  /// there unless asked, because keeping it up to date slows the app down,
+  /// and its own hidden button for readers disappears after a few taps.
+  bool screenReader = false;
+
+  SemanticsHandle? _readerTree;
+
   Future<void> load() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -40,14 +48,51 @@ class AccessibilitySettings extends ChangeNotifier {
         minTextSize,
         maxTextSize,
       );
-      if (savedTimer != noTimer || savedSize != textSize) {
+      final savedReader = web && (prefs.getBool(_screenReaderKey) ?? false);
+      if (savedTimer != noTimer ||
+          savedSize != textSize ||
+          savedReader != screenReader) {
         noTimer = savedTimer;
         textSize = savedSize;
+        screenReader = savedReader;
+        _applyScreenReader();
         notifyListeners();
       }
     } catch (_) {
       // Storage can be unavailable, as in a private browser window.
     }
+  }
+
+  Future<void> setScreenReader(bool value) async {
+    if (!web) return;
+    screenReader = value;
+    _applyScreenReader();
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (value) {
+        await prefs.setBool(_screenReaderKey, true);
+      } else {
+        await prefs.remove(_screenReaderKey);
+      }
+    } catch (_) {
+      // Still applies for this visit.
+    }
+  }
+
+  void _applyScreenReader() {
+    if (screenReader) {
+      _readerTree ??= SemanticsBinding.instance.ensureSemantics();
+    } else {
+      _readerTree?.dispose();
+      _readerTree = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _readerTree?.dispose();
+    super.dispose();
   }
 
   Future<void> setNoTimer(bool value) async {
@@ -74,8 +119,9 @@ class AccessibilitySettings extends ChangeNotifier {
   }
 }
 
-/// Whether the device says a screen reader or switch control is in use.
-/// Checked on the device only; it is never sent anywhere.
+/// Whether the device says a screen reader or switch control is in use. In
+/// the web app that means screen reader support was turned on, by the person
+/// or by their reader. Checked on the device only; it is never sent anywhere.
 bool assistiveTechOn(BuildContext context) =>
     MediaQuery.accessibleNavigationOf(context);
 

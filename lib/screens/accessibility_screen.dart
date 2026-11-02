@@ -20,6 +20,10 @@ class AccessibilityScreen extends StatelessWidget {
             TextSizeSection(settings: settings),
             const SizedBox(height: 16),
             AccessibilitySection(settings: settings),
+            if (settings.web) ...[
+              const SizedBox(height: 16),
+              ScreenReaderSection(settings: settings),
+            ],
           ],
         ),
       ),
@@ -133,4 +137,33 @@ class AccessibilitySection extends StatelessWidget {
           ),
     );
   }
+}
+
+/// Turns on what screen readers read in the web app. Off unless asked for:
+/// keeping it up to date makes the app slower for everyone else.
+class ScreenReaderSection extends StatelessWidget {
+  const ScreenReaderSection({super.key, required this.settings});
+
+  final AccessibilitySettings settings;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: settings,
+    builder:
+        (context, _) => Card(
+          margin: EdgeInsets.zero,
+          clipBehavior: Clip.antiAlias,
+          child: SwitchListTile(
+            secondary: const Icon(Icons.record_voice_over_outlined),
+            title: const Text('Screen reader support'),
+            subtitle: const Text(
+              'Lets screen readers such as VoiceOver, TalkBack and NVDA read '
+              "the app in this browser. Leave it off if you don't use one; "
+              'it makes the app a little slower. Remembered on this device.',
+            ),
+            value: settings.screenReader,
+            onChanged: settings.setScreenReader,
+          ),
+        ),
+  );
 }

@@ -324,7 +324,11 @@ class _AccountScreenState extends State<AccountScreen> {
                       child: ListTile(
                         leading: const Icon(Icons.accessibility_new),
                         title: const Text('Accessibility features'),
-                        subtitle: const Text('Text size · Vote timer'),
+                        subtitle: Text(
+                          settings.web
+                              ? 'Text size · Vote timer · Screen reader'
+                              : 'Text size · Vote timer',
+                        ),
                         trailing: const Icon(Icons.chevron_right),
                         onTap:
                             () => Navigator.push(
