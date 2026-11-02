@@ -6,6 +6,7 @@ import '../services/password_policy.dart';
 import '../services/site_links.dart';
 import 'account_screen.dart';
 import 'checked_field.dart';
+import 'food_loader.dart';
 import 'forgot_password_screen.dart';
 
 /// Finishes a step started by email, in the app's own style: verifying an
@@ -138,7 +139,7 @@ class _AccountActionScreenState extends State<AccountActionScreen> {
             children: switch (stage) {
               _Stage.checking => const [
                 SizedBox(height: 48),
-                Center(child: CircularProgressIndicator()),
+                Center(child: FoodLoader()),
               ],
               _Stage.choosePassword => _choose(theme),
               _Stage.done => _done(theme),

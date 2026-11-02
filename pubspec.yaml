@@ -75,6 +75,7 @@ flutter:
   #   - images/a_dot_ham.jpeg
   assets:
     - assets/images/wdyw.jpg
+    - assets/images/bubbles/
     - assets/icon/wdywicon2.png
     - assets/google_fonts/
 

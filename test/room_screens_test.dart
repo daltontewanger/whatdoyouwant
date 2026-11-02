@@ -10,6 +10,7 @@ import 'package:whatdoyouwant/models/own_spot.dart';
 import 'package:whatdoyouwant/models/restaurant.dart';
 import 'package:whatdoyouwant/models/user.dart';
 import 'package:whatdoyouwant/screens/join_screen.dart';
+import 'package:whatdoyouwant/screens/food_loader.dart';
 import 'package:whatdoyouwant/screens/results_screen.dart';
 import 'package:whatdoyouwant/screens/room_screen.dart';
 import 'package:whatdoyouwant/screens/help_links.dart';
@@ -364,7 +365,7 @@ void main() {
     expect(find.text('Please enter a room code.'), findsOneWidget);
     expect(find.byType(JoinRoomScreen), findsOneWidget);
     expect(find.byType(WaitingForOptionsScreen), findsNothing);
-    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.byType(FoodLoader), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

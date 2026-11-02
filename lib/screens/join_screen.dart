@@ -6,6 +6,7 @@ import '../services/active_room_store.dart';
 import '../services/callable_room_backend.dart';
 import '../services/room_backend.dart';
 import '../services/room_lists.dart';
+import 'food_loader.dart';
 import 'results_screen.dart';
 import 'room_screen.dart' show UntimedNotice, announceNoTimer;
 import 'swipe_screen.dart';
@@ -176,7 +177,7 @@ class JoinRoomScreenState extends State<JoinRoomScreen> {
                 ),
                 const SizedBox(height: 26),
                 _isLoading
-                    ? const Center(child: CircularProgressIndicator())
+                    ? const Center(child: FoodLoader())
                     : SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -314,7 +315,9 @@ class _WaitingForOptionsScreenState extends State<WaitingForOptionsScreen> {
                       );
                     }
                     if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
+                      return const Center(
+                        child: FoodLoader(size: FoodLoader.largeSize),
+                      );
                     }
                     final room = snapshot.data!;
 
@@ -348,12 +351,14 @@ class _WaitingForOptionsScreenState extends State<WaitingForOptionsScreen> {
                         );
                       });
                       // Show an interim loading widget
-                      return const Center(child: CircularProgressIndicator());
+                      return const Center(
+                        child: FoodLoader(size: FoodLoader.largeSize),
+                      );
                     }
 
                     return Column(
                       children: [
-                        const CircularProgressIndicator(),
+                        const FoodLoader(size: FoodLoader.largeSize),
                         const SizedBox(height: 20),
                         Text(
                           'Waiting for host to choose restaurant options...',

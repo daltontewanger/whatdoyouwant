@@ -7,6 +7,7 @@ import '../models/saved_place.dart';
 import '../services/place_links.dart';
 import '../services/result_nudges.dart';
 import '../services/room_backend.dart';
+import 'food_loader.dart';
 import 'place_card.dart';
 import 'place_marks.dart';
 import '../themes/main_theme.dart';
@@ -637,7 +638,7 @@ class _ResultsLoader extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         const SizedBox(height: 20),
-        CircularProgressIndicator(color: Theme.of(context).colorScheme.primary),
+        const FoodLoader(size: FoodLoader.largeSize),
         const SizedBox(height: 28),
         Text(
           remaining != null

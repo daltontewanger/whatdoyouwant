@@ -8,6 +8,7 @@ import '../services/accessibility.dart';
 import '../services/live_search.dart';
 import '../services/room_backend.dart';
 import '../services/room_lists.dart';
+import 'food_loader.dart';
 import 'my_places_screen.dart';
 import 'place_marks.dart';
 import 'search_panel.dart';
@@ -542,8 +543,7 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
                                       child:
                                           _isLoading
                                               ? const Center(
-                                                child:
-                                                    CircularProgressIndicator(),
+                                                child: FoodLoader(),
                                               )
                                               : Center(
                                                 child: ElevatedButton(

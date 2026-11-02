@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import '../services/live_search.dart';
 import '../services/place_links.dart';
 import '../services/room_backend.dart';
+import 'food_loader.dart';
 import 'place_card.dart';
 import 'place_marks.dart';
 import 'search_panel.dart';
@@ -188,7 +189,7 @@ class _QuickPickScreenState extends State<QuickPickScreen> with SearchStarter {
       searchPanel(theme, busy: _busy),
       const SizedBox(height: 20),
       _busy
-          ? const CircularProgressIndicator()
+          ? const FoodLoader()
           : ElevatedButton(
             onPressed: cannotSearch ? null : _pickForMe,
             style: ElevatedButton.styleFrom(minimumSize: const Size(170, 46)),
@@ -226,7 +227,7 @@ class _QuickPickScreenState extends State<QuickPickScreen> with SearchStarter {
             alignment: WrapAlignment.center,
           ),
         ] else if (_busy)
-          const CircularProgressIndicator()
+          const FoodLoader()
         else ...[
           ElevatedButton(
             onPressed: () => setState(() => _chosen = true),
