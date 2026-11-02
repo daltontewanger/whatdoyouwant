@@ -203,7 +203,29 @@ async function startAccountMenu() {
   });
 }
 
+// ---- App warm-up: once the page has settled, the browser fetches the web
+// app's code and rendering engine in the background, so "Open the app" and
+// signing in start sooner. Skipped when the visitor asked to save data.
+function warmUpApp() {
+  const files = window.wdywAppFiles;
+  if (!files || navigator.connection?.saveData) return;
+  // The same test the app's loader uses to pick the smaller Chrome engine.
+  const chromium = typeof Intl.v8BreakIterator !== 'undefined' && typeof Intl.Segmenter !== 'undefined'
+    && typeof ImageDecoder !== 'undefined';
+  const engine = chromium ? files.chromiumEngine : files.engine;
+  const fetchLater = () => {
+    for (const href of [files.code, `${engine}canvaskit.js`, `${engine}canvaskit.wasm`]) {
+      document.head.append(Object.assign(document.createElement('link'), { rel: 'prefetch', href }));
+    }
+  };
+  const idle = () => ('requestIdleCallback' in window ? requestIdleCallback(fetchLater, { timeout: 4000 })
+    : setTimeout(fetchLater, 2000));
+  if (document.readyState === 'complete') idle();
+  else addEventListener('load', idle, { once: true });
+}
+
 leanPhone();
 followStory();
 openTiles();
+warmUpApp();
 startAccountMenu().catch(() => {});

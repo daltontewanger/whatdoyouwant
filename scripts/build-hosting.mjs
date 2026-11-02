@@ -1,7 +1,7 @@
 // Builds what Firebase Hosting serves: the public site from site/ at the root
 // and the Flutter web app under /app.
 // Usage: node scripts/build-hosting.mjs --env production|staging [--skip-app]
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -86,13 +86,29 @@ async function mirrorFallbackFonts(appDir) {
     mkdirSync(dirname(join(appDir, 'fonts', file)), { recursive: true });
     cpSync(cached, join(appDir, 'fonts', file));
   }
+  return files.length;
+}
+
+// The rendering engine only changes when Flutter is upgraded, so it moves to
+// a folder named after the engine version. Hosting can then let browsers keep
+// it for good: a new version gets a new address instead of a stale copy.
+function versionEngine(appDir) {
+  const bootstrap = join(appDir, 'flutter_bootstrap.js');
+  const revision = readFileSync(bootstrap, 'utf8').match(/"engineRevision":"([0-9a-f]{12})/)?.[1];
+  if (!revision) throw new Error('Could not read the engine revision from flutter_bootstrap.js.');
+  const folder = `canvaskit-${revision}`;
+  renameSync(join(appDir, 'canvaskit'), join(appDir, folder));
+  return folder;
+}
+
+// Points the loader at the local fallback fonts and the versioned engine.
+// Both are relative to the page's base address, so they resolve under /app/.
+function configureLoader(appDir, engineFolder) {
   const bootstrap = join(appDir, 'flutter_bootstrap.js');
   const loader = readFileSync(bootstrap, 'utf8');
-  if (!loader.includes('_flutter.loader.load({')) throw new Error('Unexpected flutter_bootstrap.js; cannot set the font location.');
-  // Relative to the page's base address, so it resolves to /app/fonts/.
+  if (!loader.includes('_flutter.loader.load({')) throw new Error('Unexpected flutter_bootstrap.js; cannot configure the loader.');
   writeFileSync(bootstrap, loader.replace('_flutter.loader.load({',
-    '_flutter.loader.load({\n  config: { fontFallbackBaseUrl: "fonts/" },'));
-  return files.length;
+    `_flutter.loader.load({\n  config: { fontFallbackBaseUrl: "fonts/", canvasKitBaseUrl: "${engineFolder}/" },`));
 }
 
 rmSync(output, { recursive: true, force: true });
@@ -100,10 +116,18 @@ mkdirSync(output, { recursive: true });
 cpSync(join(root, 'site'), output, { recursive: true });
 cpSync(appBuild, join(output, 'app'), { recursive: true });
 const mirrored = await mirrorFallbackFonts(join(output, 'app'));
-writeFileSync(join(output, 'firebase-config.js'), `window.wdywFirebaseConfig = ${JSON.stringify(webConfig())};\n`);
+const engineFolder = versionEngine(join(output, 'app'));
+configureLoader(join(output, 'app'), engineFolder);
+// The home page starts downloading the app's largest files once it is idle,
+// so opening the app from it is quicker. The engine comes in two builds; the
+// page picks the one the loader will.
+const appFiles = { code: '/app/main.dart.js', engine: `/app/${engineFolder}/`,
+  chromiumEngine: `/app/${engineFolder}/chromium/` };
+writeFileSync(join(output, 'firebase-config.js'), `window.wdywFirebaseConfig = ${JSON.stringify(webConfig())};\n`
+  + `window.wdywAppFiles = ${JSON.stringify(appFiles)};\n`);
 // Link previews need absolute image addresses.
 for (const page of [...readdirSync(output).filter(name => name.endsWith('.html')), 'app/index.html']) {
   const path = join(output, page);
   writeFileSync(path, readFileSync(path, 'utf8').replaceAll('%SITE_ORIGIN%', ORIGINS[environment]));
 }
-console.log(`Hosting folder ready for ${environment}: build/hosting (site at /, app at /app; ${mirrored} fallback fonts served locally).`);
+console.log(`Hosting folder ready for ${environment}: build/hosting (site at /, app at /app; ${mirrored} fallback fonts served locally; engine in /app/${engineFolder}).`);
