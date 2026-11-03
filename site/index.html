@@ -81,11 +81,12 @@
               <div class="app-card">
                 <img src="/media/logo.png" alt="" width="40" height="40">
                 <strong class="app-title">What Do You Want?!</strong>
-                <ol class="app-steps">
-                  <li>Create a room and invite your friends, or join one with a code.</li>
-                  <li>Swipe through food options and vote on your favorites.</li>
-                  <li>When everyone matches on a spot, see where to eat!</li>
-                </ol>
+                <ul class="app-steps">
+                  <li>Start a room and invite your friends.</li>
+                  <li>Everyone swipes on their own phone.</li>
+                  <li>See where to eat.</li>
+                  <li class="app-end"><svg viewBox="0 0 24 24"><path d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z"/></svg></li>
+                </ul>
                 <span class="app-art">
                   <span class="bubble-icon burger" aria-hidden="true"></span>
                   <span class="bubble-icon pizza" aria-hidden="true"></span>
@@ -120,21 +121,24 @@
               <span class="faces"><b class="y">A</b><b class="b">J</b><b class="c">M</b><b class="g">S</b></span>
             </div>
             <div class="scene" data-scene="3">
-              <span class="tag no-tag">No</span><span class="tag yes-tag">Yes</span>
               <span class="deck"></span>
-              <span class="swipe-card"><span class="photo"></span><strong>Taco Spot</strong><small>Mexican · 1.8 mi</small></span>
+              <span class="swipe-card"><strong>Taco Spot</strong><small>412 Main St</small><small class="dist">Distance: 1.8 mi</small>
+                <span class="mark never"><span class="bubble-icon never"></span>Never</span><span class="mark fav">Favorite<span class="bubble-icon favorite"></span></span></span>
+              <span class="votes"><span class="bubble-icon no"></span><span class="timer"><b>7</b><i></i></span><span class="bubble-icon yes"></span></span>
             </div>
             <div class="scene" data-scene="4">
-              <span class="winner"><span class="tag butter">The group picked</span><strong>Taco Spot</strong><small>3 of 4 said yes</small></span>
-              <span class="backup">Backup: Pho House</span>
-              <span class="tag solid bottom">Get directions</span>
+              <strong class="results-title">Results</strong>
+              <span class="result-banner"><svg viewBox="0 0 24 24"><path d="M2 22l14-5-9-9zm12.53-9.47l5.59-5.59c.49-.49 1.28-.49 1.77 0l.59.59 1.06-1.06-.59-.59c-1.07-1.07-2.82-1.07-3.89 0l-5.59 5.59 1.06 1.06zm-4.47-5.65l-.59.59 1.06 1.06.59-.59c1.07-1.07 1.07-2.82 0-3.89l-.59-.59-1.06 1.07.59.59c.48.48.48 1.28 0 1.76zm7 5l-1.59 1.59 1.06 1.06 1.59-1.59c.49-.49 1.28-.49 1.77 0l1.61 1.61 1.06-1.06-1.61-1.61c-1.08-1.07-2.82-1.07-3.89 0z"/></svg>Well, most of you wanted it</span>
+              <span class="result-card"><strong>Taco Spot</strong><small>412 Main St</small><small class="dist">Distance: 1.8 mi · 3 of 4 liked it</small>
+                <span class="result-actions"><span>Map</span><span>Directions</span></span></span>
+              <span class="backup-tile">It's always good to have a backup plan...<b>+</b></span>
             </div>
           </div></div>
           <ol class="steps">
-            <li data-step="1"><div class="step-card"><span class="num y" aria-hidden="true">1</span><div><h3>Start a room</h3><p>Choose how far to look and how many spots to swipe.</p></div></div></li>
-            <li data-step="2"><div class="step-card"><span class="num b" aria-hidden="true">2</span><div><h3>Share the code</h3><p>Friends join with the code, a link or a QR code. No account needed.</p></div></div></li>
-            <li data-step="3"><div class="step-card"><span class="num g" aria-hidden="true">3</span><div><h3>Everyone swipes</h3><p>Swipe right for yes, left for no, each on your own phone.</p><p class="soon"><span class="soon-badge">Coming soon</span> Swipe up to rule a spot out for good or save it as a favorite.</p></div></div></li>
-            <li data-step="4"><div class="step-card"><span class="num c" aria-hidden="true">4</span><div><h3>Go eat</h3><p>See the winner, a backup and directions.</p></div></div></li>
+            <li data-step="1"><div class="step-card"><div><h3>Start a room</h3><p>Choose how far to look and how many spots to swipe.</p></div></div></li>
+            <li data-step="2"><div class="step-card"><div><h3>Share the code</h3><p>Friends join with the code, a link or a QR code. No account needed.</p></div></div></li>
+            <li data-step="3"><div class="step-card"><div><h3>Everyone swipes</h3><p>Swipe right for yes, left for no, each on your own phone.</p><p class="soon"><span class="soon-badge">Coming soon</span> Tap the heart to save a favorite, or the crossed plate to rule a spot out for good.</p></div></div></li>
+            <li data-step="4"><div class="step-card"><div><h3>Go eat</h3><p>See the winner, a backup and directions.</p></div></div></li>
           </ol>
         </div>
       </div>

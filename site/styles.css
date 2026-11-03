@@ -221,7 +221,29 @@ section { position: relative; padding: 4rem 0; }
   display: flex; flex-direction: column; align-items: center; gap: 6px;
 }
 .app-title { color: var(--green-text); font-size: 1.1rem; letter-spacing: 0.5px; line-height: 1.1; }
-.app-steps { margin: 0; padding-left: 1.1rem; text-align: left; color: var(--green-text); font-size: 0.78rem; line-height: 1.35; }
+/* The app's steps: dots on a line that deepens from mint to dark green and
+   ends at a place setting. */
+.app-steps {
+  position: relative; list-style: none; margin: 0; padding: 0 0 0 18px; text-align: left;
+  color: var(--green-ink); font-size: 0.78rem; line-height: 1.3;
+}
+.app-steps::before {
+  content: ''; position: absolute; left: 5px; top: 0.5em; bottom: 9px; width: 2px; border-radius: 1px;
+  background: linear-gradient(#b4e0cb, #65b292, #2f7a5c, #1e5641);
+}
+.app-steps li { position: relative; margin-bottom: 0.25rem; }
+.app-steps li::before {
+  content: ''; position: absolute; left: -16px; top: 0.3em; width: 8px; height: 8px; border-radius: 50%;
+  background: #b4e0cb; box-shadow: 0 0 0 1.5px #fff;
+}
+.app-steps li:nth-child(2)::before { background: #65b292; }
+.app-steps li:nth-child(3)::before { background: #2f7a5c; }
+.app-steps .app-end { height: 18px; margin: 0; }
+.app-steps .app-end::before { content: none; }
+.app-end svg {
+  position: absolute; left: -21px; top: 0; width: 18px; height: 18px; padding: 3px; box-sizing: border-box;
+  border-radius: 50%; background: #1e5641; fill: #fff;
+}
 .app-art {
   display: flex; justify-content: center; gap: 6px; width: 100%; padding: 8px 0; margin: 4px 0;
   border: 3px solid var(--green-text); border-radius: 14px; background: var(--mint-soft);
@@ -256,10 +278,8 @@ section { position: relative; padding: 4rem 0; }
 }
 .tag.solid { background: var(--green-text); color: #fff; }
 .tag.outline { border: 2px solid var(--green-text); color: var(--green-text); background: #fff; }
-.tag.butter { position: static; display: inline-block; background: var(--yellow); color: #5a4300; }
 .tag.bottom { left: 50%; bottom: 22px; transform: translateX(-50%); }
 
-[data-scene="1"] { background: #f3f8f5; }
 .radius { position: absolute; left: 60px; top: 45px; width: 180px; height: 180px; border-radius: 50%; border: 3px dashed var(--green); background: var(--mint-soft); }
 .me { position: absolute; left: 138px; top: 123px; width: 24px; height: 24px; border-radius: 50%; background: var(--green-text); border: 4px solid #fff; }
 .pin { position: absolute; width: 16px; height: 16px; border-radius: 50% 50% 50% 0; border: 2px solid var(--ink); }
@@ -281,27 +301,66 @@ section { position: relative; padding: 4rem 0; }
 .faces .c { background: var(--coral); color: #6a2a17; }
 .faces .g { background: var(--green); color: #173404; }
 
-.no-tag { left: 14px; top: 136px; border: 2px solid #a93a26; color: #a93a26; background: #fff; }
-.yes-tag { right: 14px; top: 136px; background: var(--green-text); color: #fff; }
+/* Voting and results, drawn like the app's own screens. */
+.bubble-icon.yes { background-image: url('media/bubble-yes.svg'); }
+.bubble-icon.no { background-image: url('media/bubble-no.svg'); }
+.bubble-icon.never { background-image: url('media/bubble-never.svg'); }
+.bubble-icon.favorite { background-image: url('media/bubble-favorite.svg'); }
 .deck, .swipe-card {
-  position: absolute; left: 82px; top: 52px; width: 136px; height: 170px; border-radius: 20px;
-  border: 2px solid var(--line); background: #fff;
+  position: absolute; left: 58px; top: 22px; width: 180px; height: 178px; border-radius: 22px; box-sizing: border-box;
 }
-.deck { background: #f3f8f5; transform: rotate(-6deg); }
-.swipe-card { padding: 10px; display: flex; flex-direction: column; text-align: left; font-size: 0.85rem; }
-.swipe-card .photo { height: 72px; border-radius: 12px; background: var(--butter-soft); margin-bottom: 8px; }
-.swipe-card small { color: var(--ink-soft); }
+.deck { background: #d6eee5; transform: rotate(-5deg); }
+.swipe-card {
+  background: #e7f8f3; box-shadow: 0 4px 10px rgba(47, 122, 92, 0.18); padding: 10px 10px 34px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+}
+.swipe-card strong { color: var(--green-text); font-weight: 800; font-size: 1.3rem; line-height: 1.1; }
+.swipe-card small { font-size: 0.85rem; margin-top: 6px; }
+.swipe-card .dist, .result-card .dist { color: #5b605d; }
+.mark { position: absolute; bottom: 8px; display: flex; align-items: center; gap: 3px; font-size: 0.72rem; font-weight: 800; }
+.mark.never { left: 10px; color: #3a3a37; }
+.mark.fav { right: 10px; color: #8e2f55; }
+.mark .bubble-icon { --s: 20px; }
+.votes { position: absolute; left: 26px; right: 26px; top: 214px; display: flex; align-items: center; gap: 10px; }
+.votes .bubble-icon { --s: 46px; flex-shrink: 0; }
+.timer { flex: 1; text-align: center; }
+.timer b { display: block; color: #e08600; font-size: 1.6rem; line-height: 1; font-weight: 600; }
+.timer i {
+  display: block; height: 8px; margin-top: 4px; border-radius: 7px;
+  background: linear-gradient(to right, #ff9800 60%, rgba(47, 122, 92, 0.13) 60%);
+}
 .scene.on .swipe-card { animation: swipe 3.2s ease-in-out infinite; }
-.scene.on .yes-tag { animation: pop-yes 3.2s ease-in-out infinite; }
-.scene.on .no-tag { animation: pop-no 3.2s ease-in-out infinite; }
+.scene.on .votes .yes { animation: pop-yes 3.2s ease-in-out infinite; }
+.scene.on .votes .no { animation: pop-no 3.2s ease-in-out infinite; }
 
-.winner {
-  position: absolute; left: 40px; top: 36px; width: 220px; padding: 14px; border-radius: 20px;
-  border: 3px solid var(--green); background: #fff; display: flex; flex-direction: column;
+.results-title {
+  position: absolute; top: 14px; width: 100%; text-align: center; color: var(--green-text);
+  font-weight: 800; font-size: 1.5rem; letter-spacing: 1px; line-height: 1;
 }
-.winner strong { font-size: 1.4rem; margin-top: 6px; }
-.winner small { color: var(--ink-soft); font-size: 0.9rem; }
-.backup { position: absolute; left: 44px; top: 186px; color: var(--ink-soft); font-size: 0.95rem; }
+.result-banner {
+  position: absolute; top: 52px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 5px;
+  white-space: nowrap; padding: 4px 11px; border-radius: 999px; background: rgba(47, 122, 92, 0.12);
+  color: var(--green-text); font-weight: 800; font-size: 0.8rem;
+}
+.result-banner svg { width: 16px; height: 16px; fill: currentColor; }
+.result-card {
+  position: absolute; left: 18px; right: 18px; top: 88px; padding: 12px 14px; border-radius: 16px;
+  background: #eef4f2; display: flex; flex-direction: column; text-align: left;
+}
+.result-card strong { font-size: 1.3rem; font-weight: 800; line-height: 1.1; }
+.result-card small { font-size: 0.82rem; margin-top: 3px; }
+.result-actions { display: flex; gap: 6px; margin-top: 8px; }
+.result-actions span {
+  border: 1.5px solid #b9c4be; border-radius: 999px; padding: 1px 10px; color: var(--green-text); font-size: 0.78rem; font-weight: 700;
+}
+.backup-tile {
+  position: absolute; left: 18px; right: 18px; top: 232px; padding: 8px 12px; border-radius: 14px; background: #fff;
+  border: 1.5px solid var(--line); font-size: 0.8rem; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.backup-tile b {
+  flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: var(--green-text); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+}
 
 .steps { list-style: none; margin: 0; padding: 0; }
 /* Each step gets room to scroll; its card lights up as it crosses the middle. */
@@ -312,19 +371,10 @@ section { position: relative; padding: 4rem 0; }
   display: flex; gap: 1rem; align-items: flex-start; width: 100%; padding: 1.25rem;
   border: 2px solid transparent; border-radius: 22px; transition: opacity 0.3s, background 0.3s, border-color 0.3s;
 }
-.step-card > div { padding-top: 0.15rem; }
 .js .steps li .step-card { opacity: 0.45; }
 .js .steps li.on .step-card { opacity: 1; background: #fff; border-color: var(--line); }
 .steps h3 { font-size: 1.5rem; }
 .steps p { color: var(--ink-soft); font-size: 1.1rem; }
-.num {
-  flex-shrink: 0; width: 44px; height: 44px; border-radius: 14px 14px 14px 4px;
-  display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.3rem;
-}
-.num.y { background: var(--yellow); color: #5a4300; }
-.num.b { background: var(--blue); color: #0c3a5c; }
-.num.g { background: var(--green); color: #173404; }
-.num.c { background: var(--coral); color: #6a2a17; }
 .soon { font-size: 0.98rem !important; }
 .soon-badge {
   display: inline-block; border-radius: 999px; padding: 0 0.6rem; font-size: 0.8rem; font-weight: 800;
@@ -432,7 +482,7 @@ section { position: relative; padding: 4rem 0; }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  .float, .sticker, .scene.on .swipe-card, .scene.on .yes-tag, .scene.on .no-tag { animation: none; }
+  .float, .sticker, .scene.on .swipe-card, .scene.on .votes .bubble-icon { animation: none; }
   .phone, .scene, .scene.on, .step-card, .tile, .tile-more, .tile-more > *, .tiles { transition: none !important; }
   .friends * { animation: none !important; }
   .tile:hover { transform: none; }
