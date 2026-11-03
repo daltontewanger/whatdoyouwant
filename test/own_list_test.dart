@@ -11,6 +11,7 @@ import 'package:whatdoyouwant/screens/faq_screen.dart';
 import 'package:whatdoyouwant/screens/main_shell.dart';
 import 'package:whatdoyouwant/screens/own_list_screen.dart';
 import 'package:whatdoyouwant/screens/room_screen.dart';
+import 'package:whatdoyouwant/screens/step_card.dart';
 import 'package:whatdoyouwant/services/account_service.dart';
 import 'package:whatdoyouwant/services/active_room_store.dart';
 import 'package:whatdoyouwant/services/own_list.dart';
@@ -296,6 +297,7 @@ void main() {
       'Start a room',
       'Everyone swipes',
       'See where to eat',
+      'More ways to want',
       'Tell Me What I Want',
       "We'll Decide What We Want",
     ]) {
@@ -307,8 +309,19 @@ void main() {
       ),
       findsOneWidget,
     );
+    // The steps carry no numbers; the line ends at a place setting.
+    for (final number in ['1', '2', '3']) {
+      expect(find.text(number), findsNothing);
+    }
+    expect(
+      find.descendant(
+        of: find.byType(RoomSteps),
+        matching: find.byIcon(Icons.restaurant),
+      ),
+      findsOneWidget,
+    );
 
-    await tester.tap(find.byTooltip('More ways to decide'));
+    await tester.tap(find.byTooltip("You've been found wanting"));
     await tester.pumpAndSettle();
     expect(find.text("You've been found wanting"), findsOneWidget);
     expect(find.text('Search settings'), findsOneWidget);
@@ -454,7 +467,7 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.tap(find.byTooltip('More ways to decide'));
+    await tester.tap(find.byTooltip("You've been found wanting"));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Questions & answers'));
     await tester.pumpAndSettle();

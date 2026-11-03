@@ -1,49 +1,181 @@
 import 'package:flutter/material.dart';
 
-/// The logo's colors for the numbered steps, each badge with a text color
-/// that keeps contrast on it. The room steps go from mint to the app's own
-/// dark green, so the home screen stays mostly green.
-enum StepColor {
-  mintGreen(Color(0xFFB4E0CB), Color(0xFF1E5641)),
-  green(Color(0xFF65B292), Color(0xFF173404)),
-  darkGreen(Color(0xFF2F7A5C), Colors.white),
-  yellow(Color(0xFFF7C948), Color(0xFF5A4300)),
-  blue(Color(0xFF6FB7E9), Color(0xFF0C3A5C)),
-  mint(Color(0xFFE3F2EA), Color(0xFF1E5641));
-
-  const StepColor(this.badge, this.ink);
-  final Color badge;
-  final Color ink;
-}
+/// The app's greens, light to dark, for the rail's dots: each step a shade
+/// deeper on the way to where you eat.
+const _railGreens = [
+  Color(0xFFB4E0CB),
+  Color(0xFF65B292),
+  Color(0xFF2F7A5C),
+  Color(0xFF1E5641),
+];
 
 class HomeStep {
-  const HomeStep(this.number, this.title, this.text, this.color, {this.icon});
+  const HomeStep(this.title, this.text, {required this.icon});
 
-  final int number;
   final String title;
   final String text;
-  final StepColor color;
-
-  /// Shown in the badge in place of the number.
-  final IconData? icon;
+  final IconData icon;
 }
 
 const quickPickStep = HomeStep(
-  4,
   'Tell Me What I Want',
   'Still too much pressure swiping? We can help pick for you.',
-  StepColor.yellow,
+  icon: Icons.auto_awesome,
 );
 
 const ownListStep = HomeStep(
-  5,
   "We'll Decide What We Want",
   "Already have spots in mind? We'll pick from your own list.",
-  StepColor.blue,
+  icon: Icons.checklist_rounded,
 );
 
-/// A numbered card like the site's "how it works" steps. With [onTap] the
-/// whole card opens something and shows an arrow.
+/// How a room works, as one card: a dot for each step on a line that deepens
+/// from mint to dark green and ends at a place setting.
+class RoomSteps extends StatelessWidget {
+  const RoomSteps({super.key});
+
+  static const steps = [
+    ('Start a room', 'Invite friends with a code, link or QR code.'),
+    ('Everyone swipes', 'Yes or no on nearby spots, each on your own phone.'),
+    ('See where to eat', 'The winner, a backup and directions.'),
+  ];
+
+  static const _gutter = 32.0;
+  static const _dot = 12.0;
+  static const _end = 28.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFCFE6DB)),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Stack(
+        children: [
+          // From the first dot's centre to the place setting's centre.
+          Positioned(
+            left: _gutter / 2 - 1.5,
+            top: 6 + _dot / 2,
+            bottom: _end / 2,
+            width: 3,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(2),
+                gradient: const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: _railGreens,
+                ),
+              ),
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final (i, (title, text)) in steps.indexed)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: _gutter,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Center(
+                            child: Container(
+                              width: _dot,
+                              height: _dot,
+                              decoration: BoxDecoration(
+                                color: _railGreens[i],
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _StepText(
+                          title: title,
+                          text: text,
+                          theme: theme,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              SizedBox(
+                width: _gutter,
+                child: Center(
+                  child: Container(
+                    width: _end,
+                    height: _end,
+                    decoration: BoxDecoration(
+                      color: _railGreens.last,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.restaurant,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StepText extends StatelessWidget {
+  const _StepText({
+    required this.title,
+    required this.text,
+    required this.theme,
+  });
+
+  final String title;
+  final String text;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        title,
+        style: theme.textTheme.titleMedium!.copyWith(
+          fontWeight: FontWeight.w800,
+          color: const Color(0xFF1F2A24),
+        ),
+      ),
+      const SizedBox(height: 2),
+      Text(
+        text,
+        style: theme.textTheme.bodyMedium!.copyWith(
+          color: const Color(0xFF4A5A52),
+          height: 1.35,
+        ),
+      ),
+    ],
+  );
+}
+
+/// A card for one of the other ways to decide, or a menu entry: a plain
+/// green icon, the name and a line about it. With [onTap] the whole card
+/// opens something and shows an arrow.
 class StepCard extends StatelessWidget {
   const StepCard({super.key, required this.step, this.onTap});
 
@@ -64,48 +196,14 @@ class StepCard extends StatelessWidget {
             height: 32,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: step.color.badge,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(10),
-                topRight: Radius.circular(10),
-                bottomRight: Radius.circular(10),
-                bottomLeft: Radius.circular(3),
-              ),
+              color: const Color(0xFFE3F2EA),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child:
-                step.icon == null
-                    ? Text(
-                      '${step.number}',
-                      style: TextStyle(
-                        color: step.color.ink,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 16,
-                      ),
-                    )
-                    : Icon(step.icon, size: 18, color: step.color.ink),
+            child: Icon(step.icon, size: 19, color: primary),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  step.title,
-                  style: theme.textTheme.titleMedium!.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFF1F2A24),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  step.text,
-                  style: theme.textTheme.bodyMedium!.copyWith(
-                    color: const Color(0xFF4A5A52),
-                    height: 1.35,
-                  ),
-                ),
-              ],
-            ),
+            child: _StepText(title: step.title, text: step.text, theme: theme),
           ),
           if (onTap != null) ...[
             const SizedBox(width: 8),

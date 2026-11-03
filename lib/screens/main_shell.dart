@@ -190,7 +190,7 @@ class _FloatingBar extends StatelessWidget {
               Expanded(
                 child: Center(
                   child: Tooltip(
-                    message: 'More ways to decide',
+                    message: "You've been found wanting",
                     child: Material(
                       color: primary,
                       shape: const CircleBorder(),
@@ -230,30 +230,24 @@ class _Menu extends StatelessWidget {
       (ownListStep, MenuChoice.ownList),
       (
         const HomeStep(
-          0,
           'Search settings',
           'Distance, cuisines and options for your searches.',
-          StepColor.mint,
           icon: Icons.tune,
         ),
         MenuChoice.searchSettings,
       ),
       (
         const HomeStep(
-          0,
           'Join a room',
           'Enter a code from a friend.',
-          StepColor.mint,
           icon: Icons.login,
         ),
         MenuChoice.join,
       ),
       (
         const HomeStep(
-          0,
           'Questions & answers',
           'What the names mean, and why a place may have no website.',
-          StepColor.mint,
           icon: Icons.help_outline,
         ),
         MenuChoice.questions,

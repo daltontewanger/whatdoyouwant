@@ -21,30 +21,6 @@ import '../themes/main_theme.dart';
 
 const _inkSoft = Color(0xFF4A5A52);
 
-/// How the app works, then the other ways to decide.
-const _steps = [
-  HomeStep(
-    1,
-    'Start a room',
-    'Invite friends with a code, link or QR code.',
-    StepColor.mintGreen,
-  ),
-  HomeStep(
-    2,
-    'Everyone swipes',
-    'Yes or no on nearby spots, each on your own phone.',
-    StepColor.green,
-  ),
-  HomeStep(
-    3,
-    'See where to eat',
-    'The winner, a backup and directions.',
-    StepColor.darkGreen,
-  ),
-  quickPickStep,
-  ownListStep,
-];
-
 class HomeScreen extends StatefulWidget {
   final String currentUid;
   const HomeScreen({super.key, required this.currentUid});
@@ -309,12 +285,6 @@ class HomeScreenState extends State<HomeScreen>
   Future<void> openSearchSettings() => _searchSettings();
   void openJoin() => _joinRoom();
 
-  VoidCallback? _stepAction(HomeStep step) => switch (step.number) {
-    4 => _isLoading ? null : _quickPick,
-    5 => _isLoading ? null : _ownList,
-    _ => null,
-  };
-
   Future<void> _ownList() => Navigator.push(
     context,
     MaterialPageRoute<void>(
@@ -544,10 +514,25 @@ class HomeScreenState extends State<HomeScreen>
                       // The buttons come first so regulars can get going;
                       // the steps below are there for first-timers.
                       const SizedBox(height: 24),
-                      for (final step in _steps) ...[
-                        StepCard(step: step, onTap: _stepAction(step)),
-                        const SizedBox(height: 10),
-                      ],
+                      const RoomSteps(),
+                      const SizedBox(height: 20),
+                      Text(
+                        'More ways to want',
+                        style: theme.textTheme.titleMedium!.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      StepCard(
+                        step: quickPickStep,
+                        onTap: _isLoading ? null : _quickPick,
+                      ),
+                      const SizedBox(height: 10),
+                      StepCard(
+                        step: ownListStep,
+                        onTap: _isLoading ? null : _ownList,
+                      ),
                     ],
                   ),
                 ),
