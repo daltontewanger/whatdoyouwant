@@ -288,11 +288,12 @@ section { position: relative; padding: 4rem 0; }
 
 .radius { position: absolute; left: 60px; top: 45px; width: 180px; height: 180px; border-radius: 50%; border: 3px dashed var(--green); background: var(--mint-soft); }
 .me { position: absolute; left: 138px; top: 123px; width: 24px; height: 24px; border-radius: 50%; background: var(--green-text); border: 4px solid #fff; }
-.pin { position: absolute; width: 16px; height: 16px; border-radius: 50% 50% 50% 0; border: 2px solid var(--ink); }
-.p1 { left: 85px; top: 80px; background: var(--coral); }
-.p2 { left: 200px; top: 95px; background: var(--yellow); }
-.p3 { left: 110px; top: 185px; background: var(--blue); }
-.p4 { left: 185px; top: 170px; background: var(--coral); }
+/* The app's map pins, in the same places and colors as its intro. */
+.pin { position: absolute; width: 31px; height: 31px; }
+.p1 { left: 92px; top: 71px; fill: #e5755a; }
+.p2 { left: 186px; top: 88px; fill: #d9a514; }
+.p3 { left: 112px; top: 169px; fill: #3b8fcb; }
+.p4 { left: 181px; top: 157px; fill: #e5755a; }
 
 .qr { position: absolute; left: 93px; top: 26px; width: 114px; height: 114px; border: 2px solid var(--line); border-radius: 14px; background: #fff; }
 .code { position: absolute; top: 150px; width: 100%; text-align: center; font-weight: 800; font-size: 1.4rem; letter-spacing: 3px; color: var(--green-text); }
