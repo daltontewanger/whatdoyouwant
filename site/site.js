@@ -224,19 +224,19 @@ function warmUpApp() {
   else addEventListener('load', idle, { once: true });
 }
 
-// ---- Hero: the phone steps through real app screens. The chips jump to a
+// ---- Hero: the phone steps through real app screens. The dots jump to a
 // screen and the button pauses; with reduced motion it only moves when asked.
 function playScreens() {
   const shots = [...document.querySelectorAll('#hero-phone .shot')];
-  const chips = [...document.querySelectorAll('.demo-chips button')];
+  const dots = [...document.querySelectorAll('.demo-dots button')];
   const pause = document.querySelector('.demo-pause');
-  if (!shots.length || !chips.length || !pause) return;
+  if (!shots.length || !dots.length || !pause) return;
   let current = 0;
   let timer = null;
   const show = index => {
     current = (index + shots.length) % shots.length;
     shots.forEach((shot, i) => shot.classList.toggle('on', i === current));
-    chips.forEach((chip, i) => chip.setAttribute('aria-pressed', String(i === current)));
+    dots.forEach((dot, i) => dot.setAttribute('aria-pressed', String(i === current)));
   };
   const stop = () => {
     clearInterval(timer);
@@ -251,7 +251,7 @@ function playScreens() {
     pause.querySelector('.visually-hidden').textContent = paused ? 'Play the screens' : 'Pause the screens';
     if (paused) stop(); else play();
   };
-  chips.forEach((chip, i) => chip.addEventListener('click', () => {
+  dots.forEach((dot, i) => dot.addEventListener('click', () => {
     show(i);
     // Picking a screen means the visitor wants to look at it.
     setPaused(true);

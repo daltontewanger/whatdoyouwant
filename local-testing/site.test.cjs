@@ -111,14 +111,14 @@ test('the hero friends are three different people on every load', () => {
   }
 });
 
-test("the hero phone's screens exist and each has a matching chip", () => {
+test("the hero phone's screens exist and each has a matching dot", () => {
   const html = read('index.html');
   const shots = [...html.matchAll(/<img class="shot[^"]*" src="\/media\/demo\/([a-z-]+)\.png"[^>]* data-shot="([a-z-]+)"/g)];
   assert.deepEqual(shots.map(([, file]) => file), ['home', 'lobby', 'swipe', 'results']);
   for (const [, file, shot] of shots) {
     assert.equal(file, shot);
     assert.ok(fs.existsSync(path.join(site, 'media/demo', `${file}.png`)), file);
-    assert.match(html, new RegExp(`<button type="button" data-shot="${shot}" aria-pressed="(true|false)">`), shot);
+    assert.match(html, new RegExp(`<button type="button" data-shot="${shot}" aria-pressed="(true|false)" aria-label="[A-Z][a-z]+"></button>`), shot);
   }
   assert.match(html, /class="demo-pause"/);
 });

@@ -221,23 +221,26 @@ section { position: relative; padding: 4rem 0; }
   opacity: 0; transition: opacity 0.4s;
 }
 .shot.on { opacity: 1; }
-.demo-controls { display: flex; justify-content: center; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-top: 1.25rem; }
+/* Quiet dots under the phone: the steps below already name the screens. Each
+   dot sits in a 32px target; the pause button is the same light weight. */
+.demo-controls { display: flex; justify-content: center; align-items: center; gap: 0.25rem; margin-top: 1rem; }
 .js .demo-controls.js-only { display: flex; }
-.demo-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.4rem; }
-.demo-chips button, .demo-pause {
-  min-height: 40px; border: 2px solid var(--green-text); border-radius: 999px; background: #fff;
-  color: var(--green-text); font: inherit; font-weight: 800; cursor: pointer;
+.demo-dots { display: flex; }
+.demo-dots button, .demo-pause {
+  width: 32px; height: 32px; padding: 0; border: 0; background: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; border-radius: 999px; color: var(--green-text);
 }
-.demo-chips button { padding: 0.1rem 1rem; }
-.demo-chips button[aria-pressed="true"] { background: var(--green-text); color: #fff; }
-.demo-pause { width: 40px; display: flex; align-items: center; justify-content: center; }
+.demo-dots button::before {
+  content: ''; width: 9px; height: 9px; border-radius: 999px; background: currentColor; opacity: 0.3;
+  transition: width 0.25s, opacity 0.25s;
+}
+.demo-dots button[aria-pressed="true"]::before { width: 22px; opacity: 1; }
 /* Two bars to pause; a triangle to play again. */
-.demo-pause span[aria-hidden] { width: 12px; height: 14px; border-left: 4px solid currentColor; border-right: 4px solid currentColor; box-sizing: border-box; }
+.demo-pause span[aria-hidden] { width: 9px; height: 11px; border-left: 3px solid currentColor; border-right: 3px solid currentColor; box-sizing: border-box; opacity: 0.6; }
 .demo-pause[aria-pressed="true"] span[aria-hidden] {
-  border: 0; border-left: 12px solid currentColor; border-top: 7px solid transparent; border-bottom: 7px solid transparent; margin-left: 3px;
+  border: 0; border-left: 9px solid currentColor; border-top: 5.5px solid transparent; border-bottom: 5.5px solid transparent; margin-left: 2px;
 }
-.demo-chips button:focus-visible, .demo-pause:focus-visible { outline: none; box-shadow: var(--focus); }
-.demo-note { margin: 0.6rem 0 0; color: var(--ink-soft); font-size: 0.9rem; }
+.demo-dots button:focus-visible, .demo-pause:focus-visible { outline: none; box-shadow: var(--focus); }
 
 /* How a room works: the scene stays in view while the steps scroll past, and
    the step in the middle of the screen lights up and sets the scene. */
@@ -446,7 +449,7 @@ section { position: relative; padding: 4rem 0; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .float, .sticker, .scene.on .swipe-card, .scene.on .votes .bubble-icon { animation: none; }
-  .phone, .shot, .scene, .scene.on, .step-card, .tile, .tile-more, .tile-more > *, .tiles { transition: none !important; }
+  .phone, .shot, .demo-dots button::before, .scene, .scene.on, .step-card, .tile, .tile-more, .tile-more > *, .tiles { transition: none !important; }
   .friends * { animation: none !important; }
   .tile:hover { transform: none; }
 }
@@ -474,11 +477,6 @@ section { position: relative; padding: 4rem 0; }
   .stage { height: 440px; margin-top: 1.75rem; }
   .phone { width: 196px; padding: 8px; border-radius: 38px; }
   .screen { height: 392px; border-radius: 31px; }
-  /* Four screens and the pause button fit on one line. */
-  .demo-controls { gap: 0.35rem; }
-  .demo-chips { gap: 0.35rem; flex-wrap: nowrap; }
-  .demo-chips button { padding: 0 0.65rem; font-size: 0.9rem; min-height: 38px; }
-  .demo-pause { width: 38px; min-height: 38px; }
   /* Each friend sits centred in the space between the phone and the screen edge. */
   .pair-group { left: max(-1rem, calc((100% - 196px) / 4 - 75px)); top: 56px; width: min(150px, calc((100% - 196px) / 2 + 1rem - 12px)); }
   .solo-group { right: max(-1rem, calc((100% - 196px) / 4 - 62px)); top: 236px; width: 124px; }

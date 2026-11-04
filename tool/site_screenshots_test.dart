@@ -123,6 +123,35 @@ void main() {
     File('$_out/$name.png').writeAsBytesSync(bytes!);
   }
 
+  // The site says once, on the swipe screen, that the places are made up: a
+  // small note in the top card's corner, drawn only into the screenshot.
+  OverlayEntry fictionalNote(WidgetTester tester) {
+    final cards =
+        find.byType(Card).evaluate().toList()..sort(
+          (a, b) => tester
+              .getRect(find.byWidget(a.widget))
+              .top
+              .compareTo(tester.getRect(find.byWidget(b.widget)).top),
+        );
+    final card = tester.getRect(find.byWidget(cards.first.widget));
+    final entry = OverlayEntry(
+      builder:
+          (context) => Positioned(
+            left: card.left + 18,
+            top: card.top + 14,
+            child: Text(
+              '* Fictional location',
+              style: Theme.of(context).textTheme.bodySmall!.copyWith(
+                color: const Color(0xFF4A5A52),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+    );
+    Overlay.of(cards.first).insert(entry);
+    return entry;
+  }
+
   testWidgets('home', (tester) async {
     await phone(tester);
     await tester.pumpWidget(app(const MainShell(currentUid: 'guest')));
@@ -145,7 +174,11 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
     }
     expect(find.byType(SwipeScreen), findsOneWidget);
+    final note = fictionalNote(tester);
+    await tester.pump();
     await save(tester, 'swipe');
+    note.remove();
+    await tester.pump();
 
     final yes = {0, 2, 3, 6};
     for (var i = 0; find.byType(ResultsScreen).evaluate().isEmpty; i++) {
