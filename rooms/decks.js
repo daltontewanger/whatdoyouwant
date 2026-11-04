@@ -1,6 +1,12 @@
 // restaurantDecks/{deckId}: one immutable deck per decision, written only by
 // callables and removed by TTL with the room or Quick Pick it belongs to.
 const { filterSummary } = require('./search/request');
+const { CUISINES } = require('./search/cuisines');
+
+// What a card shows about its food: the provider's own detail, or our
+// cuisine names when the listing has none.
+const foodLabelsOf = candidate => (candidate.foodLabels?.length ? candidate.foodLabels
+  : (candidate.cuisineIds ?? []).map(id => CUISINES[id]?.label).filter(Boolean));
 
 // What a stored card keeps. Chain IDs, categories and dietary hints stay
 // behind; the person's origin is never part of a deck.
@@ -12,6 +18,8 @@ function storedCandidate(candidate) {
     address: candidate.address,
     distanceMeters: candidate.distanceMetersFromOrigin,
     cuisineIds: candidate.cuisineIds,
+    foodLabels: foodLabelsOf(candidate),
+    dietary: candidate.dietaryHints ?? [],
     openStatus: candidate.openStatus,
     phone: candidate.phone,
     website: candidate.website,
@@ -45,7 +53,8 @@ function resultCard(candidate) {
     return { id, name, userEntered: true, ...(address ? { address } : {}), ...(note ? { note } : {}) };
   }
   const { id, name, address, distanceMeters, latitude, longitude, phone, website } = candidate;
-  return { id, name, address, distanceMeters, latitude, longitude, phone, website };
+  return { id, name, address, distanceMeters, latitude, longitude, phone, website,
+    foodLabels: candidate.foodLabels ?? [], dietary: candidate.dietary ?? [] };
 }
 
 // A deck from the host's own list: the spots as they typed them, with no

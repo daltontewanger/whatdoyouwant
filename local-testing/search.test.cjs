@@ -273,7 +273,7 @@ test('HERE normalization: contract fields only, title stripped from the address,
   const items = fixture('suburb').responses[0].body.items;
   const slice = normalizeHereItem(items[0]);
   assert.deepEqual(Object.keys(slice).sort(), ['address', 'attribution', 'categoryIds', 'chainId', 'cuisineIds',
-    'dietaryHints', 'distanceMetersFromOrigin', 'latitude', 'longitude', 'name', 'openStatus', 'phone', 'photoUrl',
+    'dietaryHints', 'distanceMetersFromOrigin', 'foodLabels', 'latitude', 'longitude', 'name', 'openStatus', 'phone', 'photoUrl',
     'provider', 'providerPlaceId', 'website'].sort());
   assert.equal(slice.photoUrl, null, 'HERE sends no photos');
   assert.equal(slice.address, '101 Synthetic Ave, Exampleton, KS 67000, United States');
@@ -424,4 +424,24 @@ test('notice cards: after every few places, never last, outside the candidates',
   assert.deepEqual(noticeCards(10, notices).map(card => [card.id, card.after]), [['n1', 4], ['n2', 8]]);
   assert.deepEqual(noticeCards(8, notices).map(card => card.after), [4], 'not after the last place');
   assert.deepEqual(noticeCards(10, null), []);
+});
+
+test("food labels: the provider's names, primary first, regions split out, no dietary or generic entries", () => {
+  const { foodLabelsFromHere } = require('../rooms/search/cuisines');
+  assert.deepEqual(foodLabelsFromHere([{ id: '800-077', name: 'Vegetarian' }, { id: '304-000', name: 'Italian' },
+    { id: '800-057', name: 'Pizza', primary: true }], [{ id: '100-1000-0000', name: 'Restaurant' }]), ['Pizza', 'Italian']);
+  assert.deepEqual(foodLabelsFromHere([{ id: '203-026', name: 'Japanese-Sushi', primary: true },
+    { id: '203-010', name: 'Japanese-Fish/Other Seafood' }], [{ id: '100-1000-0009', name: 'Fast Food' }]),
+  ['Japanese', 'Sushi', 'Fish & Other Seafood', 'Fast Food']);
+  assert.deepEqual(foodLabelsFromHere(undefined, undefined), []);
+  assert.deepEqual(foodLabelsFromHere([{ id: 'x', name: 7 }, null]), []);
+});
+
+test('food labels: stored cards fall back to cuisine names and carry dietary hints for results', () => {
+  const { storedCandidate, resultCard } = require('../rooms/decks');
+  const base = { id: 'c1', cuisineIds: ['thai'], dietaryHints: ['vegan'], foodLabels: [] };
+  assert.deepEqual(storedCandidate(base).foodLabels, ['Thai']);
+  assert.deepEqual(storedCandidate({ ...base, foodLabels: ['Noodles'] }).foodLabels, ['Noodles']);
+  const card = resultCard(storedCandidate(base));
+  assert.deepEqual([card.foodLabels, card.dietary], [['Thai'], ['vegan']]);
 });

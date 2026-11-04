@@ -306,8 +306,10 @@ test('results: the room closes once every member has voted; only totals are shar
   const deck = await deckOf(roomId);
   const cardOf = id => deck.candidates.find(candidate => candidate.id === id);
   for (const [card, id] of [[winnerCard, D[2]], [backupCard, D[1]]]) {
-    const { id: cardId, name, address, distanceMeters, latitude, longitude, phone, website } = cardOf(id);
-    assert.deepEqual(card, { id: cardId, name, address, distanceMeters, latitude, longitude, phone, website },
+    const { id: cardId, name, address, distanceMeters, latitude, longitude, phone, website, foodLabels,
+      dietary } = cardOf(id);
+    assert.deepEqual(card, { id: cardId, name, address, distanceMeters, latitude, longitude, phone, website,
+      foodLabels, dietary },
       'the room keeps just enough of the winner and backup to outlive the deck');
   }
   assert.ok(deck.expiresAt.toMillis() <= Date.now() + 15 * 60000, 'the deck goes about 15 minutes after closing');

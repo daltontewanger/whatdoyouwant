@@ -52,6 +52,7 @@ function normalizedRestaurant(fields) {
     cuisineIds: [...new Set(fields.cuisineIds ?? [])],
     categoryIds: [...new Set(fields.categoryIds ?? [])],
     dietaryHints: [...new Set(fields.dietaryHints ?? [])],
+    foodLabels: [...new Set((fields.foodLabels ?? []).map(label => text(label, 40)).filter(Boolean))].slice(0, 8),
     openStatus: OPEN_STATUSES.includes(fields.openStatus) ? fields.openStatus : 'unknown',
     phone: text(fields.phone, 40),
     // Only web links; anything else from a provider is not a usable link.

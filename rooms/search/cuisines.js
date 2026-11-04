@@ -36,8 +36,8 @@ const CUISINES = Object.freeze({
 
 const CUISINE_IDS = Object.freeze(Object.keys(CUISINES));
 
-// Collected for the benchmark only. These are never cuisine filters and never
-// shown as dietary or allergy guarantees.
+// Never cuisine filters. Results show them as what the listing says, with a
+// reminder to check with the place: never as a dietary or allergy guarantee.
 const DIETARY_HINTS = Object.freeze({ '800-076': 'vegan', '800-077': 'vegetarian', '800-086': 'halal',
   '800-079': 'kosher' });
 
@@ -62,8 +62,36 @@ function cuisinesFromHere(foodTypeIds = [], categoryIds = []) {
   return CUISINE_IDS.filter(id => found.has(id));
 }
 
+// HERE's own names for what a place serves, for the chips on a card: the
+// primary food type first, each "Region-Style" name split into both words
+// ("Japanese-Sushi" -> Japanese, Sushi), then any category more specific than
+// "Restaurant". Much finer than the filters above, and never used to filter.
+const GENERIC_CATEGORIES = new Set(['100-1000-0000']);
+const MAX_FOOD_LABELS = 8;
+
+function foodLabelsFromHere(foodTypes = [], categories = []) {
+  const tidy = name => name.replace(/\s*\/\s*/g, ' & ').replace(/\s+/g, ' ').trim().slice(0, 40);
+  const ordered = [...foodTypes].filter(type => type && typeof type.name === 'string' && !DIETARY_HINTS[type.id])
+    .sort((a, b) => Number(b.primary === true) - Number(a.primary === true));
+  const labels = [];
+  for (const type of ordered) {
+    const [region, ...style] = type.name.split('-');
+    labels.push(region, style.join('-'));
+  }
+  for (const category of categories) {
+    if (category && typeof category.name === 'string' && !GENERIC_CATEGORIES.has(category.id)) labels.push(category.name);
+  }
+  const seen = new Set();
+  return labels.map(label => (label ? tidy(label) : '')).filter(label => {
+    const key = label.toLowerCase();
+    if (!label || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, MAX_FOOD_LABELS);
+}
+
 function dietaryHintsFromHere(foodTypeIds = []) {
   return [...new Set(foodTypeIds.map(code => DIETARY_HINTS[code]).filter(Boolean))].sort();
 }
 
-module.exports = { CUISINES, CUISINE_IDS, cuisinesFromHere, dietaryHintsFromHere };
+module.exports = { CUISINES, CUISINE_IDS, cuisinesFromHere, dietaryHintsFromHere, foodLabelsFromHere };

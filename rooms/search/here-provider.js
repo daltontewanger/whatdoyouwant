@@ -4,7 +4,7 @@
 // ever sees the API key.
 const { createHash } = require('node:crypto');
 const { normalizedRestaurant, ProviderUnavailable } = require('./provider');
-const { cuisinesFromHere, dietaryHintsFromHere } = require('./cuisines');
+const { cuisinesFromHere, dietaryHintsFromHere, foodLabelsFromHere } = require('./cuisines');
 const { distanceMeters } = require('./deck');
 
 const ENDPOINTS = Object.freeze({
@@ -106,6 +106,7 @@ function normalizeHereItem(item) {
     cuisineIds: cuisinesFromHere(foodTypes, categories),
     categoryIds: categories,
     dietaryHints: dietaryHintsFromHere(foodTypes),
+    foodLabels: foodLabelsFromHere(item.foodTypes, item.categories),
     openStatus: openStatusOf(item),
     phone: phone?.value,
     website: websiteOf(item),
