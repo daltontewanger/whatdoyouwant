@@ -108,7 +108,25 @@ String placeShareText(Restaurant restaurant) {
       "${map == null ? '' : '\n$map'}";
 }
 
+/// The demo's places are made up, so anything that would leave the app says
+/// so instead.
+bool _inDemo(BuildContext context) =>
+    RoomBackendScope.maybeOf(context)?.demo ?? false;
+
+void showDemoNote(BuildContext context) =>
+    ScaffoldMessenger.maybeOf(context)
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Demo places are made up, so there's nothing to open. In the app "
+            'this opens the real place.',
+          ),
+        ),
+      );
+
 Future<void> copyPlace(BuildContext context, Restaurant restaurant) async {
+  if (_inDemo(context)) return showDemoNote(context);
   final messenger = ScaffoldMessenger.maybeOf(context);
   var copied = true;
   try {
@@ -126,6 +144,7 @@ Future<void> copyPlace(BuildContext context, Restaurant restaurant) async {
 
 /// Opens the phone's share menu. Browsers without one copy instead.
 Future<void> sharePlace(BuildContext context, Restaurant restaurant) async {
+  if (_inDemo(context)) return showDemoNote(context);
   try {
     await SharePlus.instance.share(
       ShareParams(
@@ -170,7 +189,9 @@ class PlaceCredit extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Text(
-    'Place details from HERE',
+    _inDemo(context)
+        ? 'Made-up places for the demo'
+        : 'Place details from HERE',
     textAlign: TextAlign.center,
     style: Theme.of(
       context,
@@ -200,6 +221,20 @@ class PlaceActions extends StatelessWidget {
       return const Text('This listing has no map or contact details.');
     }
     final directions = links.directions;
+    if (_inDemo(context)) {
+      void note() => showDemoNote(context);
+      return Wrap(
+        alignment: alignment,
+        spacing: 10,
+        runSpacing: 10,
+        children: [
+          if (links.map != null) _button(Icons.map_outlined, 'Map', note),
+          if (directions != null) _button(Icons.directions, 'Directions', note),
+          if (links.website != null) _button(Icons.language, 'Website', note),
+          if (links.phone != null) _button(Icons.call, 'Call', note),
+        ],
+      );
+    }
     return Wrap(
       alignment: alignment,
       spacing: 10,

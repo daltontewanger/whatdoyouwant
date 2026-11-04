@@ -4,6 +4,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../services/room_backend.dart';
 import '../services/search_defaults.dart';
 import 'bubble_icons.dart';
+import 'demo_screen.dart';
 import 'place_marks.dart';
 import 'room_roster.dart';
 import 'step_card.dart';
@@ -111,6 +112,17 @@ class _IntroScreenState extends State<IntroScreen> {
                     picture: _picture(index),
                     title: title,
                     text: text,
+                    action:
+                        index == count - 1
+                            ? OutlinedButton.icon(
+                              onPressed:
+                                  () => Navigator.of(
+                                    context,
+                                  ).pushReplacement(DemoScreen.route()),
+                              icon: const Icon(Icons.science_outlined),
+                              label: const Text('Try the demo'),
+                            )
+                            : null,
                   );
                 },
               ),
@@ -194,11 +206,13 @@ class _IntroPage extends StatelessWidget {
     required this.picture,
     required this.title,
     required this.text,
+    this.action,
   });
 
   final Widget picture;
   final String title;
   final String text;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -232,6 +246,10 @@ class _IntroPage extends StatelessWidget {
                   height: 1.4,
                 ),
               ),
+              if (action case final action?) ...[
+                const SizedBox(height: 20),
+                action,
+              ],
             ],
           ),
         ),

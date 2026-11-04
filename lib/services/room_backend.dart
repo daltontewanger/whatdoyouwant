@@ -267,6 +267,7 @@ class RoomBackendScope extends InheritedWidget {
     this.myPlaces,
     this.accessibility,
     this.intro,
+    this.demo = false,
     required super.child,
   });
 
@@ -275,6 +276,10 @@ class RoomBackendScope extends InheritedWidget {
 
   /// Whether this device has seen the first-run intro.
   final IntroStore? intro;
+
+  /// The screens are running the demo: made-up places, nothing saved, and
+  /// nothing opened outside the app.
+  final bool demo;
 
   final RoomBackend backend;
   final AccountService? accounts;
@@ -315,5 +320,6 @@ class RoomBackendScope extends InheritedWidget {
       ownList != oldWidget.ownList ||
       myPlaces != oldWidget.myPlaces ||
       accessibility != oldWidget.accessibility ||
-      intro != oldWidget.intro;
+      intro != oldWidget.intro ||
+      demo != oldWidget.demo;
 }

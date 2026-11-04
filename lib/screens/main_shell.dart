@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/room_backend.dart';
 import 'account_screen.dart';
+import 'demo_screen.dart';
 import 'faq_screen.dart';
 import 'home_screen.dart';
 import 'step_card.dart';
@@ -45,6 +46,8 @@ class _MainShellState extends State<MainShell> {
         home.openJoin();
       case MenuChoice.howItWorks:
         await home.openIntro();
+      case MenuChoice.demo:
+        await Navigator.push(context, DemoScreen.route());
       case MenuChoice.questions:
         await Navigator.push(
           context,
@@ -224,6 +227,7 @@ enum MenuChoice {
   searchSettings,
   join,
   howItWorks,
+  demo,
   questions,
 }
 
@@ -260,6 +264,14 @@ class _Menu extends StatelessWidget {
           icon: Icons.play_circle_outline,
         ),
         MenuChoice.howItWorks,
+      ),
+      (
+        const HomeStep(
+          'Try the demo',
+          'Host a pretend room with made-up places. Nothing is saved.',
+          icon: Icons.science_outlined,
+        ),
+        MenuChoice.demo,
       ),
       (
         const HomeStep(
