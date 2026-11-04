@@ -29,8 +29,9 @@ const ownListStep = HomeStep(
   icon: Icons.checklist_rounded,
 );
 
-/// How a room works, as one card: a dot for each step on a line that deepens
-/// from mint to dark green and ends at a place setting.
+/// How a room works: a dot beside each step's title on a line that deepens
+/// from mint to dark green, ending at a place setting beside the last step's
+/// description.
 class RoomSteps extends StatelessWidget {
   const RoomSteps({super.key});
 
@@ -42,99 +43,100 @@ class RoomSteps extends StatelessWidget {
 
   static const _gutter = 32.0;
   static const _dot = 12.0;
-  static const _end = 28.0;
+  static const _end = 26.0;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xFFCFE6DB)),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Stack(
-        children: [
-          // From the first dot's centre to the place setting's centre.
-          Positioned(
-            left: _gutter / 2 - 1.5,
-            top: 6 + _dot / 2,
-            bottom: _end / 2,
-            width: 3,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(2),
-                gradient: const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: _railGreens,
-                ),
-              ),
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (final (i, (title, text)) in steps.indexed)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+    // The title's first line, so each dot sits level with it at any text size.
+    final painter = TextPainter(
+      text: TextSpan(text: 'A', style: _StepText.titleStyle(theme)),
+      textScaler: MediaQuery.textScalerOf(context),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final titleLine = painter.height;
+    painter.dispose();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final (i, (title, text)) in steps.indexed)
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  width: _gutter,
+                  child: Stack(
+                    alignment: Alignment.topCenter,
                     children: [
-                      SizedBox(
-                        width: _gutter,
-                        child: Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Center(
-                            child: Container(
-                              width: _dot,
-                              height: _dot,
-                              decoration: BoxDecoration(
-                                color: _railGreens[i],
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white,
-                                  width: 2,
-                                ),
-                              ),
+                      Positioned(
+                        top: i == 0 ? titleLine / 2 : 0,
+                        bottom: i == steps.length - 1 ? _end / 2 : 0,
+                        width: 3,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [_railGreens[i], _railGreens[i + 1]],
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _StepText(
-                          title: title,
-                          text: text,
-                          theme: theme,
+                      Positioned(
+                        top: (titleLine - _dot) / 2,
+                        child: Container(
+                          width: _dot,
+                          height: _dot,
+                          decoration: BoxDecoration(
+                            color: _railGreens[i],
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
                         ),
                       ),
+                      if (i == steps.length - 1)
+                        Positioned(
+                          bottom: 0,
+                          child: Container(
+                            width: _end,
+                            height: _end,
+                            decoration: BoxDecoration(
+                              color: _railGreens.last,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.restaurant,
+                              size: 15,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
-              SizedBox(
-                width: _gutter,
-                child: Center(
-                  child: Container(
-                    width: _end,
-                    height: _end,
-                    decoration: BoxDecoration(
-                      color: _railGreens.last,
-                      shape: BoxShape.circle,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      bottom: i == steps.length - 1 ? 0 : 12,
                     ),
-                    child: const Icon(
-                      Icons.restaurant,
-                      size: 16,
-                      color: Colors.white,
+                    child: ConstrainedBox(
+                      // Room for the dot and the place setting beneath it.
+                      constraints: BoxConstraints(
+                        minHeight:
+                            i == steps.length - 1
+                                ? (titleLine + _dot) / 2 + 4 + _end
+                                : 0,
+                      ),
+                      child: _StepText(title: title, text: text, theme: theme),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ],
-      ),
+      ],
     );
   }
 }
@@ -150,17 +152,14 @@ class _StepText extends StatelessWidget {
   final String text;
   final ThemeData theme;
 
+  static TextStyle titleStyle(ThemeData theme) => theme.textTheme.titleMedium!
+      .copyWith(fontWeight: FontWeight.w800, color: const Color(0xFF1F2A24));
+
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(
-        title,
-        style: theme.textTheme.titleMedium!.copyWith(
-          fontWeight: FontWeight.w800,
-          color: const Color(0xFF1F2A24),
-        ),
-      ),
+      Text(title, style: titleStyle(theme)),
       const SizedBox(height: 2),
       Text(
         text,
