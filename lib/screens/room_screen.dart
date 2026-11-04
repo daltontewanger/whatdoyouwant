@@ -568,18 +568,13 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
                                                                   !cannotSearch)
                                                           ? _startSwiping
                                                           : null,
-                                                  style: ElevatedButton.styleFrom(
-                                                    minimumSize: const Size(
-                                                      170,
-                                                      46,
-                                                    ),
-                                                    shape: RoundedRectangleBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            14,
-                                                          ),
-                                                    ),
-                                                  ),
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                        minimumSize: const Size(
+                                                          170,
+                                                          46,
+                                                        ),
+                                                      ),
                                                   child: const Text(
                                                     'Start Swiping',
                                                     style: TextStyle(
