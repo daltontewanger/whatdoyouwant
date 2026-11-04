@@ -178,7 +178,9 @@ class DemoRoomBackend implements RoomBackend {
     return [
       for (final (i, place) in ordered.take(search.deckSize))
         Restaurant(
-          id: 'demo-$i',
+          // Shaped like the server's card IDs, so favorites and never marks
+          // work on demo cards too.
+          id: 'c${i.toRadixString(16).padLeft(20, '0')}',
           name: place.name,
           address: place.address,
           distance: place.miles,
