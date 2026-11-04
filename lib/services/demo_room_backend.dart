@@ -38,7 +38,7 @@ const demoPlaces = [
   DemoPlace('Catch of the Day', '3 Pier Ave', 6.3, ['seafood']),
   DemoPlace('Prime Cut', '400 Grand Ave', 7.5, ['steakhouse']),
   DemoPlace('Deli Delight', '58 Baker St', 0.4, ['sandwiches']),
-  DemoPlace('Cluck Shack', '910 Farm Rd', 2.7, ['chicken', 'fast_food']),
+  DemoPlace('Chicken Shop', '910 Farm Rd', 2.7, ['chicken', 'fast_food']),
   DemoPlace('Scoop Dreams', '22 Sugar St', 1.1, ['dessert']),
   DemoPlace('Ramen Road', '377 Hill St', 3.9, ['japanese']),
   DemoPlace('Dumpling Den', '15 Lantern Ln', 4.4, ['chinese']),
