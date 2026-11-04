@@ -62,7 +62,7 @@
           <span class="store">Google Play · Coming soon</span>
         </div>
 
-        <div class="stage" role="img" aria-label="The app's home screen on a phone, between illustrated friends deciding where to eat on their phones">
+        <div class="stage" role="img" aria-label="The app on a phone, showing its home, lobby, swiping and results screens in turn, between illustrated friends deciding where to eat on their phones">
           <!-- The friends are filled by /avatars.js with a different pair and solo friend on each visit;
                each group carries its own speech bubbles so they stay with the right person. -->
           <div class="cast" aria-hidden="true">
@@ -78,24 +78,23 @@
           </div>
           <div class="phone" id="hero-phone" aria-hidden="true">
             <div class="screen">
-              <div class="app-card">
-                <strong class="app-title">What Do You Want?!</strong>
-                <span class="app-art">
-                  <span class="bubble-icon burger" aria-hidden="true"></span>
-                  <span class="bubble-icon pizza" aria-hidden="true"></span>
-                  <span class="bubble-icon sushi" aria-hidden="true"></span>
-                </span>
-                <span class="app-btns"><span class="app-btn">Create Room</span><span class="app-btn outline">Join Room</span></span>
-                <ul class="app-steps">
-                  <li>Start a room and invite your friends.</li>
-                  <li>Everyone swipes on their own phone.</li>
-                  <li class="app-last">See where to eat, with a backup and directions.<svg viewBox="0 0 24 24"><path d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z"/></svg></li>
-                </ul>
-                <span class="app-bar"><svg class="on" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg><span class="app-menu"><svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg></span><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 4a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7zm0 14a8 8 0 0 1-6.14-2.88 9.95 9.95 0 0 1 12.28 0A8 8 0 0 1 12 20z"/></svg></span>
-              </div>
+              <img class="shot on" src="/media/demo/home.png" alt="" width="562" height="1218" data-shot="home">
+              <img class="shot" src="/media/demo/lobby.png" alt="" width="562" height="1218" loading="lazy" data-shot="lobby">
+              <img class="shot" src="/media/demo/swipe.png" alt="" width="562" height="1218" loading="lazy" data-shot="swipe">
+              <img class="shot" src="/media/demo/results.png" alt="" width="562" height="1218" loading="lazy" data-shot="results">
             </div>
           </div>
         </div>
+        <div class="demo-controls js-only">
+          <div class="demo-chips" role="group" aria-label="Show an app screen">
+            <button type="button" data-shot="home" aria-pressed="true">Home</button>
+            <button type="button" data-shot="lobby" aria-pressed="false">Lobby</button>
+            <button type="button" data-shot="swipe" aria-pressed="false">Swipe</button>
+            <button type="button" data-shot="results" aria-pressed="false">Results</button>
+          </div>
+          <button class="demo-pause" type="button" aria-pressed="false"><span aria-hidden="true"></span><span class="visually-hidden">Pause the screens</span></button>
+        </div>
+        <p class="demo-note">Real app screens, with made-up places.</p>
       </div>
     </section>
 

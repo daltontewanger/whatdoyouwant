@@ -163,7 +163,7 @@ section { position: relative; padding: 4rem 0; }
 .stores { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; }
 .store { border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 0.3rem 0.85rem; font-size: 0.9rem; color: var(--ink-soft); }
 
-/* The phone shows the app's home screen, flanked by illustrated friends on
+/* The phone shows the app's real screens, flanked by illustrated friends on
    their phones and speech-bubble stickers. */
 .stage { position: relative; height: 560px; max-width: 880px; margin: 2.5rem auto 0; perspective: 1200px; }
 /* On wide screens each group sits beside the phone; the bubbles hang off the
@@ -209,64 +209,35 @@ section { position: relative; padding: 4rem 0; }
 .phone::before { left: -3px; top: 110px; height: 56px; box-shadow: 0 -40px 0 -1px #33383d; }
 .phone::after { right: -3px; top: 130px; height: 80px; }
 .screen {
-  position: relative; height: 520px; border-radius: 37px; overflow: hidden;
-  background: #eaf3ee; padding: 44px 12px 12px; text-align: center;
+  position: relative; height: 520px; border-radius: 37px; overflow: hidden; background: #eaf3ee;
 }
 .screen::before {
-  content: ''; position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+  content: ''; z-index: 1; position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
   width: 86px; height: 24px; border-radius: 14px; background: #050607;
 }
-.app-card {
-  height: 100%; background: #fff; border-radius: 22px; padding: 14px 12px;
-  display: flex; flex-direction: column; align-items: center; gap: 6px;
+/* Real screens drawn from the app (npm run site:screenshots), shown in turn. */
+.shot {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top;
+  opacity: 0; transition: opacity 0.4s;
 }
-.app-title { color: var(--green-text); font-size: 1.1rem; letter-spacing: 0.5px; line-height: 1.1; }
-/* The app's steps: dots on a line that deepens from mint to dark green, down
-   to a place setting beside the last step. */
-.app-steps {
-  position: relative; list-style: none; margin: 4px 0 0; padding: 0 0 0 18px; align-self: stretch; text-align: left;
-  color: var(--green-ink); font-size: 0.78rem; line-height: 1.3;
+.shot.on { opacity: 1; }
+.demo-controls { display: flex; justify-content: center; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-top: 1.25rem; }
+.js .demo-controls.js-only { display: flex; }
+.demo-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.4rem; }
+.demo-chips button, .demo-pause {
+  min-height: 40px; border: 2px solid var(--green-text); border-radius: 999px; background: #fff;
+  color: var(--green-text); font: inherit; font-weight: 800; cursor: pointer;
 }
-.app-steps::before {
-  content: ''; position: absolute; left: 5px; top: calc(0.3em + 4px); bottom: 9px; width: 2px; border-radius: 1px;
-  background: linear-gradient(#b4e0cb, #65b292, #2f7a5c, #1e5641);
+.demo-chips button { padding: 0.1rem 1rem; }
+.demo-chips button[aria-pressed="true"] { background: var(--green-text); color: #fff; }
+.demo-pause { width: 40px; display: flex; align-items: center; justify-content: center; }
+/* Two bars to pause; a triangle to play again. */
+.demo-pause span[aria-hidden] { width: 12px; height: 14px; border-left: 4px solid currentColor; border-right: 4px solid currentColor; box-sizing: border-box; }
+.demo-pause[aria-pressed="true"] span[aria-hidden] {
+  border: 0; border-left: 12px solid currentColor; border-top: 7px solid transparent; border-bottom: 7px solid transparent; margin-left: 3px;
 }
-.app-steps li { position: relative; margin-bottom: 0.25rem; }
-.app-steps li::before {
-  content: ''; position: absolute; left: -16px; top: 0.3em; width: 8px; height: 8px; border-radius: 50%;
-  background: #b4e0cb; box-shadow: 0 0 0 1.5px #fff;
-}
-.app-steps li:nth-child(2)::before { background: #65b292; }
-.app-steps li:nth-child(3)::before { background: #2f7a5c; }
-/* Tall enough for the dot at its first line and the place setting below it. */
-.app-steps .app-last { min-height: calc(0.3em + 30px); margin: 0; }
-.app-last svg {
-  position: absolute; left: -21px; bottom: 0; width: 18px; height: 18px; padding: 3px; box-sizing: border-box;
-  border-radius: 50%; background: #1e5641; fill: #fff;
-}
-.app-art {
-  display: flex; justify-content: center; gap: 6px; width: 100%; padding: 8px 0; margin: 4px 0;
-  border: 3px solid var(--green-text); border-radius: 14px; background: var(--mint-soft);
-}
-.app-art .bubble-icon { --s: 42px; }
-.app-btns { display: flex; gap: 6px; width: 100%; }
-.app-btn {
-  flex: 1; padding: 0.35rem 0; border: 2px solid var(--green-text); border-radius: 999px; white-space: nowrap;
-  background: var(--green-text); color: #fff; font-weight: 800; font-size: 0.8rem;
-}
-.app-btn.outline { background: #fff; color: var(--green-text); }
-/* The app's floating bar: Home, the menu and Account. */
-.app-bar {
-  display: flex; justify-content: space-around; align-items: center; width: 100%; margin-top: auto; padding: 5px 0;
-  border-radius: 999px; background: #e3f2ea; box-shadow: 0 6px 14px -6px rgba(47, 122, 92, 0.45);
-}
-.app-bar svg { width: 22px; height: 22px; fill: #5e7a6c; }
-.app-bar svg.on { fill: var(--green-text); }
-.app-menu {
-  display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%;
-  background: var(--green-text);
-}
-.app-bar .app-menu svg { width: 18px; height: 18px; fill: #fff; }
+.demo-chips button:focus-visible, .demo-pause:focus-visible { outline: none; box-shadow: var(--focus); }
+.demo-note { margin: 0.6rem 0 0; color: var(--ink-soft); font-size: 0.9rem; }
 
 /* How a room works: the scene stays in view while the steps scroll past, and
    the step in the middle of the screen lights up and sets the scene. */
@@ -475,7 +446,7 @@ section { position: relative; padding: 4rem 0; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .float, .sticker, .scene.on .swipe-card, .scene.on .votes .bubble-icon { animation: none; }
-  .phone, .scene, .scene.on, .step-card, .tile, .tile-more, .tile-more > *, .tiles { transition: none !important; }
+  .phone, .shot, .scene, .scene.on, .step-card, .tile, .tile-more, .tile-more > *, .tiles { transition: none !important; }
   .friends * { animation: none !important; }
   .tile:hover { transform: none; }
 }
@@ -502,16 +473,12 @@ section { position: relative; padding: 4rem 0; }
   .hero-actions .btn-solid, .hero-actions .btn-outline-green { flex: 1 1 100%; }
   .stage { height: 440px; margin-top: 1.75rem; }
   .phone { width: 196px; padding: 8px; border-radius: 38px; }
-  .screen { height: 392px; border-radius: 31px; padding: 38px 9px 9px; }
-  .app-card { padding: 10px 9px; gap: 4px; }
-  .app-title { font-size: 0.95rem; }
-  .app-steps { font-size: 0.64rem; }
-  .app-art .bubble-icon { --s: 30px; }
-  .app-btn { font-size: 0.68rem; padding: 0.25rem 0; }
-  .app-bar { padding: 3px 0; }
-  .app-bar svg { width: 18px; height: 18px; }
-  .app-menu { width: 24px; height: 24px; }
-  .app-bar .app-menu svg { width: 15px; height: 15px; }
+  .screen { height: 392px; border-radius: 31px; }
+  /* Four screens and the pause button fit on one line. */
+  .demo-controls { gap: 0.35rem; }
+  .demo-chips { gap: 0.35rem; flex-wrap: nowrap; }
+  .demo-chips button { padding: 0 0.65rem; font-size: 0.9rem; min-height: 38px; }
+  .demo-pause { width: 38px; min-height: 38px; }
   /* Each friend sits centred in the space between the phone and the screen edge. */
   .pair-group { left: max(-1rem, calc((100% - 196px) / 4 - 75px)); top: 56px; width: min(150px, calc((100% - 196px) / 2 + 1rem - 12px)); }
   .solo-group { right: max(-1rem, calc((100% - 196px) / 4 - 62px)); top: 236px; width: 124px; }

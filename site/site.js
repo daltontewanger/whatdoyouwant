@@ -224,7 +224,44 @@ function warmUpApp() {
   else addEventListener('load', idle, { once: true });
 }
 
+// ---- Hero: the phone steps through real app screens. The chips jump to a
+// screen and the button pauses; with reduced motion it only moves when asked.
+function playScreens() {
+  const shots = [...document.querySelectorAll('#hero-phone .shot')];
+  const chips = [...document.querySelectorAll('.demo-chips button')];
+  const pause = document.querySelector('.demo-pause');
+  if (!shots.length || !chips.length || !pause) return;
+  let current = 0;
+  let timer = null;
+  const show = index => {
+    current = (index + shots.length) % shots.length;
+    shots.forEach((shot, i) => shot.classList.toggle('on', i === current));
+    chips.forEach((chip, i) => chip.setAttribute('aria-pressed', String(i === current)));
+  };
+  const stop = () => {
+    clearInterval(timer);
+    timer = null;
+  };
+  const play = () => {
+    stop();
+    timer = setInterval(() => show(current + 1), 3500);
+  };
+  const setPaused = paused => {
+    pause.setAttribute('aria-pressed', String(paused));
+    pause.querySelector('.visually-hidden').textContent = paused ? 'Play the screens' : 'Pause the screens';
+    if (paused) stop(); else play();
+  };
+  chips.forEach((chip, i) => chip.addEventListener('click', () => {
+    show(i);
+    // Picking a screen means the visitor wants to look at it.
+    setPaused(true);
+  }));
+  pause.addEventListener('click', () => setPaused(pause.getAttribute('aria-pressed') !== 'true'));
+  setPaused(reduceMotion);
+}
+
 leanPhone();
+playScreens();
 followStory();
 openTiles();
 warmUpApp();
