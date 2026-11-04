@@ -79,12 +79,30 @@ class FakeRoomBackend implements RoomBackend {
   final startedZips = <String?>[];
   final startedLists = <DeckLists>[];
   final shared = <(String, List<String>, List<String>)>[];
+  final sharedClosed = <List<String>>[];
   @override
   Future<void> shareLists(
     String roomId, {
     required List<String> favorites,
     required List<String> never,
-  }) async => shared.add((roomId, favorites, never));
+    List<String> closed = const [],
+  }) async {
+    shared.add((roomId, favorites, never));
+    sharedClosed.add(closed);
+  }
+
+  final reports = <(String, PlaceProblem, String)>[];
+  Object? reportError;
+  @override
+  Future<void> reportPlace(
+    Restaurant place,
+    PlaceProblem problem,
+    ReportedFrom from,
+  ) async {
+    if (reportError case final error?) throw error;
+    reports.add((place.id, problem, from.roomId ?? from.quickPickId!));
+  }
+
   @override
   Future<List<Restaurant>> start(
     String roomId, {

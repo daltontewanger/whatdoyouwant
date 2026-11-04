@@ -10,6 +10,7 @@ import '../services/room_backend.dart';
 import 'food_loader.dart';
 import 'place_card.dart';
 import 'place_marks.dart';
+import 'report_place.dart';
 import 'search_panel.dart';
 import '../themes/main_theme.dart';
 
@@ -245,7 +246,13 @@ class _QuickPickScreenState extends State<QuickPickScreen> with SearchStarter {
             ),
           ),
         ],
-        const SizedBox(height: 12),
+        const SizedBox(height: 6),
+        if (!_busy)
+          ReportPlaceLink(
+            restaurant: restaurant,
+            from: ReportedFrom.quickPick(pick.id),
+          ),
+        const SizedBox(height: 6),
         if (!_busy)
           TextButton.icon(
             icon: const Icon(Icons.search),

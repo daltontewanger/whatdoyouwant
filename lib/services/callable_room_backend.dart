@@ -324,10 +324,23 @@ class CallableRoomBackend implements RoomBackend {
     String roomId, {
     required List<String> favorites,
     required List<String> never,
+    List<String> closed = const [],
   }) => _call('shareRoomLists', {
     'roomId': roomId,
     'favorites': favorites,
     'never': never,
+    'closed': closed,
+  });
+
+  @override
+  Future<void> reportPlace(
+    Restaurant place,
+    PlaceProblem problem,
+    ReportedFrom from,
+  ) => _call('reportPlace', {
+    'cardId': place.id,
+    'kind': problem.name,
+    ...from.toJson(),
   });
 
   @override

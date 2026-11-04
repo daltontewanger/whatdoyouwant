@@ -10,6 +10,7 @@ import '../services/room_backend.dart';
 import 'food_loader.dart';
 import 'place_card.dart';
 import 'place_marks.dart';
+import 'report_place.dart';
 import '../themes/main_theme.dart';
 
 /// The banner over a room's result, from how many voters liked the winner.
@@ -154,6 +155,7 @@ class ResultsScreenState extends State<ResultsScreen> {
                           }
                           final backupId = results.backupId;
                           return _ResultView(
+                            roomId: widget.roomCode,
                             winner: winning,
                             winnerLikes: results.winnerLikes,
                             voters: results.participants,
@@ -186,6 +188,7 @@ class ResultsScreenState extends State<ResultsScreen> {
 /// The winner, with a backup kept folded away until someone asks for it.
 class _ResultView extends StatefulWidget {
   const _ResultView({
+    required this.roomId,
     required this.winner,
     required this.winnerLikes,
     required this.voters,
@@ -196,6 +199,7 @@ class _ResultView extends StatefulWidget {
     required this.onHome,
   });
 
+  final String roomId;
   final Restaurant winner;
   final int winnerLikes;
   final int voters;
@@ -299,6 +303,15 @@ class _ResultViewState extends State<_ResultView> {
       if (SavedPlace.canSave(place)) ...[
         const SizedBox(height: 10),
         PlaceListButtons(restaurant: place),
+      ],
+      // The server takes reports on the room's own winner and backup only,
+      // not a backup drawn at random on this phone.
+      if (place.id == widget.winner.id || place.id == widget.backup?.id) ...[
+        const SizedBox(height: 6),
+        ReportPlaceLink(
+          restaurant: place,
+          from: ReportedFrom.room(widget.roomId),
+        ),
       ],
     ],
   );

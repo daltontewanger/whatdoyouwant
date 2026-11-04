@@ -4,7 +4,8 @@ import 'room_backend.dart';
 /// Shares this person's favorites and never card IDs with a waiting room,
 /// and again whenever the lists or their switches change, so the deck the
 /// host starts sees the latest. A switch that is off shares nothing from
-/// that list. Failures are ignored: the room still starts without them.
+/// that list; places reported closed are always shared. Failures are
+/// ignored: the room still starts without them.
 class RoomListSharer {
   RoomListSharer({
     required this.backend,
@@ -34,6 +35,7 @@ class RoomListSharer {
             current.useNever
                 ? [for (final place in current.never) place.id]
                 : const [],
+        closed: [for (final place in current.closed) place.id],
       );
     } catch (_) {}
   }

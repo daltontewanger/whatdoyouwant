@@ -304,7 +304,17 @@ class DemoRoomBackend implements RoomBackend {
     String roomId, {
     required List<String> favorites,
     required List<String> never,
+    List<String> closed = const [],
   }) async {}
+
+  // Made-up places have nobody to tell; the demo hides a closed one on its
+  // own lists, which go when the demo ends.
+  @override
+  Future<void> reportPlace(
+    Restaurant place,
+    PlaceProblem problem,
+    ReportedFrom from,
+  ) async {}
 
   @override
   Future<void> setNoTimer(String roomId, {required bool noTimer}) async {}

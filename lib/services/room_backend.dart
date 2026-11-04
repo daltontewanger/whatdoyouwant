@@ -14,6 +14,24 @@ import 'intro_store.dart';
 /// People per room, host included; the server turns away anyone past it.
 const roomCapacity = 15;
 
+/// What someone can report about a place from a result.
+enum PlaceProblem { closed, website, phone, location }
+
+/// Where a reported place was shown: the server only takes reports about a
+/// room's winner or backup, or a card the person's own pick revealed.
+class ReportedFrom {
+  const ReportedFrom.room(String this.roomId) : quickPickId = null;
+  const ReportedFrom.quickPick(String this.quickPickId) : roomId = null;
+
+  final String? roomId;
+  final String? quickPickId;
+
+  Map<String, String> toJson() => {
+    if (roomId case final id?) 'roomId': id,
+    if (quickPickId case final id?) 'quickPickId': id,
+  };
+}
+
 /// A room as the screens need to see it, whichever backend stores it.
 class RoomState {
   const RoomState({
@@ -157,13 +175,23 @@ abstract class RoomBackend {
     DeckLists lists = DeckLists.none,
   });
 
-  /// Shares this person's favorites and never card IDs with a room while it
-  /// waits, for the deck the host starts.
+  /// Shares this person's favorites, never and closed card IDs with a room
+  /// while it waits, for the deck the host starts.
   Future<void> shareLists(
     String roomId, {
     required List<String> favorites,
     required List<String> never,
+    List<String> closed = const [],
   });
+
+  /// Reports that [place], shown in [from], is closed or has wrong details.
+  /// Only a verified account's report counts; others are refused, and the
+  /// app hides a closed place on the device either way.
+  Future<void> reportPlace(
+    Restaurant place,
+    PlaceProblem problem,
+    ReportedFrom from,
+  );
 
   /// Starts voting on spots from the host's own list. No search runs, so it
   /// never uses a live search.

@@ -38,6 +38,7 @@ abstract class MyPlacesStore extends ChangeNotifier {
 
   bool isFavorite(String id) => places.favorites.any((p) => p.id == id);
   bool isNever(String id) => places.never.any((p) => p.id == id);
+  bool isClosed(String id) => places.closed.any((p) => p.id == id);
 
   /// Saves [restaurant] as a favorite, taking it off the never list.
   Future<void> addFavorite(Restaurant restaurant) {
@@ -71,10 +72,30 @@ abstract class MyPlacesStore extends ChangeNotifier {
     );
   }
 
+  /// Notes [restaurant] as closed for good, taking it off the other lists.
+  /// When the list is full the oldest report makes room.
+  Future<void> addClosed(Restaurant restaurant) async {
+    final current = places;
+    if (isClosed(restaurant.id)) return;
+    await save(
+      current.copyWith(
+        closed:
+            [
+              SavedPlace.never(restaurant),
+              ...current.closed,
+            ].take(MyPlaces.maxPlaces).toList(),
+        favorites:
+            current.favorites.where((p) => p.id != restaurant.id).toList(),
+        never: current.never.where((p) => p.id != restaurant.id).toList(),
+      ),
+    );
+  }
+
   Future<void> remove(String id) => save(
     places.copyWith(
       favorites: places.favorites.where((p) => p.id != id).toList(),
       never: places.never.where((p) => p.id != id).toList(),
+      closed: places.closed.where((p) => p.id != id).toList(),
     ),
   );
 

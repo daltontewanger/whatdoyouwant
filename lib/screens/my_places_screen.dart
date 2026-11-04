@@ -85,6 +85,24 @@ class MyPlacesScreen extends StatelessWidget {
                       title: place.name.isEmpty ? 'A never place' : place.name,
                       onRemove: () => _remove(context, store, place, neverList),
                     ),
+                  if (places.closed.isNotEmpty) ...[
+                    const SizedBox(height: 28),
+                    const _Heading(
+                      icon: Icon(Icons.outlined_flag),
+                      title: closedList,
+                    ),
+                    const _Empty(
+                      "You said these closed for good, so they don't come "
+                      'up for you. Remove one if it reopened.',
+                    ),
+                    for (final place in places.closed)
+                      _PlaceRow(
+                        title:
+                            place.name.isEmpty ? 'A closed place' : place.name,
+                        onRemove:
+                            () => _remove(context, store, place, closedList),
+                      ),
+                  ],
                   const SizedBox(height: 24),
                   Text(
                     store.synced
@@ -134,6 +152,7 @@ class MyPlacesScreen extends StatelessWidget {
       before.copyWith(
         favorites: before.favorites.where((p) => p.id != place.id).toList(),
         never: before.never.where((p) => p.id != place.id).toList(),
+        closed: before.closed.where((p) => p.id != place.id).toList(),
       ),
     );
     tell(
@@ -143,6 +162,8 @@ class MyPlacesScreen extends StatelessWidget {
     );
   }
 }
+
+const closedList = 'Reported closed';
 
 class _Heading extends StatelessWidget {
   const _Heading({required this.icon, required this.title});

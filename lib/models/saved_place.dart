@@ -92,12 +92,14 @@ class SavedPlace {
   int get hashCode => Object.hash(id, name, address, seenAt);
 }
 
-/// Both lists and the person's own switches for them.
+/// Both lists and the person's own switches for them, plus the places they
+/// reported closed.
 @immutable
 class MyPlaces {
   const MyPlaces({
     this.favorites = const [],
     this.never = const [],
+    this.closed = const [],
     this.useFavorites = true,
     this.useNever = true,
   });
@@ -107,22 +109,28 @@ class MyPlaces {
   final List<SavedPlace> favorites;
   final List<SavedPlace> never;
 
+  /// Places this person said are closed for good: always left out of their
+  /// decks and picks, whatever the never switch says.
+  final List<SavedPlace> closed;
+
   /// Whether this person's favorites go into rooms' decks.
   final bool useFavorites;
 
   /// Whether this person's never list is left out of decks.
   final bool useNever;
 
-  bool get isEmpty => favorites.isEmpty && never.isEmpty;
+  bool get isEmpty => favorites.isEmpty && never.isEmpty && closed.isEmpty;
 
   MyPlaces copyWith({
     List<SavedPlace>? favorites,
     List<SavedPlace>? never,
+    List<SavedPlace>? closed,
     bool? useFavorites,
     bool? useNever,
   }) => MyPlaces(
     favorites: favorites ?? this.favorites,
     never: never ?? this.never,
+    closed: closed ?? this.closed,
     useFavorites: useFavorites ?? this.useFavorites,
     useNever: useNever ?? this.useNever,
   );
@@ -134,6 +142,7 @@ class MyPlaces {
   Map<String, Object> toJson() => {
     'favorites': [for (final place in favorites) place.favoriteJson()],
     'never': [for (final place in never) place.neverJson()],
+    'closed': [for (final place in closed) place.neverJson()],
     'useFavorites': useFavorites,
     'useNever': useNever,
   };
@@ -150,6 +159,7 @@ class MyPlaces {
     return MyPlaces(
       favorites: places(raw['favorites']).take(maxPlaces).toList(),
       never: places(raw['never']).take(maxPlaces).toList(),
+      closed: places(raw['closed']).take(maxPlaces).toList(),
       useFavorites: raw['useFavorites'] != false,
       useNever: raw['useNever'] != false,
     );
@@ -158,7 +168,7 @@ class MyPlaces {
   /// [other]'s places added to these, up to the limit; switches stay as here.
   MyPlaces merged(MyPlaces other) {
     final ids = {
-      for (final place in [...favorites, ...never]) place.id,
+      for (final place in [...favorites, ...never, ...closed]) place.id,
     };
     List<SavedPlace> add(List<SavedPlace> base, List<SavedPlace> extra) =>
         [
@@ -168,6 +178,7 @@ class MyPlaces {
     return copyWith(
       favorites: add(favorites, other.favorites),
       never: add(never, other.never),
+      closed: add(closed, other.closed),
     );
   }
 
@@ -176,6 +187,7 @@ class MyPlaces {
       other is MyPlaces &&
       listEquals(other.favorites, favorites) &&
       listEquals(other.never, never) &&
+      listEquals(other.closed, closed) &&
       other.useFavorites == useFavorites &&
       other.useNever == useNever;
 
@@ -183,6 +195,7 @@ class MyPlaces {
   int get hashCode => Object.hash(
     Object.hashAll(favorites),
     Object.hashAll(never),
+    Object.hashAll(closed),
     useFavorites,
     useNever,
   );
