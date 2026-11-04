@@ -9,6 +9,7 @@ import 'accessibility.dart';
 import 'my_places.dart';
 import 'own_list.dart';
 import 'search_defaults.dart';
+import 'intro_store.dart';
 
 /// People per room, host included; the server turns away anyone past it.
 const roomCapacity = 15;
@@ -265,11 +266,15 @@ class RoomBackendScope extends InheritedWidget {
     this.ownList,
     this.myPlaces,
     this.accessibility,
+    this.intro,
     required super.child,
   });
 
   /// The person's accessibility choices on this device.
   final AccessibilitySettings? accessibility;
+
+  /// Whether this device has seen the first-run intro.
+  final IntroStore? intro;
 
   final RoomBackend backend;
   final AccountService? accounts;
@@ -309,5 +314,6 @@ class RoomBackendScope extends InheritedWidget {
       searchDefaults != oldWidget.searchDefaults ||
       ownList != oldWidget.ownList ||
       myPlaces != oldWidget.myPlaces ||
-      accessibility != oldWidget.accessibility;
+      accessibility != oldWidget.accessibility ||
+      intro != oldWidget.intro;
 }

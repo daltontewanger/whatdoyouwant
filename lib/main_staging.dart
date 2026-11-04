@@ -19,6 +19,7 @@ import 'services/my_places.dart';
 import 'services/own_list.dart';
 import 'services/search_defaults.dart';
 import 'services/site_links.dart';
+import 'services/intro_store.dart';
 import 'themes/main_theme.dart';
 
 class _StagingDebugTokens {
@@ -107,6 +108,7 @@ Future<void> main() async {
       // Loads itself whenever someone signs in or out, including at start.
       myPlaces: SyncedMyPlaces(account: FirebaseMyPlacesAccount()),
       accessibility: AccessibilitySettings()..load(),
+      intro: PreferencesIntroStore(),
     ),
   );
 }

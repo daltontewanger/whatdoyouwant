@@ -16,6 +16,7 @@ import 'main_shell.dart';
 import 'own_list_screen.dart';
 import 'search_setup_screen.dart';
 import 'bubble_icons.dart';
+import 'intro_screen.dart';
 import 'step_card.dart';
 import '../themes/main_theme.dart';
 
@@ -60,6 +61,11 @@ class HomeScreenState extends State<HomeScreen>
     _animationController.forward();
     // A shared join link or a button on the public site opened the app.
     final link = kIsWeb ? takeLaunchLink(Uri.base) : null;
+    // Someone arriving by a link came to do something; the intro can wait
+    // for a later visit.
+    if (link == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowIntro());
+    }
     if (link != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -278,6 +284,24 @@ class HomeScreenState extends State<HomeScreen>
     );
     return false;
   }
+
+  Future<void> _maybeShowIntro() async {
+    if (!mounted) return;
+    final intro = RoomBackendScope.maybeOf(context)?.intro;
+    if (intro == null || await intro.seen() || !mounted) return;
+    // Marked before it opens, so closing the app mid-way doesn't show it
+    // again on every launch.
+    await intro.markSeen();
+    if (mounted) await openIntro();
+  }
+
+  Future<void> openIntro() => Navigator.push(
+    context,
+    MaterialPageRoute<void>(
+      fullscreenDialog: true,
+      builder: (_) => const IntroScreen(),
+    ),
+  );
 
   /// The extra ways to decide, shared by the step cards and the bar's menu.
   Future<void> openQuickPick() => _quickPick();

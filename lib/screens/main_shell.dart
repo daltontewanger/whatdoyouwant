@@ -43,6 +43,8 @@ class _MainShellState extends State<MainShell> {
         await home.openSearchSettings();
       case MenuChoice.join:
         home.openJoin();
+      case MenuChoice.howItWorks:
+        await home.openIntro();
       case MenuChoice.questions:
         await Navigator.push(
           context,
@@ -216,7 +218,14 @@ class _FloatingBar extends StatelessWidget {
   }
 }
 
-enum MenuChoice { quickPick, ownList, searchSettings, join, questions }
+enum MenuChoice {
+  quickPick,
+  ownList,
+  searchSettings,
+  join,
+  howItWorks,
+  questions,
+}
 
 /// The other ways to decide, and the saved search settings. Returns the
 /// choice, so the sheet is closed before anything opens.
@@ -243,6 +252,14 @@ class _Menu extends StatelessWidget {
           icon: Icons.login,
         ),
         MenuChoice.join,
+      ),
+      (
+        const HomeStep(
+          'How it works',
+          'A quick look at rooms and the ways to decide.',
+          icon: Icons.play_circle_outline,
+        ),
+        MenuChoice.howItWorks,
       ),
       (
         const HomeStep(
