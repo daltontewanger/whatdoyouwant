@@ -136,8 +136,10 @@ class ResultsScreenState extends State<ResultsScreen> {
 
                           final results = room.results;
                           final Map<String, Restaurant> byId = {
-                            for (final r in widget.restaurants) r.id: r,
-                            for (final r in room.restaurants) r.id: r,
+                            for (final r in widget.restaurants)
+                              if (r.votable) r.id: r,
+                            for (final r in room.restaurants)
+                              if (r.votable) r.id: r,
                           };
                           final Restaurant? winning =
                               results == null

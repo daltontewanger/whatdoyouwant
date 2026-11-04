@@ -376,7 +376,8 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
           shared.forEach(ref => tx.delete(ref));
           // The cards come back with the start, so the host need not read the deck.
           return { view: { roomId, deckId: deck.id, candidateCount: built.candidates.length,
-            candidates: built.candidates.map(storedCandidate) },
+            candidates: built.candidates.map(storedCandidate),
+            ...(built.notices.length ? { notices: built.notices } : {}) },
             expiresAt: Timestamp.fromMillis(Math.min(roomExpiry, now() + VOTING_WINDOW_MS + DECK_AFTER_VOTING_MS)) };
         },
       } });

@@ -47,6 +47,24 @@ class PlaceCard extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (restaurant.photoUrl case final photo?)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: Image.network(
+                        photo,
+                        fit: BoxFit.cover,
+                        semanticLabel: 'Photo of ${restaurant.name}',
+                        // A photo that will not load leaves the card as it
+                        // would be without one.
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                      ),
+                    ),
+                  ),
+                ),
               Padding(
                 padding: EdgeInsets.only(right: menu == null ? 0 : 36),
                 child: Text(

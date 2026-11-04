@@ -20,7 +20,20 @@ function storedCandidate(candidate) {
     longitude: candidate.longitude,
     provider: candidate.provider,
     providerPlaceId: candidate.providerPlaceId,
+    ...(candidate.photoUrl ? { photoUrl: candidate.photoUrl } : {}),
   };
+}
+
+// Cards nobody votes on, placed after every `every` places but never last,
+// so the deck still ends on a place. They live beside the candidates, never
+// among them: ballots, tallies and Quick Pick rerolls only see places.
+function noticeCards(placeCount, notices) {
+  if (!notices) return [];
+  const cards = [];
+  for (let after = notices.every; after < placeCount; after += notices.every) {
+    cards.push({ id: `n${cards.length + 1}`, after, title: notices.title, text: notices.text });
+  }
+  return cards;
 }
 
 // The winner or backup as the room keeps it after its deck is gone: enough to
@@ -66,6 +79,7 @@ function deckDocument({ ownerUid, targetType, targetId, provider, result, reques
     seed,
     candidateIds: candidates.map(candidate => candidate.id),
     candidates,
+    ...(built.notices?.length ? { notices: built.notices } : {}),
     pool: built.pool,
     providerCalls: result.providerCalls,
     attribution: result.attribution,
@@ -74,4 +88,4 @@ function deckDocument({ ownerUid, targetType, targetId, provider, result, reques
   };
 }
 
-module.exports = { deckDocument, storedCandidate, resultCard, ownListDeckDocument };
+module.exports = { deckDocument, storedCandidate, resultCard, ownListDeckDocument, noticeCards };

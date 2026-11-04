@@ -5,8 +5,8 @@
 const { randomBytes, createHash } = require('node:crypto');
 const { buildDeck, candidateId } = require('./search/deck');
 const { activeFlags } = require('./place-reports');
-const { deckDocument } = require('./decks');
-const { weekOf, monthOf, liveSearchConfig, weeklyCapFor, DAY_MS, WEEK_MS } = require('./quota');
+const { deckDocument, noticeCards } = require('./decks');
+const { weekOf, monthOf, liveSearchConfig, deckFeatures, weeklyCapFor, DAY_MS, WEEK_MS } = require('./quota');
 
 // Longer than the callable timeout, so a lease only expires once its call is gone.
 const LEASE_MS = 90 * 1000;
@@ -85,7 +85,8 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
         weekPath: weekRef(uid, week).path, monthPath: monthRef(month).path, provider: provider.id,
         callsReserved: calls, leaseExpiresAt: Timestamp.fromMillis(at + LEASE_MS),
         createdAt: updatedAt, expiresAt: Timestamp.fromMillis(at + DAY_MS) });
-      return { reservation: { token, lease, week: weekRef(uid, week), month: monthRef(month), calls } };
+      return { reservation: { token, lease, week: weekRef(uid, week), month: monthRef(month), calls },
+        features: deckFeatures(config.exists ? config.data() : null) };
     });
   }
 
@@ -125,7 +126,7 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
     const began = Date.now();
     const reserved = await reserve({ uid, mode, targetId, target });
     if (reserved.done) return reserved.done;
-    const { reservation } = reserved;
+    const { reservation, features } = reserved;
     const reservedAt = Date.now();
 
     // The seed comes first so the provider can use it to vary where it looks.
@@ -154,9 +155,12 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
       favorites: lists.favorites });
     built.candidates = built.candidates.map(candidate => {
       const flag = flags.get(candidate.id);
-      return flag?.website || flag?.phone ? { ...candidate, ...(flag.website ? { website: null } : {}),
-        ...(flag.phone ? { phone: null } : {}) } : candidate;
+      const { photoUrl, ...card } = candidate;
+      return { ...card, ...(features.photos && photoUrl ? { photoUrl } : {}),
+        ...(flag?.website ? { website: null } : {}), ...(flag?.phone ? { phone: null } : {}) };
     });
+    // A Quick Pick shows one place at a time, so only rooms get notice cards.
+    built.notices = mode === 'room' ? noticeCards(built.candidates.length, features.notices) : [];
     // Nothing is stored or charged for a pool too thin to use; the person is
     // asked to widen the search, or to start without never lists when those
     // took out what would have been enough.

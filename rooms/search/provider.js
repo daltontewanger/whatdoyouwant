@@ -39,6 +39,7 @@ const text = (value, max) => {
 // bounding text so one odd record cannot bloat a deck.
 function normalizedRestaurant(fields) {
   const website = text(fields.website, 300);
+  const photo = text(fields.photoUrl, 500);
   return {
     provider: fields.provider,
     providerPlaceId: String(fields.providerPlaceId ?? ''),
@@ -56,6 +57,8 @@ function normalizedRestaurant(fields) {
     // Only web links; anything else from a provider is not a usable link.
     website: website && /^https?:\/\//i.test(website) ? website : null,
     chainId: text(fields.chainId, 80),
+    // Kept only while the photos switch is on; no provider sends one yet.
+    photoUrl: photo && /^https:\/\//i.test(photo) ? photo : null,
     attribution: text(fields.attribution, 200),
   };
 }

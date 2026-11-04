@@ -75,6 +75,17 @@ class SwipeScreenState extends State<SwipeScreen> {
     swipeOptions = widget.restaurants;
   }
 
+  /// Places to vote on; notice cards in between do not count.
+  late final int _placeCount = swipeOptions.where((r) => r.votable).length;
+
+  /// How many places come before card [index].
+  int _placesBefore(int index) =>
+      swipeOptions.take(index).where((r) => r.votable).length;
+
+  bool get _onNotice =>
+      _currentIndex < swipeOptions.length &&
+      !swipeOptions[_currentIndex].votable;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -88,7 +99,7 @@ class SwipeScreenState extends State<SwipeScreen> {
     _places =
         RoomBackendScope.of(context).myPlaces?..addListener(_placesChanged);
     // Favorites in this deck get their details refreshed.
-    _places?.seen(swipeOptions).catchError((_) {});
+    _places?.seen(swipeOptions.where((r) => r.votable)).catchError((_) {});
   }
 
   void _placesChanged() {
@@ -119,8 +130,8 @@ class SwipeScreenState extends State<SwipeScreen> {
 
     final int restaurantsLen =
         room.restaurants.isNotEmpty
-            ? room.restaurants.length
-            : swipeOptions.length;
+            ? room.restaurants.where((r) => r.votable).length
+            : _placeCount;
     final bool iAmDone =
         restaurantsLen > 0 && room.myVoteCount >= restaurantsLen;
     // Someone has to close the room when time runs out, even if nobody has
@@ -192,13 +203,20 @@ class SwipeScreenState extends State<SwipeScreen> {
 
     final bool finishedDeck = _currentIndex >= swipeOptions.length;
 
+    // A notice card is only passed: no ballot, either way it goes.
+    if (!restaurant.votable) {
+      if (finishedDeck) _goToResults();
+      if (mounted && !_isLeaving) setState(() {});
+      return true;
+    }
+
     _backend
         .vote(
           widget.roomCode,
           restaurant,
           liked: liked,
-          index: previousIndex,
-          total: swipeOptions.length,
+          index: _placesBefore(previousIndex),
+          total: _placeCount,
           auto: auto,
         )
         .then((_) async {
@@ -233,6 +251,7 @@ class SwipeScreenState extends State<SwipeScreen> {
   List<Widget> get _cardWidgets {
     return swipeOptions.indexed.map((entry) {
       final (index, restaurant) = entry;
+      if (!restaurant.votable) return _NoticeCard(notice: restaurant);
       final favorite = _places?.isFavorite(restaurant.id) ?? false;
       final never = _places?.isNever(restaurant.id) ?? false;
       // Typed spots from the host's own list are already the host's, and a
@@ -473,7 +492,21 @@ class SwipeScreenState extends State<SwipeScreen> {
                                     ),
                                   ),
 
-                                  if (!finishedDeck)
+                                  if (!finishedDeck && _onNotice)
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        top: 20,
+                                        bottom: 6,
+                                      ),
+                                      child: ElevatedButton(
+                                        onPressed:
+                                            () => _swipe(
+                                              CardSwiperDirection.left,
+                                            ),
+                                        child: const Text('Continue'),
+                                      ),
+                                    )
+                                  else if (!finishedDeck)
                                     Padding(
                                       padding: const EdgeInsets.only(
                                         top: 20,
@@ -610,7 +643,7 @@ class SwipeScreenState extends State<SwipeScreen> {
                                       top: 4,
                                     ),
                                     child: Text(
-                                      'Option ${(_currentIndex + 1).clamp(1, swipeOptions.length)} of ${swipeOptions.length}',
+                                      'Option ${(_placesBefore(_currentIndex) + 1).clamp(1, _placeCount)} of $_placeCount',
                                       style: theme.textTheme.bodyMedium!
                                           .copyWith(color: Colors.black54),
                                     ),
@@ -725,6 +758,56 @@ class _CardAction extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A card between places that nobody votes on, passed with Continue or a
+/// swipe either way.
+class _NoticeCard extends StatelessWidget {
+  const _NoticeCard({required this.notice});
+
+  final Restaurant notice;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      color: Colors.white,
+      shape: theme.cardTheme.shape,
+      elevation: theme.cardTheme.elevation ?? 6,
+      margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'Not a place to vote on',
+              style: theme.textTheme.bodySmall!.copyWith(color: Colors.black54),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              notice.name,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.headlineSmall!.copyWith(
+                fontWeight: FontWeight.w800,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              notice.address,
+              textAlign: TextAlign.center,
+              maxLines: 5,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyLarge,
+            ),
+          ],
         ),
       ),
     );

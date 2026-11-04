@@ -73,12 +73,45 @@ Restaurant cardRestaurant(Map raw) => Restaurant(
   website: raw['website'] as String?,
   userEntered: raw['userEntered'] == true,
   note: raw['note'] as String?,
+  photoUrl: switch (raw['photoUrl']) {
+    final String url when url.startsWith('https://') => url,
+    _ => null,
+  },
 );
 
-/// The cards of a stored deck, in deck order.
-List<Restaurant> deckRestaurants(Map<String, dynamic> deck) => [
-  for (final raw in deck['candidates'] as List) cardRestaurant(raw as Map),
-];
+/// The cards of a stored deck, in deck order, with any notice cards placed
+/// after the place they follow.
+List<Restaurant> deckRestaurants(Map<String, dynamic> deck) {
+  final places = [
+    for (final raw in deck['candidates'] as List) cardRestaurant(raw as Map),
+  ];
+  final notices = deck['notices'];
+  if (notices is! List || notices.isEmpty) return places;
+  final after = <int, List<Restaurant>>{};
+  for (final raw in notices) {
+    if (raw is! Map ||
+        raw['id'] is! String ||
+        raw['after'] is! int ||
+        raw['title'] is! String ||
+        raw['text'] is! String) {
+      continue;
+    }
+    (after[raw['after'] as int] ??= []).add(
+      Restaurant.notice(
+        id: raw['id'] as String,
+        title: raw['title'] as String,
+        text: raw['text'] as String,
+      ),
+    );
+  }
+  return [
+    for (final (i, place) in places.indexed) ...[
+      place,
+      // Never after the last place, so the deck ends on one.
+      if (i < places.length - 1) ...?after[i + 1],
+    ],
+  ];
+}
 
 /// The room's roster as people see it: host first, then you, then everyone
 /// else by name, with guests last. Seats are the server's random keys; the

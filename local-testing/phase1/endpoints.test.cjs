@@ -895,3 +895,30 @@ test('reports: places the person reported closed stay out of their picks and roo
     lists: { favorites: false, never: false } }, host)).status, 200);
   assert.ok(!(await deckOf(roomId)).candidateIds.includes(nearby[4]));
 });
+
+test('notice cards: off by default; when switched on, room decks carry them beside the places', async () => {
+  const host = await user(true, true);
+  const off = await room(host);
+  const plain = await call('startRoom', { roomId: off.roomId, search: { ...SEARCH, deckSize: 10 } }, host);
+  assert.equal(plain.data.result.notices, undefined);
+  assert.equal((await deckOf(off.roomId)).notices, undefined);
+
+  await db.doc('config/liveSearch').update({ deckNotices: { enabled: true, every: 4, title: 'A word from us',
+    text: 'Thanks for deciding with us.' } });
+  const on = await room(host);
+  const started = (await call('startRoom', { roomId: on.roomId, search: { ...SEARCH, deckSize: 10 } }, host))
+    .data.result;
+  const deck = await deckOf(on.roomId);
+  assert.deepEqual(deck.notices.map(card => card.after), [4, 8]);
+  assert.deepEqual(started.notices, deck.notices);
+  const again = (await call('startRoom', { roomId: on.roomId, search: SEARCH }, host)).data.result;
+  assert.equal(again.deckId, started.deckId, 'a repeat points at the stored deck, which has the notices');
+  assert.equal(deck.candidateIds.length, 10, 'notices are not candidates');
+  assert.equal((await vote(on.roomId, host, 'n1')).status, 403, 'nobody can vote on a notice');
+  assert.ok(deck.candidates.every(candidate => !('photoUrl' in candidate)), 'photos stay off');
+
+  const pick = (await call('createQuickPick', { requestId: randomUUID(), search: { ...SEARCH, deckSize: 10 } }, host))
+    .data.result;
+  assert.equal((await db.doc(`restaurantDecks/${pick.deckId}`).get()).data().notices, undefined,
+    'a Quick Pick shows one place at a time');
+});

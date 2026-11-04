@@ -18,6 +18,14 @@ class Restaurant {
   /// The person's own note on a spot they typed in.
   final String? note;
 
+  /// False for a notice card in a room's deck: nobody votes on it, and it
+  /// never counts toward anyone's progress or the results. Its title and
+  /// text arrive as [name] and [address].
+  final bool votable;
+
+  /// A photo of the place, only while the server's photos switch is on.
+  final String? photoUrl;
+
   Restaurant({
     required this.id,
     required this.name,
@@ -29,7 +37,27 @@ class Restaurant {
     this.website,
     this.userEntered = false,
     this.note,
+    this.votable = true,
+    this.photoUrl,
   });
+
+  /// A card that sits between places in the deck and only asks to be
+  /// passed.
+  Restaurant.notice({
+    required this.id,
+    required String title,
+    required String text,
+  }) : name = title,
+       address = text,
+       distance = 0,
+       latitude = null,
+       longitude = null,
+       phone = null,
+       website = null,
+       userEntered = false,
+       note = null,
+       votable = false,
+       photoUrl = null;
 
   factory Restaurant.fromJson(Map<String, dynamic> json) {
     return Restaurant(

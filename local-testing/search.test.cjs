@@ -273,8 +273,9 @@ test('HERE normalization: contract fields only, title stripped from the address,
   const items = fixture('suburb').responses[0].body.items;
   const slice = normalizeHereItem(items[0]);
   assert.deepEqual(Object.keys(slice).sort(), ['address', 'attribution', 'categoryIds', 'chainId', 'cuisineIds',
-    'dietaryHints', 'distanceMetersFromOrigin', 'latitude', 'longitude', 'name', 'openStatus', 'phone', 'provider',
-    'providerPlaceId', 'website'].sort());
+    'dietaryHints', 'distanceMetersFromOrigin', 'latitude', 'longitude', 'name', 'openStatus', 'phone', 'photoUrl',
+    'provider', 'providerPlaceId', 'website'].sort());
+  assert.equal(slice.photoUrl, null, 'HERE sends no photos');
   assert.equal(slice.address, '101 Synthetic Ave, Exampleton, KS 67000, United States');
   assert.deepEqual(slice.cuisineIds, ['italian', 'pizza']);
   assert.equal(slice.chainId, 'here:9001');
@@ -415,4 +416,12 @@ test('cuisines: the app and the Firestore rules offer exactly the server whiteli
   const rules = readFileSync(require.resolve('../rooms/firestore.rules'), 'utf8');
   const list = rules.match(/function cuisineIds\(\) \{\s*return \[([^\]]+)\]/)[1];
   assert.deepEqual([...list.matchAll(/'(\w+)'/g)].map(([, id]) => id), CUISINE_IDS);
+});
+
+test('notice cards: after every few places, never last, outside the candidates', () => {
+  const { noticeCards } = require('../rooms/decks');
+  const notices = { every: 4, title: 'A word from us', text: 'Thanks.' };
+  assert.deepEqual(noticeCards(10, notices).map(card => [card.id, card.after]), [['n1', 4], ['n2', 8]]);
+  assert.deepEqual(noticeCards(8, notices).map(card => card.after), [4], 'not after the last place');
+  assert.deepEqual(noticeCards(10, null), []);
 });
