@@ -42,8 +42,6 @@ class _MainShellState extends State<MainShell> {
         await home.openOwnList();
       case MenuChoice.searchSettings:
         await home.openSearchSettings();
-      case MenuChoice.join:
-        home.openJoin();
       case MenuChoice.howItWorks:
         await home.openIntro();
       case MenuChoice.demo:
@@ -225,7 +223,6 @@ enum MenuChoice {
   quickPick,
   ownList,
   searchSettings,
-  join,
   howItWorks,
   demo,
   questions,
@@ -248,14 +245,6 @@ class _Menu extends StatelessWidget {
           icon: Icons.tune,
         ),
         MenuChoice.searchSettings,
-      ),
-      (
-        const HomeStep(
-          'Join a room',
-          'Enter a code from a friend.',
-          icon: Icons.login,
-        ),
-        MenuChoice.join,
       ),
       (
         const HomeStep(

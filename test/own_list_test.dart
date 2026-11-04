@@ -325,7 +325,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text("You've been found wanting"), findsOneWidget);
     expect(find.text('Search settings'), findsOneWidget);
-    expect(find.text('Join a room'), findsOneWidget);
+    expect(find.text('Join a room'), findsNothing);
     expect(find.text('Questions & answers'), findsOneWidget);
     await tester.tap(find.text("We'll Decide What We Want").last);
     await tester.pumpAndSettle();

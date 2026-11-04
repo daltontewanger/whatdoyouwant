@@ -307,7 +307,6 @@ class HomeScreenState extends State<HomeScreen>
   Future<void> openQuickPick() => _quickPick();
   Future<void> openOwnList() => _ownList();
   Future<void> openSearchSettings() => _searchSettings();
-  void openJoin() => _joinRoom();
 
   Future<void> _ownList() => Navigator.push(
     context,
