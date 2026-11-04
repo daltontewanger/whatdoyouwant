@@ -162,15 +162,22 @@ function pinnedFavorites(pool, favorites, deckSize, seed) {
  * Builds a deck from normalized records.
  * @param {object[]} records NormalizedRestaurant records from any provider.
  * @param {object} request A parsed search request (see request.js).
- * @param {{seed: string, minimumPool?: number, never?: Iterable<string>, favorites?: string[][]}} options
+ * @param {{seed: string, minimumPool?: number, never?: Iterable<string>, closed?: Iterable<string>,
+ *   favorites?: string[][]}} options
  *   The stored seed draws the order within each preference tier. `never` holds card IDs to leave out;
- *   `favorites` holds each person's favorite card IDs.
+ *   `closed` holds card IDs reported closed, which are not part of the pool at all; `favorites` holds
+ *   each person's favorite card IDs.
  * @returns {{candidates: object[], pool: object}} Candidates in deck order and a pool report.
  */
 function buildDeck(records, request, { seed, minimumPool = Math.min(MINIMUM_POOL, request.deckSize),
-  never = [], favorites = [] }) {
+  never = [], closed = [], favorites = [] }) {
   if (typeof seed !== 'string' || !seed.length) throw new Error('A deck needs a stored seed.');
-  const { kept: eligible, counts } = eligiblePool(records, request);
+  const { kept: pool, counts } = eligiblePool(records, request);
+  // A closed place is gone, so it never counts toward having enough places.
+  const shut = new Set(closed);
+  const eligible = pool.filter(record => !shut.has(candidateId(record)));
+  counts.reportedClosed = pool.length - eligible.length;
+  counts.eligible = eligible.length;
   const left = new Set(never);
   const kept = eligible.filter(record => !left.has(candidateId(record)));
   const pinned = pinnedFavorites(kept, favorites, request.deckSize, seed);

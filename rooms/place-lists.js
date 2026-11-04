@@ -54,7 +54,7 @@ function entries(value, fields, seen) {
  * here as well as by the sweep, so a stale device copy cannot bring them back.
  */
 function parsePlaces(data, now) {
-  exactObject(data, ['favorites', 'never', 'useFavorites', 'useNever']);
+  exactObject(data, ['favorites', 'never', 'useFavorites', 'useNever'], ['closed']);
   if (typeof data.useFavorites !== 'boolean' || typeof data.useNever !== 'boolean') fail();
   const seen = new Set();
   const favorites = entries(data.favorites, ['name', 'address', 'seenAt'], seen).map(raw => {
@@ -66,11 +66,16 @@ function parsePlaces(data, now) {
     if (raw.seenAt <= now - DETAILS_MS) return place;
     return { ...place, name, ...(address ? { address } : {}), seenAt: Math.min(raw.seenAt, now) };
   });
-  const never = entries(data.never, ['name'], seen).map(raw => {
+  const named = raw => {
     const name = cleanText(raw.name, LIMITS.name);
     return name ? { id: raw.id, name } : { id: raw.id };
-  });
-  return { favorites, never, useFavorites: data.useFavorites, useNever: data.useNever };
+  };
+  const never = entries(data.never, ['name'], seen).map(named);
+  // Places the person reported closed: always left out for them, whatever
+  // the never switch says. Older apps do not send the list at all.
+  const closed = data.closed === undefined ? undefined : entries(data.closed, ['name'], seen).map(named);
+  return { favorites, never, ...(closed ? { closed } : {}), useFavorites: data.useFavorites,
+    useNever: data.useNever };
 }
 
 /** When the oldest kept details run out, or null when no favorite has any. */
@@ -85,10 +90,14 @@ function withoutStaleDetails(favorites, now) {
     ? { id: place.id } : place));
 }
 
-/** What a room member shares while in the lobby: card IDs only. */
+/**
+ * What a room member shares while in the lobby: card IDs only. Closed places
+ * are left out of the deck whatever the host's switches say.
+ */
 function parseRoomLists(data) {
-  exactObject(data, ['roomId', 'favorites', 'never']);
-  return { roomId: data.roomId, favorites: placeIds(data.favorites), never: placeIds(data.never) };
+  exactObject(data, ['roomId', 'favorites', 'never'], ['closed']);
+  return { roomId: data.roomId, favorites: placeIds(data.favorites), never: placeIds(data.never),
+    closed: data.closed === undefined ? [] : placeIds(data.closed) };
 }
 
 module.exports = { parsePlaces, parseRoomLists, detailsExpireAt, withoutStaleDetails, InvalidPlaces, PLACE_ID,

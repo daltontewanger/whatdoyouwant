@@ -45,9 +45,20 @@ test('places: shape, IDs, sizes and lengths are enforced', () => {
   }
 });
 
+test('places: closed places keep a name, are optional, and sit on one list only', () => {
+  assert.equal(parsePlaces(lists(), NOW).closed, undefined, 'an older app sends none');
+  assert.deepEqual(parsePlaces(lists({ closed: [{ id: id(1), name: ' Gone ' }, { id: id(2) }] }), NOW).closed,
+    [{ id: id(1), name: 'Gone' }, { id: id(2) }]);
+  for (const bad of [lists({ closed: [{ id: id(1) }], never: [{ id: id(1) }] }), lists({ closed: [{ id: 'x' }] }),
+    lists({ closed: [{ id: id(1), seenAt: NOW }] }), lists({ closed: {} })]) {
+    assert.throws(() => parsePlaces(bad, NOW), InvalidPlaces, JSON.stringify(bad).slice(0, 60));
+  }
+});
+
 test('room lists: card IDs only, no repeats, bounded', () => {
   assert.deepEqual(parseRoomLists({ roomId: 'R', favorites: [id(1)], never: [id(2), id(3)] }),
-    { roomId: 'R', favorites: [id(1)], never: [id(2), id(3)] });
+    { roomId: 'R', favorites: [id(1)], never: [id(2), id(3)], closed: [] });
+  assert.deepEqual(parseRoomLists({ roomId: 'R', favorites: [], never: [], closed: [id(4)] }).closed, [id(4)]);
   for (const bad of [{ roomId: 'R', favorites: [] }, { roomId: 'R', favorites: [id(1), id(1)], never: [] },
     { roomId: 'R', favorites: ['Demo Taco'], never: [] }, { roomId: 'R', favorites: [], never: [], uid: 'x' },
     { roomId: 'R', favorites: Array.from({ length: MAX_PLACES + 1 }, (_, n) => id(n)), never: [] }]) {

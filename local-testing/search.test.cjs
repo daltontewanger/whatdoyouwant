@@ -156,7 +156,7 @@ test('deck: distance comes from the origin; out-of-radius and positively exclude
   assert.ok(!candidates.some(c => c.cuisineIds.includes('mexican')));
   assert.ok(candidates.some(c => c.cuisineIds.length === 0), 'unknown cuisine stays under exclusions (flexible)');
   assert.deepEqual(pool, { received: 26, invalid: 0, outOfRadius: 1, excluded: 2, duplicates: 0, eligible: 23,
-    neverLeftOut: 0, favoritesIncluded: 0, selected: 23, minimum: 8, sufficient: true });
+    reportedClosed: 0, neverLeftOut: 0, favoritesIncluded: 0, selected: 23, minimum: 8, sufficient: true });
   assert.equal((await fakeDeck({ deckSize: 5 })).pool.minimum, 5, 'a short deck needs only its own size');
 });
 
@@ -179,6 +179,19 @@ test('deck: never places are left out and counted; too many leaves the pool shor
   const everything = restaurants.map(candidateId);
   const { deck: empty } = await listDeck({ never: everything });
   assert.deepEqual([empty.candidates.length, empty.pool.sufficient], [0, false]);
+});
+
+test('deck: places reported closed leave the pool itself, so they never count toward enough', async () => {
+  const { deck: plain } = await listDeck({});
+  const closed = plain.candidates.slice(0, 2).map(c => c.id);
+  const { deck } = await listDeck({ closed, never: [plain.candidates[2].id] });
+  assert.ok(deck.candidates.every(c => !closed.includes(c.id)));
+  assert.deepEqual([deck.pool.reportedClosed, deck.pool.neverLeftOut, deck.pool.eligible],
+    [2, 1, plain.pool.eligible - 2]);
+  const { restaurants } = await listDeck({});
+  const { deck: none } = await listDeck({ closed: restaurants.map(candidateId) });
+  assert.deepEqual([none.pool.eligible, none.pool.neverLeftOut, none.pool.sufficient], [0, 0, false],
+    'too few places, with nothing to blame on never lists');
 });
 
 test('deck: one favorite per person, only when found, at most half the deck', async () => {

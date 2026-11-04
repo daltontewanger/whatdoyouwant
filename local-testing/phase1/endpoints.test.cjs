@@ -753,3 +753,145 @@ test('nicknames: verified accounts only, checked by the server, shown on the ros
   assert.equal((await nickname(member, 'Late')).status, 200);
   assert.deepEqual(await roster(), ['Dalton (host)', 'Rando1122']);
 });
+
+// A closed room whose winner and backup are the first two cards of its deck.
+async function closedRoom(host, members = []) {
+  const { roomId, joinCode } = await room(host);
+  for (const member of members) assert.equal((await join(joinCode, member)).status, 200);
+  assert.equal((await call('startRoom', { roomId, search: { ...SEARCH, deckSize: 10 } }, host)).status, 200);
+  assert.equal((await call('closeRoom', { roomId }, host)).status, 200);
+  const { results } = (await db.doc(`rooms/${roomId}`).get()).data();
+  return { roomId, winner: results.winner, backup: results.backup, deck: (await deckOf(roomId)).candidateIds };
+}
+const report = (who, fields) => call('reportPlace', fields, who);
+
+test('reports: only verified accounts, only for a place they were shown, once each', async () => {
+  const host = await user(true, true); const guest = await user(); const unverified = await user(true, false);
+  const outsider = await user(true, true);
+  const shown = await closedRoom(host, [guest, unverified]);
+  const closed = { roomId: shown.roomId, cardId: shown.winner, kind: 'closed' };
+  assert.equal((await report(guest, closed)).status, 403, 'guests hide places on their device only');
+  assert.equal((await report(unverified, closed)).status, 403);
+  assert.equal((await report(outsider, closed)).status, 403, 'not in the room');
+  assert.equal((await report(host, { ...closed, cardId: shown.deck[5] })).status, 403, 'neither winner nor backup');
+  for (const bad of [{ ...closed, kind: 'rude' }, { ...closed, cardId: 'ChIJprovider' }, { cardId: shown.winner,
+    kind: 'closed' }, { ...closed, quickPickId: 'a'.repeat(24) }, { ...closed, extra: 1 }]) {
+    assert.equal((await report(host, bad)).status, 400, JSON.stringify(bad).slice(0, 80));
+  }
+  assert.deepEqual((await report(host, closed)).data.result, { counted: true });
+  assert.deepEqual((await report(host, closed)).data.result, { counted: false }, 'one report per account');
+  assert.deepEqual((await report(host, { ...closed, cardId: shown.backup })).data.result, { counted: true },
+    'the backup was shown too');
+  // The fake places have no website or phone, so there is nothing to report wrong.
+  assert.equal((await report(host, { ...closed, kind: 'website' })).status, 403);
+  assert.equal((await report(host, { ...closed, kind: 'phone' })).status, 403);
+  assert.equal((await report(host, { ...closed, kind: 'location' })).status, 200);
+  const entries = await db.collectionGroup('byAccount').get();
+  assert.equal(entries.size, 3);
+  assert.ok(entries.docs.every(entry => !JSON.stringify(entry.data()).includes(host.uid)), 'no UID is stored');
+  assert.equal((await request(`${documents}/placeReports/${shown.winner}/byAccount/${entries.docs[0].id}`, undefined,
+    host.token, 'GET')).status, 403, 'reports are server-only');
+
+  // An own-list room has no places to report.
+  const listRoom = await room(host);
+  const spots = [{ id: 'own-1', name: 'Pizza Place' }, { id: 'own-2', name: 'Noodle Bar' }];
+  assert.equal((await call('startRoomFromList', { roomId: listRoom.roomId, spots }, host)).status, 200);
+  await call('closeRoom', { roomId: listRoom.roomId }, host);
+  const typed = (await db.doc(`rooms/${listRoom.roomId}`).get()).data().results.winner;
+  assert.equal((await report(host, { roomId: listRoom.roomId, cardId: typed, kind: 'closed' })).status, 400);
+});
+
+test('reports: three accounts hide a closed place for everyone; wrong buttons go the same way', async () => {
+  const host = await user(true, true);
+  const members = [await user(true, true), await user(true, true)];
+  const shown = await closedRoom(host, members);
+  // A website and phone on the result, as a real listing would have.
+  await db.doc(`rooms/${shown.roomId}`).update({ 'results.winnerCard.website': 'https://example.test',
+    'results.winnerCard.phone': '+15550100' });
+  const closed = { roomId: shown.roomId, cardId: shown.winner, kind: 'closed' };
+  for (const [i, who] of [host, ...members].entries()) {
+    assert.equal((await report(who, closed)).status, 200);
+    assert.equal((await db.doc(`placeFlags/${shown.winner}`).get()).exists, i === 2, `after ${i + 1} reports`);
+  }
+  for (const who of [host, ...members]) assert.equal((await report(who, { ...closed, kind: 'phone' })).status, 200);
+  for (const who of [host, members[0]]) assert.equal((await report(who, { ...closed, kind: 'website' })).status, 200);
+  const flag = (await db.doc(`placeFlags/${shown.winner}`).get()).data();
+  const day = 24 * 3600000;
+  assert.ok(Math.abs(flag.closedUntil.toMillis() - (Date.now() + 180 * day)) < 60000);
+  assert.ok(flag.phoneUntil && !flag.websiteUntil, 'two website reports are not enough');
+  assert.equal(typeof flag.name, 'string');
+  assert.ok(Math.abs(flag.detailsExpireAt.toMillis() - (Date.now() + 30 * day)) < 60000);
+
+  // The next search leaves it out, for anyone.
+  const stranger = await user(true, true);
+  const next = await room(stranger);
+  assert.equal((await call('startRoom', { roomId: next.roomId, search: { ...SEARCH, deckSize: 25 } }, stranger))
+    .status, 200);
+  const deck = await deckOf(next.roomId);
+  assert.ok(!deck.candidateIds.includes(shown.winner));
+  assert.ok(deck.candidateIds.includes(shown.backup), 'one report is not enough for the backup');
+  assert.equal(deck.pool.reportedClosed, 1);
+
+  // After 180 days it comes back unless reported again; the details go after 30.
+  const at = days => createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthUser: async () => {},
+    now: () => Date.now() + days * day });
+  assert.ok((await at(31).sweep()).detailsDropped >= 1);
+  const swept = (await db.doc(`placeFlags/${shown.winner}`).get()).data();
+  assert.deepEqual([swept.name, swept.address, Boolean(swept.closedUntil)], [undefined, undefined, true]);
+});
+
+test('reports: a phone or website reported wrong is cleared from new decks', async () => {
+  const [a, b] = await placesNearby();
+  const until = Timestamp.fromMillis(Date.now() + 3600000);
+  await db.doc(`placeFlags/${a}`).set({ websiteUntil: until, phoneUntil: until, expiresAt: until });
+  await db.doc(`placeFlags/${b}`).set({ closedUntil: Timestamp.fromMillis(Date.now() - 1000), expiresAt: until });
+  const host = await user(true, true);
+  const { roomId } = await room(host);
+  assert.equal((await call('startRoom', { roomId, search: { ...SEARCH, deckSize: 25 } }, host)).status, 200);
+  const deck = await deckOf(roomId);
+  const card = deck.candidates.find(candidate => candidate.id === a);
+  assert.deepEqual([card.website, card.phone], [null, null]);
+  assert.ok(deck.candidateIds.includes(b), 'hiding that has run out no longer applies');
+});
+
+test('reports: a Quick Pick card can be reported once revealed; deletion takes the reports', async () => {
+  const host = await user(true, true);
+  const pick = (await call('createQuickPick', { requestId: randomUUID(), search: { ...SEARCH, deckSize: 10 } }, host))
+    .data.result;
+  const { order } = (await db.doc(`quickPicks/${pick.quickPickId}`).get()).data();
+  const fields = { quickPickId: pick.quickPickId, cardId: order[0], kind: 'closed' };
+  assert.equal((await report(host, { ...fields, cardId: order[1] })).status, 403, 'not revealed yet');
+  assert.equal((await report(await user(true, true), fields)).status, 403, 'someone else\'s pick');
+  assert.equal((await report(host, fields)).status, 200);
+  assert.equal((await call('rerollQuickPick', { quickPickId: pick.quickPickId, from: 0 }, host)).status, 200);
+  assert.equal((await report(host, { ...fields, cardId: order[1] })).status, 200);
+  assert.equal((await db.collectionGroup('byAccount').get()).size, 2);
+  assert.equal((await call('deleteAccount', {}, host)).status, 200);
+  assert.equal((await db.collectionGroup('byAccount').get()).size, 0);
+});
+
+test('reports: places the person reported closed stay out of their picks and rooms', async () => {
+  const host = await user(true, true); const guest = await user();
+  const nearby = await placesNearby();
+  const gone = nearby.slice(0, 3);
+  const saved = await call('saveMyPlaces', PLACES({ closed: gone.map(id => ({ id, name: 'Gone' })),
+    useNever: false }), host);
+  assert.deepEqual(saved.data.result, { saved: 3 });
+  // An older app saves without the closed list; it stays.
+  assert.equal((await call('saveMyPlaces', PLACES({ never: [{ id: nearby[3] }] }), host)).status, 200);
+  assert.deepEqual((await db.doc(`userPlaces/${host.uid}`).get()).data().closed.map(place => place.id), gone);
+  assert.equal((await call('saveMyPlaces', PLACES({ closed: [{ id: gone[0] }], never: [{ id: gone[0] }] }), host))
+    .status, 400, 'a place is on one list');
+  const pick = await call('createQuickPick', { requestId: randomUUID(), search: { ...SEARCH, deckSize: 25 } }, host);
+  const picked = (await db.doc(`restaurantDecks/${pick.data.result.deckId}`).get()).data().candidateIds;
+  assert.ok(gone.every(id => !picked.includes(id)), 'even with the never switch off');
+
+  // A guest's closed places leave the room's deck whatever the host's switches say.
+  const { roomId, joinCode } = await room(host);
+  assert.equal((await join(joinCode, guest)).status, 200);
+  assert.equal((await call('shareRoomLists', { roomId, favorites: [], never: [], closed: [nearby[4]] }, guest))
+    .status, 200);
+  assert.equal((await call('startRoom', { roomId, search: { ...SEARCH, deckSize: 25 },
+    lists: { favorites: false, never: false } }, host)).status, 200);
+  assert.ok(!(await deckOf(roomId)).candidateIds.includes(nearby[4]));
+});

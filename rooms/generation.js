@@ -3,7 +3,8 @@
 // transaction, then commit the deck and settle. Anything that ends without a
 // committed deck refunds the search; provider calls that happened always count.
 const { randomBytes, createHash } = require('node:crypto');
-const { buildDeck } = require('./search/deck');
+const { buildDeck, candidateId } = require('./search/deck');
+const { activeFlags } = require('./place-reports');
 const { deckDocument } = require('./decks');
 const { weekOf, monthOf, liveSearchConfig, weeklyCapFor, DAY_MS, WEEK_MS } = require('./quota');
 
@@ -107,7 +108,18 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
     }));
   }
 
-  // `lists` holds the never and favorite card IDs this deck should honour.
+  // What reports have hidden for everyone among these places: closed ones,
+  // and places whose website or phone was reported wrong.
+  async function reportedFlags(restaurants) {
+    const ids = [...new Set(restaurants.filter(record => record?.provider && record.providerPlaceId)
+      .map(candidateId))];
+    if (!ids.length) return new Map();
+    const at = now();
+    const flags = await db.getAll(...ids.map(id => db.doc(`placeFlags/${id}`)));
+    return new Map(flags.filter(flag => flag.exists).map(flag => [flag.id, activeFlags(flag.data(), at)]));
+  }
+
+  // `lists` holds the never, closed and favorite card IDs this deck should honour.
   async function generateDeck({ uid, mode, targetId, search, target, lists = {} }) {
     // Wall-clock stage timings for the log; the injected clock is for limits.
     const began = Date.now();
@@ -130,7 +142,21 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
     }
     const calls = result.providerCalls;
     const searchedAt = Date.now();
-    const built = buildDeck(result.restaurants, search, { seed, never: lists.never, favorites: lists.favorites });
+    let flags;
+    try {
+      flags = await retryTransient(() => reportedFlags(result.restaurants));
+    } catch (error) {
+      await refund(reservation, calls, 'failed');
+      throw error;
+    }
+    const closed = [...(lists.closed ?? []), ...[...flags].filter(([, flag]) => flag.closed).map(([id]) => id)];
+    const built = buildDeck(result.restaurants, search, { seed, never: lists.never, closed,
+      favorites: lists.favorites });
+    built.candidates = built.candidates.map(candidate => {
+      const flag = flags.get(candidate.id);
+      return flag?.website || flag?.phone ? { ...candidate, ...(flag.website ? { website: null } : {}),
+        ...(flag.phone ? { phone: null } : {}) } : candidate;
+    });
     // Nothing is stored or charged for a pool too thin to use; the person is
     // asked to widen the search, or to start without never lists when those
     // took out what would have been enough.
@@ -163,7 +189,7 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
     }
     // Counts only: no UID, location or restaurant names.
     log({ event: 'deck_created', mode, provider: provider.id, providerCalls: calls, eligible: built.pool.eligible,
-      neverLeftOut: built.pool.neverLeftOut, favoritesIncluded: built.pool.favoritesIncluded,
+      reportedClosed: built.pool.reportedClosed, neverLeftOut: built.pool.neverLeftOut, favoritesIncluded: built.pool.favoritesIncluded,
       selected: built.pool.selected, kept: Boolean(outcome.view), reserveMs: reservedAt - began,
       providerMs: searchedAt - reservedAt, commitMs: Date.now() - searchedAt });
     if (outcome.view) return outcome.view;

@@ -10,6 +10,8 @@ const { createClientErrorReporter } = require('./client-errors');
 const { parseOwnList, InvalidList } = require('./own-list');
 const { parsePlaces, parseRoomLists, detailsExpireAt, withoutStaleDetails, InvalidPlaces } = require('./place-lists');
 const { createGeneration } = require('./generation');
+const { parseReport, reportable, InvalidReport, KINDS, REPORT_WINDOW_MS, HIDDEN_MS, FLAG_DETAILS_MS,
+  REPORTS_TO_HIDE } = require('./place-reports');
 const { parseNickname, InvalidNickname, BlockedNickname } = require('./nickname');
 
 const ROOM_TTL_MS = 24 * 3600000;
@@ -154,9 +156,9 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
   const expiresField = at => (at === null ? FieldValue.delete() : Timestamp.fromMillis(at));
 
   // The lists active members shared for this room, as the host's switches
-  // allow. Read before the deck is built; anything shared later misses it.
+  // allow; places someone reported closed are left out either way. Read
+  // before the deck is built; anything shared later misses it.
   async function roomLists(roomId, use) {
-    if (!use.favorites && !use.never) return { lists: {}, shared: [] };
     const room = roomRef(roomId);
     const [members, lists] = await Promise.all([room.collection('members').where('active', '==', true).get(),
       room.collection('lists').get()]);
@@ -165,6 +167,7 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
     return {
       lists: {
         never: use.never ? counted.flatMap(list => list.data().never) : [],
+        closed: counted.flatMap(list => list.data().closed ?? []),
         favorites: use.favorites ? counted.map(list => list.data().favorites) : [],
       },
       shared: lists.docs.map(list => list.ref),
@@ -190,6 +193,31 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
     const state = stateOf(snapshot);
     if (state.expiresAt <= now() || !membership.exists || membership.data().active !== true) deny();
     return { room, snapshot, state };
+  }
+
+  // The winner or backup a member of this room was shown, if that is
+  // `cardId`. Closed rooms count; their results last as long as the room.
+  async function shownInRoom(tx, roomId, uid, cardId) {
+    const room = roomRef(roomId);
+    const [snapshot, membership] = await Promise.all([tx.get(room), tx.get(room.collection('members').doc(uid))]);
+    if (!snapshot.exists || !membership.exists || membership.data().active !== true) deny();
+    const state = stateOf(snapshot);
+    if (state.expiresAt <= now() || state.status !== 'closed') deny();
+    const { results } = state;
+    if (results?.winner === cardId) return results.winnerCard;
+    if (results?.backup === cardId) return results.backupCard;
+    return deny();
+  }
+
+  // A card the person's own Quick Pick has revealed so far.
+  async function shownInPick(tx, quickPickId, uid, cardId) {
+    const pick = await tx.get(quickPickRef(quickPickId));
+    const data = pick.data();
+    if (!pick.exists || data.ownerUid !== uid || data.expiresAt.toMillis() <= now()) deny();
+    const index = data.order.indexOf(cardId);
+    if (index < 0 || index > data.position) deny();
+    const deck = await tx.get(deckRef(data.deckId));
+    return deck.data()?.candidates?.find(candidate => candidate.id === cardId) ?? deny();
   }
 
   // Puts the member's current name on the room's roster. Rooms made before
@@ -410,11 +438,13 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       await limit(actor.uid, 'quickPick', 10, 60000);
       const quickPickId = digest(`${actor.uid}:${requestId}`).slice(0, 24);
       const ref = quickPickRef(quickPickId);
-      // A pick never suggests a place on the person's own never list.
+      // A pick never suggests a place on the person's own never list, or one
+      // they reported closed.
       const places = (await placesRef(actor.uid).get()).data();
       const never = places?.useNever ? places.never.map(place => place.id) : [];
+      const closed = (places?.closed ?? []).map(place => place.id);
       return generation.generateDeck({ uid: actor.uid, mode: 'quickPick', targetId: quickPickId, search,
-        lists: { never }, target: {
+        lists: { never, closed }, target: {
         async check(tx) {
           const existing = await tx.get(ref);
           if (!existing.exists) return { ready: null };
@@ -629,6 +659,18 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
           return 1;
         }));
       }
+      // Places hidden as closed keep their name and address for 30 days.
+      const flagged = await db.collection('placeFlags').where('detailsExpireAt', '<=', Timestamp.fromMillis(now()))
+        .limit(SWEEP_BATCH).get();
+      if (!flagged.empty) {
+        await retryTransient(async () => {
+          const batch = db.batch();
+          flagged.forEach(flag => batch.update(flag.ref, { name: FieldValue.delete(), address: FieldValue.delete(),
+            detailsExpireAt: FieldValue.delete() }));
+          await batch.commit();
+        });
+      }
+      detailsDropped += flagged.size;
       log({ event: 'rooms_swept', roomsClosed: closed, decksDeleted: expired.size, leasesSettled, detailsDropped });
       return { roomsClosed: closed, decksDeleted: expired.size, leasesSettled, detailsDropped };
     },
@@ -702,10 +744,16 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
         throw error;
       }
       await limit(actor.uid, 'myPlaces', 30, 60000);
+      // An older app sends no closed list; the one already saved stays.
+      if (!places.closed) {
+        const kept = (await placesRef(actor.uid).get()).data()?.closed ?? [];
+        const listed = new Set([...places.favorites, ...places.never].map(place => place.id));
+        places.closed = kept.filter(place => !listed.has(place.id));
+      }
       const expires = detailsExpireAt(places.favorites);
       await placesRef(actor.uid).set({ ...places, ...(expires === null ? {} : { detailsExpireAt: Timestamp.fromMillis(expires) }),
         updatedAt: FieldValue.serverTimestamp() });
-      return { saved: places.favorites.length + places.never.length };
+      return { saved: places.favorites.length + places.never.length + places.closed.length };
     },
 
     // Each member, guests included, shares the card IDs from their own lists
@@ -726,9 +774,55 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
         const { room, snapshot, state } = await memberView(tx, shared.roomId, actor.uid);
         if (state.status !== 'lobby') return { shared: false };
         tx.set(room.collection('lists').doc(actor.uid), { favorites: shared.favorites, never: shared.never,
-          expiresAt: snapshot.data().expiresAt });
+          closed: shared.closed, expiresAt: snapshot.data().expiresAt });
         return { shared: true };
       });
+    },
+
+    // A verified account says a place it was shown is closed or has wrong
+    // details. Only the winner or backup of a room the account was in, or a
+    // card its own Quick Pick revealed, while that result still exists. Guests
+    // hide a closed place on their own device only; their reports do not count.
+    async reportPlace(request) {
+      const actor = identity(request);
+      if (!authorize('create', actor)) deny();
+      let report;
+      try {
+        report = parseReport(request.data);
+      } catch (error) {
+        if (error instanceof InvalidReport) invalid();
+        throw error;
+      }
+      await limit(actor.uid, 'reportPlace', 10, 24 * 3600000);
+      const { cardId, kind } = report;
+      const entry = db.doc(`placeReports/${cardId}/byAccount/${digest(`${actor.uid}:${kind}`)}`);
+      const flagRef = db.doc(`placeFlags/${cardId}`);
+      return retryTransient(() => db.runTransaction(async tx => {
+        const card = report.from === 'room' ? await shownInRoom(tx, report.targetId, actor.uid, cardId)
+          : await shownInPick(tx, report.targetId, actor.uid, cardId);
+        if (!reportable(card, kind)) deny();
+        const [previous, others, flag] = await Promise.all([tx.get(entry),
+          tx.get(entry.parent.where('kind', '==', kind)), tx.get(flagRef)]);
+        const at = now();
+        if (previous.exists && previous.data().at.toMillis() > at - REPORT_WINDOW_MS) return { counted: false };
+        tx.set(entry, { kind, uidHash: digest(actor.uid), at: Timestamp.fromMillis(at),
+          expiresAt: Timestamp.fromMillis(at + REPORT_WINDOW_MS) });
+        const recent = others.docs.filter(other => other.id !== entry.id &&
+          other.data().at.toMillis() > at - REPORT_WINDOW_MS).length + 1;
+        const field = KINDS[kind];
+        if (!field || recent < REPORTS_TO_HIDE) return { counted: true };
+        const until = at + HIDDEN_MS;
+        const longest = Math.max(until, ...Object.values(KINDS).filter(Boolean)
+          .map(name => flag.data()?.[name]?.toMillis?.() ?? 0));
+        tx.set(flagRef, { [field]: Timestamp.fromMillis(until), expiresAt: Timestamp.fromMillis(longest),
+          updatedAt: FieldValue.serverTimestamp(),
+          // The owner passes closed places on to HERE by hand; the name and
+          // address say which place it was, and go after 30 days.
+          ...(kind === 'closed' ? { name: card.name, address: card.address ?? '', hiddenAt: Timestamp.fromMillis(at),
+            detailsExpireAt: Timestamp.fromMillis(at + FLAG_DETAILS_MS) } : {}) }, { merge: true });
+        log({ event: 'place_hidden', kind });
+        return { counted: true };
+      }));
     },
 
     async deleteAccount(request) {
@@ -778,6 +872,15 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
           await batch.commit();
         });
       }
+      // Place reports stop counting once the account is gone.
+      const reports = await db.collectionGroup('byAccount').where('uidHash', '==', digest(actor.uid)).get();
+      if (!reports.empty) {
+        await retryTransient(async () => {
+          const batch = db.batch();
+          reports.forEach(record => batch.delete(record.ref));
+          await batch.commit();
+        });
+      }
       // Receipts, weekly usage and generation leases are tied to the person
       // only through a hash of their UID.
       for (const collection of ['_requests', 'usageWeeks', 'deckGenerations']) {
@@ -808,6 +911,6 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
 const CALLABLES = ['createRoom', 'joinRoom', 'startRoom', 'closeRoom', 'roomResults',
   'revokeMember', 'rotateJoinCode', 'deleteAccount', 'liveSearchStatus', 'createQuickPick', 'rerollQuickPick',
   'appStatus', 'reportClientError', 'checkEmailDomain', 'saveOwnList',
-  'startRoomFromList', 'saveMyPlaces', 'shareRoomLists', 'setNoTimer', 'setNickname'];
+  'startRoomFromList', 'saveMyPlaces', 'shareRoomLists', 'setNoTimer', 'setNickname', 'reportPlace'];
 
 module.exports = { createRoomHandlers, CALLABLES, CODE_ALPHABET, CAPACITY };
