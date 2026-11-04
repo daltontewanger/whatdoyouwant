@@ -26,6 +26,12 @@ class Restaurant {
   /// A photo of the place, only while the server's photos switch is on.
   final String? photoUrl;
 
+  /// What the place serves, in the provider's words, most important first.
+  final List<String> foodLabels;
+
+  /// Vegetarian, vegan, halal or kosher, as the listing claims it.
+  final List<String> dietary;
+
   Restaurant({
     required this.id,
     required this.name,
@@ -39,6 +45,8 @@ class Restaurant {
     this.note,
     this.votable = true,
     this.photoUrl,
+    this.foodLabels = const [],
+    this.dietary = const [],
   });
 
   /// A card that sits between places in the deck and only asks to be
@@ -57,7 +65,9 @@ class Restaurant {
        userEntered = false,
        note = null,
        votable = false,
-       photoUrl = null;
+       photoUrl = null,
+       foodLabels = const [],
+       dietary = const [];
 
   factory Restaurant.fromJson(Map<String, dynamic> json) {
     return Restaurant(

@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
+import 'food_chips.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/link.dart';
@@ -75,6 +77,10 @@ class PlaceCard extends StatelessWidget {
                   ),
                 ),
               ),
+              if (restaurant.foodLabels.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                FoodChips(labels: restaurant.foodLabels, expandable: true),
+              ],
               if (restaurant.address.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Text(restaurant.address, style: theme.textTheme.bodyLarge),
@@ -99,6 +105,10 @@ class PlaceCard extends StatelessWidget {
                     color: Colors.black54,
                   ),
                 ),
+              ],
+              if (DietaryNote.textFor(restaurant.dietary) != null) ...[
+                const SizedBox(height: 8),
+                DietaryNote(dietary: restaurant.dietary),
               ],
               if (child case final child?) ...[
                 const SizedBox(height: 14),

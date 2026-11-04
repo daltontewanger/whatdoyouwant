@@ -8,6 +8,7 @@ import 'package:whatdoyouwant/screens/join_screen.dart';
 import 'package:whatdoyouwant/screens/main_shell.dart';
 import 'package:whatdoyouwant/screens/results_screen.dart';
 import 'package:whatdoyouwant/screens/search_setup_screen.dart';
+import 'package:whatdoyouwant/models/restaurant.dart';
 import 'package:whatdoyouwant/screens/swipe_screen.dart';
 import 'package:whatdoyouwant/services/accessibility.dart';
 import 'package:whatdoyouwant/services/account_service.dart';
@@ -89,6 +90,39 @@ void main() {
           ),
         );
         await tester.pump();
+        await tester.pumpWidget(const SizedBox());
+      });
+
+      testWidgets('swiping a card with long food chips', (tester) async {
+        await bigText(tester);
+        final cards = [
+          Restaurant(
+            id: 'c00000000000000000001',
+            name: 'A Very Long Restaurant Name That Wraps',
+            address: '1234 Some Long Avenue Name, Exampleton',
+            distance: 1.5,
+            foodLabels: const [
+              'Latin American & Caribbean',
+              'Barbecue & Southern',
+              'Fish & Other Seafood',
+              'Sandwiches',
+            ],
+          ),
+        ];
+        await tester.pumpWidget(
+          app(
+            FakeRoomBackend(),
+            SwipeScreen(
+              roomCode: 'ROOM-ID',
+              currentUser: AppUser(id: 'guest', name: 'Guest'),
+              radius: 1,
+              maxOptions: 1,
+              restaurants: cards,
+            ),
+          ),
+        );
+        await tester.pump();
+        expect(find.text('Sandwiches'), findsNothing, reason: 'three at most');
         await tester.pumpWidget(const SizedBox());
       });
 

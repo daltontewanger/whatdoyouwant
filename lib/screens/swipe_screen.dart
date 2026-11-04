@@ -12,6 +12,7 @@ import '../services/accessibility.dart';
 import '../services/my_places.dart';
 import '../services/search_defaults.dart';
 import 'bubble_icons.dart';
+import 'food_chips.dart';
 import 'place_marks.dart';
 import 'results_screen.dart';
 import '../themes/main_theme.dart';
@@ -243,9 +244,15 @@ class SwipeScreenState extends State<SwipeScreen> {
 
   // Every card has the same height, taller with bigger text so the name
   // and address still fit; the page scrolls if it gets too tall.
-  static double _cardHeight(BuildContext context) {
-    final growth = MediaQuery.textScalerOf(context).scale(10) / 10 - 1;
-    return 380 + 150 * growth.clamp(0.0, 2.0);
+  double _cardHeight(BuildContext context) {
+    final scaler = MediaQuery.textScalerOf(context);
+    final growth = scaler.scale(10) / 10 - 1;
+    // A line of food chips above the name, when the deck has any.
+    final chips =
+        swipeOptions.any((r) => r.foodLabels.isNotEmpty)
+            ? scaler.scale(18) + 20
+            : 0.0;
+    return 380 + chips + 150 * growth.clamp(0.0, 2.0);
   }
 
   List<Widget> get _cardWidgets {
@@ -277,6 +284,11 @@ class SwipeScreenState extends State<SwipeScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  // What it serves, for places nobody has heard of.
+                  if (restaurant.foodLabels.isNotEmpty) ...[
+                    FoodChips(labels: restaurant.foodLabels, singleLine: true),
+                    const SizedBox(height: 12),
+                  ],
                   Text(
                     restaurant.name,
                     textAlign: TextAlign.center,

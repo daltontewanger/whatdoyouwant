@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import '../models/own_spot.dart';
+import '../models/cuisines.dart';
 import '../models/restaurant.dart';
 import 'live_search.dart';
 import 'room_backend.dart';
@@ -43,7 +44,7 @@ const demoPlaces = [
   DemoPlace('Ramen Road', '377 Hill St', 3.9, ['japanese']),
   DemoPlace('Dumpling Den', '15 Lantern Ln', 4.4, ['chinese']),
   DemoPlace('Cantina Sol', '612 Sunset Blvd', 5.9, ['mexican']),
-  DemoPlace('Corner Cafe', '1 Square Pl', 0.8, []),
+  DemoPlace('Corner Cafe', '1 Square Pl', 0.8, ['breakfast']),
   DemoPlace('Fireside Grill', '250 Lake Rd', 9.6, ['american']),
   DemoPlace('Mezze Table', '87 Spice Rd', 11.2, ['middle_eastern']),
 ];
@@ -188,6 +189,7 @@ class DemoRoomBackend implements RoomBackend {
           // opens them.
           latitude: 40.0 + i / 1000,
           longitude: -75.0 - i / 1000,
+          foodLabels: [for (final id in place.cuisines) cuisineLabel(id)],
         ),
     ];
   }

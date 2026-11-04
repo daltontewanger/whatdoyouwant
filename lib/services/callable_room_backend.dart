@@ -77,7 +77,15 @@ Restaurant cardRestaurant(Map raw) => Restaurant(
     final String url when url.startsWith('https://') => url,
     _ => null,
   },
+  foodLabels: _strings(raw['foodLabels']),
+  dietary: _strings(raw['dietary']),
 );
+
+List<String> _strings(Object? raw) => [
+  if (raw is List)
+    for (final item in raw)
+      if (item is String && item.isNotEmpty) item,
+];
 
 /// The cards of a stored deck, in deck order, with any notice cards placed
 /// after the place they follow.
