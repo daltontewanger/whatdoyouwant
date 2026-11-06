@@ -357,28 +357,6 @@ class _AccountScreenState extends State<AccountScreen> {
                       ),
                     ),
                   ],
-                  if (RoomBackendScope.maybeOf(context)?.usageCounts
-                      case final counts?) ...[
-                    const SizedBox(height: 12),
-                    Card(
-                      margin: EdgeInsets.zero,
-                      clipBehavior: Clip.antiAlias,
-                      child: ListenableBuilder(
-                        listenable: counts,
-                        builder:
-                            (context, _) => SwitchListTile(
-                              secondary: const Icon(Icons.insights_outlined),
-                              title: const Text('Share anonymous usage counts'),
-                              subtitle: const Text(
-                                'Adds to totals like "map opened" so we can '
-                                "improve the app. Never who you are or where.",
-                              ),
-                              value: counts.enabled,
-                              onChanged: counts.setEnabled,
-                            ),
-                      ),
-                    ),
-                  ],
                   const SizedBox(height: 32),
                   Padding(
                     padding: const EdgeInsets.only(left: 4, bottom: 8),

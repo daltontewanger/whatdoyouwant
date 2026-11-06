@@ -88,9 +88,7 @@ class HomeScreenState extends State<HomeScreen>
           case AppLinkTarget.insights:
             Navigator.push(
               context,
-              MaterialPageRoute<void>(
-                builder: (_) => InsightsScreen(openAccount: _openAccount),
-              ),
+              MaterialPageRoute<void>(builder: (_) => const InsightsScreen()),
             );
         }
       });

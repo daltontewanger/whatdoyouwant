@@ -1,4 +1,3 @@
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 
 import '../models/cuisines.dart';
@@ -6,15 +5,13 @@ import '../models/insights.dart';
 import '../services/room_backend.dart';
 
 /// The owner's usage page: daily totals only, read-only, and refused by the
-/// server to anyone but the owner's Google sign-in.
+/// server to anyone but the owner. Nothing shows until the server agrees;
+/// anyone else is quietly taken back to Home, so the page gives nothing away.
 class InsightsScreen extends StatefulWidget {
-  const InsightsScreen({super.key, this.today, this.openAccount});
+  const InsightsScreen({super.key, this.today});
 
   /// Fixed in tests; the device's date otherwise.
   final DateTime? today;
-
-  /// Opens Account, so a signed-out owner can sign in with Google.
-  final VoidCallback? openAccount;
 
   static const ranges = [7, 30, 90, 180];
 
@@ -26,6 +23,8 @@ class _InsightsScreenState extends State<InsightsScreen> {
   int _days = InsightsScreen.ranges.first;
   InsightsReport? _report;
   Object? _error;
+  // Set once the server has answered; until then nothing of the page shows.
+  bool _allowed = false;
   bool _loading = false;
   int _request = 0;
 
@@ -57,13 +56,21 @@ class _InsightsScreenState extends State<InsightsScreen> {
       setState(() {
         _report = report;
         _loading = false;
+        _allowed = true;
       });
     } catch (error) {
       if (!mounted || request != _request) return;
+      if (!_allowed) {
+        Navigator.of(context).maybePop();
+        return;
+      }
       setState(() {
         _error = error;
         _loading = false;
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Couldn't refresh. Try again.")),
+      );
     }
   }
 
@@ -78,6 +85,12 @@ class _InsightsScreenState extends State<InsightsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_allowed) {
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('Insights'),
@@ -94,14 +107,6 @@ class _InsightsScreenState extends State<InsightsScreen> {
   }
 
   Widget _body(BuildContext context) {
-    final error = _error;
-    if (error != null) {
-      return _Refused(
-        error: error,
-        onRetry: _load,
-        openAccount: widget.openAccount,
-      );
-    }
     final report = _report;
     final current = report?.period(
       _today.subtract(Duration(days: _days - 1)),
@@ -454,58 +459,6 @@ class _InsightsScreenState extends State<InsightsScreen> {
     if (before == 0) return now == 0 ? 'None before' : 'New this period';
     final change = ((now - before) / before * 100).round();
     return '${change >= 0 ? '+' : ''}$change% vs before';
-  }
-}
-
-class _Refused extends StatelessWidget {
-  const _Refused({
-    required this.error,
-    required this.onRetry,
-    this.openAccount,
-  });
-
-  final Object error;
-  final VoidCallback onRetry;
-  final VoidCallback? openAccount;
-
-  @override
-  Widget build(BuildContext context) {
-    final denied =
-        error is FirebaseFunctionsException &&
-        [
-          'permission-denied',
-          'unauthenticated',
-        ].contains((error as FirebaseFunctionsException).code);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(denied ? Icons.lock_outline : Icons.cloud_off, size: 40),
-            const SizedBox(height: 12),
-            Text(
-              denied
-                  ? "This page is only for the app's owner. Sign in with the "
-                      "owner's Google account in Account, then come back."
-                  : "Couldn't load the insights. Check the connection and try again.",
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            if (denied && openAccount != null)
-              ElevatedButton(
-                onPressed: openAccount,
-                child: const Text('Open Account'),
-              )
-            else
-              ElevatedButton(
-                onPressed: onRetry,
-                child: const Text('Try again'),
-              ),
-          ],
-        ),
-      ),
-    );
   }
 }
 

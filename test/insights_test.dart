@@ -161,26 +161,48 @@ void main() {
     expect(backend.insightsAsked.last, (DateTime.utc(2026, 9, 22), today));
   });
 
-  testWidgets('anyone else is told the page is the owner\'s', (tester) async {
-    var opened = 0;
-    final backend =
-        FakeRoomBackend()
-          ..insightsError = FirebaseFunctionsException(
-            code: 'permission-denied',
-            message: 'no',
-          );
-    await tester.pumpWidget(
-      scoped(
-        backend,
-        InsightsScreen(today: today, openAccount: () => opened++),
-      ),
-    );
-    await tester.pump();
-    expect(find.textContaining("only for the app's owner"), findsOneWidget);
-    expect(find.text('Decisions made'), findsNothing);
-    await tester.tap(find.text('Open Account'));
-    expect(opened, 1);
-  });
+  for (final code in ['permission-denied', 'unauthenticated', 'unavailable']) {
+    testWidgets('anyone else is quietly sent back home ($code)', (
+      tester,
+    ) async {
+      final backend =
+          FakeRoomBackend()
+            ..insightsError = FirebaseFunctionsException(
+              code: code,
+              message: 'no',
+            );
+      await tester.pumpWidget(
+        scoped(
+          backend,
+          Builder(
+            builder:
+                (context) => TextButton(
+                  onPressed:
+                      () => Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => InsightsScreen(today: today),
+                        ),
+                      ),
+                  child: const Text('Home'),
+                ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Home'));
+      await tester.pump();
+      expect(
+        find.text('Insights'),
+        findsNothing,
+        reason: 'no title while asking',
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(InsightsScreen), findsNothing);
+      expect(find.text('Home'), findsOneWidget);
+      expect(find.textContaining('owner'), findsNothing);
+      expect(find.textContaining('Google'), findsNothing);
+    });
+  }
 
   testWidgets(
     'taps are counted only while the switch is on, and never in the demo',
@@ -282,7 +304,9 @@ void main() {
     expect(backend.events, ['signUpAfterDemo']);
   });
 
-  testWidgets('Account offers the usage counts switch', (tester) async {
+  testWidgets('the usage counts switch sits under Privacy choices', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(800, 2400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -304,6 +328,9 @@ void main() {
       ),
     );
     await tester.pump();
+    expect(find.text('Share anonymous usage counts'), findsNothing);
+    await tester.tap(find.text('Privacy choices'));
+    await tester.pumpAndSettle();
     final toggle = find.widgetWithText(
       SwitchListTile,
       'Share anonymous usage counts',

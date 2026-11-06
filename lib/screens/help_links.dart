@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../services/room_backend.dart';
 import 'faq_screen.dart';
+import 'privacy_choices_screen.dart';
 
 /// The public site's help and legal pages as a list. Installed apps can only
 /// reach them through here; on the web the site's home is listed too.
@@ -20,9 +21,9 @@ class HelpList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (RoomBackendScope.maybeOf(context) == null) {
-      return const SizedBox.shrink();
-    }
+    final scope = RoomBackendScope.maybeOf(context);
+    if (scope == null) return const SizedBox.shrink();
+    final counts = scope.usageCounts;
     final color = Theme.of(context).colorScheme.primary;
     Widget row(IconData icon, String label, VoidCallback onTap) => ListTile(
       leading: Icon(icon, color: color),
@@ -49,8 +50,20 @@ class HelpList extends StatelessWidget {
               'Website home',
               () => openSitePage(context, '/', leaveApp: true),
             ),
-          for (final (icon, label, path) in pages)
+          for (final (icon, label, path) in pages) ...[
             row(icon, label, () => openSitePage(context, path)),
+            if (path == '/privacy' && counts != null)
+              row(
+                Icons.tune,
+                'Privacy choices',
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => PrivacyChoicesScreen(counts: counts),
+                  ),
+                ),
+              ),
+          ],
         ],
       ),
     );
