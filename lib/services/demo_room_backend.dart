@@ -3,6 +3,7 @@ import 'dart:math';
 
 import '../models/own_spot.dart';
 import '../models/cuisines.dart';
+import '../models/insights.dart';
 import '../models/restaurant.dart';
 import 'live_search.dart';
 import 'room_backend.dart';
@@ -374,6 +375,14 @@ class DemoRoomBackend implements RoomBackend {
   @override
   Future<String?> setNickname(String nickname) async =>
       _nickname = nickname.isEmpty ? null : nickname;
+
+  // The demo counts nothing.
+  @override
+  Future<void> countEvent(String name) async {}
+
+  @override
+  Future<InsightsReport> insightsReport(DateTime from, DateTime to) =>
+      throw StateError('The demo has no insights.');
 }
 
 class _DemoRoom {

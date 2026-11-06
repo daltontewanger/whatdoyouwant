@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
+import '../models/insights.dart';
 import '../models/own_spot.dart';
 import '../models/restaurant.dart';
 import 'device_location.dart';
@@ -452,7 +453,35 @@ class CallableRoomBackend implements RoomBackend {
 
   @override
   Future<bool> updateRequired(int build) async =>
-      (await _call('appStatus', {'build': build}))['updateRequired'] == true;
+      (await _call('appStatus', {
+        'build': build,
+        if (_platform case final platform?) 'platform': platform,
+      }))['updateRequired'] ==
+      true;
+
+  // Sent with the app-open check for the daily count of sessions by platform.
+  static String? get _platform {
+    if (kIsWeb) return 'web';
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.android => 'android',
+      TargetPlatform.iOS => 'ios',
+      _ => null,
+    };
+  }
+
+  @override
+  Future<void> countEvent(String name) async {
+    await _call('countEvent', {'name': name});
+  }
+
+  @override
+  Future<InsightsReport> insightsReport(DateTime from, DateTime to) async =>
+      InsightsReport.fromCallable(
+        await _call('insightsReport', {
+          'from': insightsDay(from),
+          'to': insightsDay(to),
+        }),
+      );
 
   @override
   Future<LiveSearchAllowance?> liveSearchAllowance() async =>

@@ -187,6 +187,10 @@ class _AccountScreenState extends State<AccountScreen> {
     });
     try {
       await accounts.continueWithGoogle();
+      if (mounted) {
+        final scope = RoomBackendScope.maybeOf(context);
+        if (scope != null) await scope.usageCounts?.signedUp(scope.backend);
+      }
       if (mounted) setState(() => message = 'Signed in with Google.');
       returnIfReady();
     } on FirebaseAuthException catch (error) {
@@ -349,6 +353,28 @@ class _AccountScreenState extends State<AccountScreen> {
                                     (_) =>
                                         AccessibilityScreen(settings: settings),
                               ),
+                            ),
+                      ),
+                    ),
+                  ],
+                  if (RoomBackendScope.maybeOf(context)?.usageCounts
+                      case final counts?) ...[
+                    const SizedBox(height: 12),
+                    Card(
+                      margin: EdgeInsets.zero,
+                      clipBehavior: Clip.antiAlias,
+                      child: ListenableBuilder(
+                        listenable: counts,
+                        builder:
+                            (context, _) => SwitchListTile(
+                              secondary: const Icon(Icons.insights_outlined),
+                              title: const Text('Share anonymous usage counts'),
+                              subtitle: const Text(
+                                'Adds to totals like "map opened" so we can '
+                                "improve the app. Never who you are or where.",
+                              ),
+                              value: counts.enabled,
+                              onChanged: counts.setEnabled,
                             ),
                       ),
                     ),

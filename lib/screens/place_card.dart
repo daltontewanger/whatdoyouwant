@@ -10,6 +10,7 @@ import '../models/restaurant.dart';
 import '../services/place_links.dart';
 import '../services/room_backend.dart';
 import '../services/search_defaults.dart';
+import '../services/usage_counts.dart';
 
 /// A chosen restaurant as the results screens show it: name, address and
 /// distance in the person's own unit, with an optional note after the
@@ -173,6 +174,7 @@ Future<void> copyPlace(BuildContext context, Restaurant restaurant) async {
 /// Opens the phone's share menu. Browsers without one copy instead.
 Future<void> sharePlace(BuildContext context, Restaurant restaurant) async {
   if (_inDemo(context)) return showDemoNote(context);
+  countTap(context, UsageEvent.resultShare);
   try {
     await SharePlus.instance.share(
       ShareParams(
@@ -263,30 +265,64 @@ class PlaceActions extends StatelessWidget {
         ],
       );
     }
+    // Counted as anonymous totals before the link opens; never which place.
+    VoidCallback? counted(UsageEvent event, VoidCallback? follow) =>
+        follow == null
+            ? null
+            : () {
+              countTap(context, event);
+              follow();
+            };
+    final typed = links.typed;
     return Wrap(
       alignment: alignment,
       spacing: 10,
       runSpacing: 10,
       children: [
         if (links.map case final map?)
-          _link(map, (follow) => _button(Icons.map_outlined, 'Map', follow)),
+          _link(
+            map,
+            (follow) => _button(
+              Icons.map_outlined,
+              'Map',
+              counted(
+                typed ? UsageEvent.ownResultMap : UsageEvent.resultMap,
+                follow,
+              ),
+            ),
+          ),
         if (directions != null)
-          _button(
-            Icons.directions,
-            'Directions',
-            () => showModalBottomSheet<void>(
+          _button(Icons.directions, 'Directions', () {
+            countTap(
+              context,
+              typed
+                  ? UsageEvent.ownResultDirections
+                  : UsageEvent.resultDirections,
+            );
+            showModalBottomSheet<void>(
               context: context,
               showDragHandle: true,
               builder: (context) => _DirectionsChoice(links: links),
-            ),
-          ),
+            );
+          }),
         if (links.website case final website?)
           _link(
             website,
-            (follow) => _button(Icons.language, 'Website', follow),
+            (follow) => _button(
+              Icons.language,
+              'Website',
+              counted(UsageEvent.resultWebsite, follow),
+            ),
           ),
         if (links.phone case final phone?)
-          _link(phone, (follow) => _button(Icons.call, 'Call', follow)),
+          _link(
+            phone,
+            (follow) => _button(
+              Icons.call,
+              'Call',
+              counted(UsageEvent.resultPhone, follow),
+            ),
+          ),
       ],
     );
   }

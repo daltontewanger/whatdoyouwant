@@ -8,6 +8,7 @@ import 'demo_screen.dart';
 import 'place_marks.dart';
 import 'room_roster.dart';
 import 'step_card.dart';
+import '../services/usage_counts.dart';
 
 const _ink = Color(0xFF1F2A24);
 const _inkSoft = Color(0xFF4A5A52);
@@ -92,7 +93,10 @@ class _IntroScreenState extends State<IntroScreen> {
                   maintainAnimation: true,
                   maintainState: true,
                   child: TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () {
+                      countTap(context, UsageEvent.introSkipped);
+                      Navigator.of(context).pop();
+                    },
                     child: const Text(
                       'Skip',
                       style: TextStyle(fontWeight: FontWeight.w800),
@@ -115,10 +119,12 @@ class _IntroScreenState extends State<IntroScreen> {
                     action:
                         index == count - 1
                             ? OutlinedButton.icon(
-                              onPressed:
-                                  () => Navigator.of(
-                                    context,
-                                  ).pushReplacement(DemoScreen.route()),
+                              onPressed: () {
+                                countTap(context, UsageEvent.introFinished);
+                                Navigator.of(
+                                  context,
+                                ).pushReplacement(DemoScreen.route());
+                              },
                               icon: const Icon(Icons.science_outlined),
                               label: const Text('Try the demo'),
                             )
@@ -177,7 +183,10 @@ class _IntroScreenState extends State<IntroScreen> {
                       child: ElevatedButton(
                         onPressed:
                             _last
-                                ? () => Navigator.of(context).pop()
+                                ? () {
+                                  countTap(context, UsageEvent.introFinished);
+                                  Navigator.of(context).pop();
+                                }
                                 : () => _go(_page + 1),
                         child: Text(_last ? "Let's eat" : 'Next'),
                       ),

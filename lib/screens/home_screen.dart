@@ -19,6 +19,8 @@ import 'bubble_icons.dart';
 import 'intro_screen.dart';
 import 'step_card.dart';
 import '../themes/main_theme.dart';
+import '../services/usage_counts.dart';
+import 'insights_screen.dart';
 
 const _inkSoft = Color(0xFF4A5A52);
 
@@ -61,6 +63,11 @@ class HomeScreenState extends State<HomeScreen>
     _animationController.forward();
     // A shared join link or a button on the public site opened the app.
     final link = kIsWeb ? takeLaunchLink(Uri.base) : null;
+    if (kIsWeb && takeSiteArrival(Uri.base)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) countTap(context, UsageEvent.openedFromSite);
+      });
+    }
     // Someone arriving by a link came to do something; the intro can wait
     // for a later visit.
     if (link == null) {
@@ -78,6 +85,13 @@ class HomeScreenState extends State<HomeScreen>
             _openAccount();
           case AppLinkTarget.accountAction:
             _finishAccountLink(link.mode!, link.code!);
+          case AppLinkTarget.insights:
+            Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => InsightsScreen(openAccount: _openAccount),
+              ),
+            );
         }
       });
     }

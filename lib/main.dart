@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 
 import 'environment_guard.dart';
 import 'firebase_options.dart';
+import 'services/usage_counts.dart';
 import 'screens/main_shell.dart';
 import 'screens/update_gate.dart';
 import 'services/account_service.dart';
@@ -88,6 +89,7 @@ Future<void> main() async {
       myPlaces: SyncedMyPlaces(account: FirebaseMyPlacesAccount()),
       accessibility: AccessibilitySettings()..load(),
       intro: PreferencesIntroStore(),
+      usageCounts: UsageCounts()..load(),
     ),
   );
 }
@@ -102,6 +104,7 @@ class MyApp extends StatelessWidget {
   final MyPlacesStore? myPlaces;
   final AccessibilitySettings? accessibility;
   final IntroStore? intro;
+  final UsageCounts? usageCounts;
   const MyApp({
     super.key,
     required this.currentUid,
@@ -113,6 +116,7 @@ class MyApp extends StatelessWidget {
     this.myPlaces,
     this.accessibility,
     this.intro,
+    this.usageCounts,
   });
 
   @override
@@ -126,6 +130,7 @@ class MyApp extends StatelessWidget {
       myPlaces: myPlaces,
       accessibility: accessibility,
       intro: intro,
+      usageCounts: usageCounts,
       child: MaterialApp(
         title: 'What Do You Want?!',
         debugShowCheckedModeBanner: false,

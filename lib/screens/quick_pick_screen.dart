@@ -13,6 +13,7 @@ import 'place_marks.dart';
 import 'report_place.dart';
 import 'search_panel.dart';
 import '../themes/main_theme.dart';
+import '../services/usage_counts.dart';
 
 /// What to tell someone whose Quick Pick could not start.
 String quickPickErrorMessage(Object error) {
@@ -231,7 +232,10 @@ class _QuickPickScreenState extends State<QuickPickScreen> with SearchStarter {
           const FoodLoader()
         else ...[
           ElevatedButton(
-            onPressed: () => setState(() => _chosen = true),
+            onPressed: () {
+              countTap(context, UsageEvent.quickPickChosen);
+              setState(() => _chosen = true);
+            },
             style: ElevatedButton.styleFrom(minimumSize: const Size(220, 46)),
             child: const Text("Let's go here", style: TextStyle(fontSize: 16)),
           ),

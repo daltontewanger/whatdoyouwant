@@ -142,13 +142,13 @@ function menuItems(user) {
     return {
       title: 'Playing as a guest',
       note: 'Create an account to host rooms and save your lists.',
-      items: [['Create an account or sign in', '/app/account'], ['Open the app', '/app']],
+      items: [['Create an account or sign in', '/app/account'], ['Open the app', '/app?from=site']],
     };
   }
   return {
     title: `Signed in as ${user.displayName || user.email || 'you'}`,
     note: user.emailVerified ? 'Verified host' : 'Verify your email to host rooms.',
-    items: [['Your account', '/app/account'], ['Open the app', '/app']],
+    items: [['Your account', '/app/account'], ['Open the app', '/app?from=site']],
     signOut: true,
   };
 }

@@ -16,7 +16,11 @@ class PlaceLinks {
     this.website,
     this.phone,
     this.mapsName = 'HERE WeGo',
+    this.typed = false,
   });
+
+  /// For a spot from the person's own list rather than a live listing.
+  final bool typed;
 
   final Uri? map;
   final Uri? directions;
@@ -104,6 +108,7 @@ PlaceLinks _typedPlaceLinks(Restaurant restaurant) {
     restaurant.address,
   ].where((part) => part.trim().isNotEmpty).join(', ');
   return PlaceLinks(
+    typed: true,
     map: Uri.https('www.google.com', '/maps/search/', {
       'api': '1',
       'query': query,

@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:whatdoyouwant/models/insights.dart';
 import 'package:whatdoyouwant/models/own_spot.dart';
 import 'package:whatdoyouwant/models/restaurant.dart';
 import 'package:whatdoyouwant/models/user.dart';
@@ -69,6 +70,19 @@ class FakeRoomBackend implements RoomBackend {
   bool tooOld = false;
   @override
   Future<bool> updateRequired(int build) async => tooOld;
+  final events = <String>[];
+  @override
+  Future<void> countEvent(String name) async => events.add(name);
+  InsightsReport? insights;
+  Object? insightsError;
+  final insightsAsked = <(DateTime, DateTime)>[];
+  @override
+  Future<InsightsReport> insightsReport(DateTime from, DateTime to) async {
+    insightsAsked.add((from, to));
+    if (insightsError case final error?) throw error;
+    return insights ?? InsightsReport.fromCallable(const {});
+  }
+
   int prepared = 0;
   @override
   Future<void> prepareStart() async => prepared++;

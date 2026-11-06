@@ -17,6 +17,7 @@ import 'swipe_screen.dart';
 import '../models/own_spot.dart';
 import '../models/user.dart';
 import '../themes/main_theme.dart';
+import '../services/usage_counts.dart';
 
 /// What to tell a host whose room could not be created. Covers both callable
 /// and Firestore errors; anything else gets the generic retry message.
@@ -638,6 +639,7 @@ class _JoinLink extends StatelessWidget {
             label: const Text('Copy join link'),
             onPressed: () async {
               final messenger = ScaffoldMessenger.of(context);
+              countTap(context, UsageEvent.shareRoomCode);
               await Clipboard.setData(ClipboardData(text: link.toString()));
               messenger.showSnackBar(
                 const SnackBar(content: Text('Join link copied')),

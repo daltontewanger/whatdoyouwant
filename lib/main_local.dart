@@ -16,6 +16,7 @@ import 'services/my_places.dart';
 import 'services/own_list.dart';
 import 'services/search_defaults.dart';
 import 'services/intro_store.dart';
+import 'services/usage_counts.dart';
 import 'themes/main_theme.dart';
 
 Future<void> main() async {
@@ -82,6 +83,7 @@ Future<void> main() async {
       myPlaces: SyncedMyPlaces(account: FirebaseMyPlacesAccount()),
       accessibility: AccessibilitySettings()..load(),
       intro: PreferencesIntroStore(),
+      usageCounts: UsageCounts()..load(),
     ),
   );
 }

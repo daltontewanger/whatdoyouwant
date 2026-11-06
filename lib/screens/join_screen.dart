@@ -12,6 +12,7 @@ import 'room_roster.dart';
 import 'room_screen.dart' show UntimedNotice, announceNoTimer;
 import 'swipe_screen.dart';
 import '../themes/main_theme.dart';
+import '../services/usage_counts.dart';
 
 /// What to tell someone whose join failed. The server answers a wrong code,
 /// a started room and a closed room the same way, so codes cannot be probed.
@@ -87,6 +88,12 @@ class JoinRoomScreenState extends State<JoinRoomScreen> {
       final roomId = await scope.backend.joinRoom(code);
       await scope.activeRooms?.remember(ActiveRoom(roomId, host: false));
       if (!mounted) return;
+      countTap(
+        context,
+        code == widget.initialCode?.trim().toUpperCase()
+            ? UsageEvent.joinWithLink
+            : UsageEvent.joinWithCode,
+      );
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(

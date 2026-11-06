@@ -17,7 +17,7 @@ const CLIENT_EVENTS = [
   'resultMap', 'resultDirections', 'resultWebsite', 'resultPhone', 'resultShare',
   'ownResultMap', 'ownResultDirections',
   'introFinished', 'introSkipped',
-  'demoStarted', 'demoFinished', 'signUpAfterDemo',
+  'demoStarted', 'signUpAfterDemo',
   'quickPickChosen', 'joinWithCode', 'joinWithLink', 'shareRoomCode',
   'openedFromSite',
 ];

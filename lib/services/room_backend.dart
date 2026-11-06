@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../models/insights.dart';
 import '../models/own_spot.dart';
 import '../models/restaurant.dart';
 import 'account_service.dart';
@@ -10,6 +11,7 @@ import 'my_places.dart';
 import 'own_list.dart';
 import 'search_defaults.dart';
 import 'intro_store.dart';
+import 'usage_counts.dart';
 
 /// People per room, host included; the server turns away anyone past it.
 const roomCapacity = 15;
@@ -251,6 +253,14 @@ abstract class RoomBackend {
   /// it as stored; an empty one clears it and returns null. Lobbies the person
   /// is waiting in show the change.
   Future<String?> setNickname(String nickname);
+
+  /// Adds one to an anonymous daily count of a tap the server never sees,
+  /// named from [UsageEvent].
+  Future<void> countEvent(String name);
+
+  /// The daily usage totals from [from] to [to], for the owner only;
+  /// everyone else is refused.
+  Future<InsightsReport> insightsReport(DateTime from, DateTime to);
 }
 
 /// Makes the backend and, where accounts exist, the account service available
@@ -295,9 +305,13 @@ class RoomBackendScope extends InheritedWidget {
     this.myPlaces,
     this.accessibility,
     this.intro,
+    this.usageCounts,
     this.demo = false,
     required super.child,
   });
+
+  /// Whether this device sends anonymous usage counts.
+  final UsageCounts? usageCounts;
 
   /// The person's accessibility choices on this device.
   final AccessibilitySettings? accessibility;
@@ -349,5 +363,6 @@ class RoomBackendScope extends InheritedWidget {
       myPlaces != oldWidget.myPlaces ||
       accessibility != oldWidget.accessibility ||
       intro != oldWidget.intro ||
+      usageCounts != oldWidget.usageCounts ||
       demo != oldWidget.demo;
 }

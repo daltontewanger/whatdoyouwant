@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../services/room_backend.dart';
 import '../services/account_service.dart';
 import '../services/email_address.dart';
 import '../services/password_policy.dart';
@@ -90,6 +91,10 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         return;
       }
       await widget.accounts.register(email.text, password.text);
+      if (mounted) {
+        final scope = RoomBackendScope.maybeOf(context);
+        if (scope != null) await scope.usageCounts?.signedUp(scope.backend);
+      }
       try {
         await widget.accounts.sendVerification();
       } on FirebaseAuthException {

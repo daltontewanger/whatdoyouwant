@@ -8,6 +8,7 @@ import '../themes/main_theme.dart';
 import 'quick_pick_screen.dart';
 import 'room_screen.dart';
 import 'step_card.dart';
+import '../services/usage_counts.dart';
 
 /// The app's own screens on [DemoRoomBackend]: host a room with friends who
 /// join and vote on their own, or have one place picked. Made-up places,
@@ -32,6 +33,16 @@ class _DemoScreenState extends State<DemoScreen> {
   // Favorites and never marks work in the demo but are forgotten with it.
   final _places = MemoryMyPlaces();
   final _navigator = GlobalKey<NavigatorState>();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      countTap(context, UsageEvent.demoStarted);
+      RoomBackendScope.maybeOf(context)?.usageCounts?.markDemoSeen();
+    });
+  }
 
   @override
   void dispose() {
