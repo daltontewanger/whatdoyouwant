@@ -924,3 +924,13 @@ test('notice cards: off by default; when switched on, room decks carry them besi
   assert.equal((await db.doc(`restaurantDecks/${pick.deckId}`).get()).data().notices, undefined,
     'a Quick Pick shows one place at a time');
 });
+
+test('usage counts, activity records and place wins are server-only', async () => {
+  const someone = await user(true, true);
+  await call('countEvent', { name: 'resultMap' }, someone);
+  for (const path of ['metrics/2026-11-06-0', `userActivity/${someone.uid}`, 'placeStats/c00000000000000000000']) {
+    assert.equal((await request(`${documents}/${path}`, undefined, someone.token, 'GET')).status, 403, path);
+  }
+  assert.equal((await request(`${documents}/metrics`, undefined, someone.token, 'GET')).status, 403);
+  assert.equal((await call('insightsReport', { from: '2026-11-01', to: '2026-11-06' }, someone)).status, 403);
+});

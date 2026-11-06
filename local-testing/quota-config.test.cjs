@@ -32,14 +32,17 @@ test('an unknown entitlement falls back to the free cap', () => {
   assert.equal(weeklyCapFor(config, 'missing'), 20);
 });
 
-test('features: notice cards and photos stay off unless set exactly right', () => {
+test('features: notice cards, photos and local favorites stay off unless set exactly right', () => {
   const on = { enabled: true, every: 4, title: 'A word from us', text: 'Thanks for deciding with us.' };
-  assert.deepEqual(deckFeatures(null), { notices: null, photos: false });
+  assert.deepEqual(deckFeatures(null), { notices: null, photos: false, hotPicks: false });
   assert.deepEqual(deckFeatures({ deckNotices: on, photos: { enabled: true } }),
-    { notices: { every: 4, title: 'A word from us', text: 'Thanks for deciding with us.' }, photos: true });
+    { notices: { every: 4, title: 'A word from us', text: 'Thanks for deciding with us.' }, photos: true,
+      hotPicks: false });
   for (const bad of [{ ...on, enabled: 'true' }, { ...on, every: 2 }, { ...on, every: 11 }, { ...on, every: 4.5 },
     { ...on, title: '' }, { ...on, text: 'x'.repeat(201) }, { ...on, title: 7 }]) {
     assert.equal(deckFeatures({ deckNotices: bad }).notices, null, JSON.stringify(bad));
   }
   assert.equal(deckFeatures({ photos: true }).photos, false);
+  assert.equal(deckFeatures({ hotPicks: true }).hotPicks, false);
+  assert.equal(deckFeatures({ hotPicks: { enabled: true } }).hotPicks, true);
 });

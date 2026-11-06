@@ -29,6 +29,7 @@ function storedCandidate(candidate) {
     provider: candidate.provider,
     providerPlaceId: candidate.providerPlaceId,
     ...(candidate.photoUrl ? { photoUrl: candidate.photoUrl } : {}),
+    ...(candidate.popular ? { popular: true } : {}),
   };
 }
 

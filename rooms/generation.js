@@ -7,6 +7,7 @@ const { buildDeck, candidateId } = require('./search/deck');
 const { activeFlags } = require('./place-reports');
 const { deckDocument, noticeCards } = require('./decks');
 const { weekOf, monthOf, liveSearchConfig, deckFeatures, weeklyCapFor, DAY_MS, WEEK_MS } = require('./quota');
+const { searchCounts, tooFewCounts } = require('./metrics');
 
 // Longer than the callable timeout, so a lease only expires once its call is gone.
 const LEASE_MS = 90 * 1000;
@@ -25,7 +26,7 @@ const digest = value => createHash('sha256').update(value).digest('hex');
  *              { view, expiresAt } (the deck's expiry).
  */
 function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now, newSeed, log,
-  retryTransient }) {
+  retryTransient, metrics }) {
   const configRef = db.doc('config/liveSearch');
   const leaseRef = (mode, targetId) => db.doc(`deckGenerations/${mode}_${targetId}`);
   const weekRef = (uid, week) => db.doc(`usageWeeks/${uid}_${week.key}`);
@@ -121,10 +122,19 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
   }
 
   // `lists` holds the never, closed and favorite card IDs this deck should honour.
-  async function generateDeck({ uid, mode, targetId, search, target, lists = {} }) {
+  // `counts` adds to the usage counts once the deck is made.
+  async function generateDeck({ uid, mode, targetId, search, target, lists = {}, counts = {} }) {
     // Wall-clock stage timings for the log; the injected clock is for limits.
     const began = Date.now();
-    const reserved = await reserve({ uid, mode, targetId, target });
+    let reserved;
+    try {
+      reserved = await reserve({ uid, mode, targetId, target });
+    } catch (error) {
+      const reason = error?.details?.reason;
+      if (reason === 'weekly-cap') await metrics.add({ weeklyCapHits: 1 });
+      if (reason === 'live-search-paused') await metrics.add({ livePausedHits: 1 });
+      throw error;
+    }
     if (reserved.done) return reserved.done;
     const { reservation, features } = reserved;
     const reservedAt = Date.now();
@@ -139,6 +149,7 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
       const calls = Number.isInteger(error?.providerCalls) ? error.providerCalls : reservation.calls;
       await refund(reservation, calls, 'failed');
       log({ event: 'search_failed', provider: provider.id, providerCalls: calls });
+      await metrics.add({ searchesFailed: 1, providerCalls: calls });
       throw new HttpsError('unavailable', 'Restaurant search is unavailable.');
     }
     const calls = result.providerCalls;
@@ -153,11 +164,22 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
     const closed = [...(lists.closed ?? []), ...[...flags].filter(([, flag]) => flag.closed).map(([id]) => id)];
     const built = buildDeck(result.restaurants, search, { seed, never: lists.never, closed,
       favorites: lists.favorites });
+    // Local favorites, only while that switch is on; a failed read just
+    // leaves the badges off.
+    let hot = new Set();
+    if (features.hotPicks) {
+      try {
+        hot = await metrics.hotPicks(built.candidates.map(candidate => candidate.id));
+      } catch {
+        hot = new Set();
+      }
+    }
     built.candidates = built.candidates.map(candidate => {
       const flag = flags.get(candidate.id);
       const { photoUrl, ...card } = candidate;
       return { ...card, ...(features.photos && photoUrl ? { photoUrl } : {}),
-        ...(flag?.website ? { website: null } : {}), ...(flag?.phone ? { phone: null } : {}) };
+        ...(flag?.website ? { website: null } : {}), ...(flag?.phone ? { phone: null } : {}),
+        ...(hot.has(candidate.id) ? { popular: true } : {}) };
     });
     // A Quick Pick shows one place at a time, so only rooms get notice cards.
     built.notices = mode === 'room' ? noticeCards(built.candidates.length, features.notices) : [];
@@ -166,6 +188,7 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
     // took out what would have been enough.
     if (!built.pool.sufficient) {
       await refund(reservation, calls, 'too-few-results');
+      await metrics.add({ ...tooFewCounts(search), providerCalls: calls });
       throw new HttpsError('failed-precondition', 'Too few restaurants match.',
         { reason: 'too-few-results', eligible: built.pool.eligible - built.pool.neverLeftOut,
           minimum: built.pool.minimum, ...(built.pool.neverLeftOut ? { neverLeftOut: built.pool.neverLeftOut } : {}) });
@@ -196,7 +219,12 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
       reportedClosed: built.pool.reportedClosed, neverLeftOut: built.pool.neverLeftOut, favoritesIncluded: built.pool.favoritesIncluded,
       selected: built.pool.selected, kept: Boolean(outcome.view), reserveMs: reservedAt - began,
       providerMs: searchedAt - reservedAt, commitMs: Date.now() - searchedAt });
-    if (outcome.view) return outcome.view;
+    if (outcome.view) {
+      await metrics.add({ ...searchCounts({ mode, search, pool: built.pool, candidates: built.candidates.length,
+        providerCalls: calls, providerMs: searchedAt - reservedAt, at: now() }), ...counts });
+      return outcome.view;
+    }
+    await metrics.add({ providerCalls: calls });
     if (outcome.done) return outcome.done;
     throw new HttpsError('unavailable', 'Please try again.');
   }

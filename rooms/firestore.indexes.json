@@ -37,6 +37,8 @@
     { "collectionGroup": "quickPicks", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "byAccount", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "placeFlags", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "userActivity", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "placeStats", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     {
       "collectionGroup": "byAccount",
       "fieldPath": "uidHash",

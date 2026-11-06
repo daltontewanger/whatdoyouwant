@@ -1,7 +1,8 @@
 // Room callables shared by the deployed codebase and the local emulator entry.
 // Firebase modules are injected so each entry can supply its own copies.
 const { randomBytes, randomInt, createHash } = require('node:crypto');
-const { authorize } = require('./authorization');
+const { authorize, isRegistered } = require('./authorization');
+const { createMetrics, roomCounts, parseRange, monthOf, CLIENT_EVENTS, PLATFORMS } = require('./metrics');
 const { parseSearchRequest, InvalidSearchRequest, UnknownZip } = require('./search/request');
 const { assertProvider } = require('./search/provider');
 const { createFakeProvider } = require('./search/fake-provider');
@@ -52,18 +53,23 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
   log = () => {}, logError = log,
   // Emulators and tests accept every domain, so local sign-ups (example.test)
   // work offline; the deployed entry supplies the real DNS check.
-  canReceiveMail = async () => true }) {
+  canReceiveMail = async () => true,
+  // SHA-256 of the lowercased Google addresses that may read the insights.
+  insightsOwners = [] }) {
   assertProvider(provider);
   const deny = () => { throw new HttpsError('permission-denied', 'Room action unavailable.'); };
   const invalid = () => { throw new HttpsError('invalid-argument', 'Invalid request.'); };
   const expiry = ms => Timestamp.fromMillis(now() + ms);
   const reportError = createClientErrorReporter({ now, logError, invalid });
+  const metrics = createMetrics({ db, FieldValue, Timestamp, now, logError });
+  const owners = new Set(insightsOwners);
 
   function identity(request) {
     if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in first.');
     const token = request.auth.token;
     return { uid: request.auth.uid, provider: token.firebase?.sign_in_provider,
-      emailVerified: token.email_verified === true, authTime: token.auth_time };
+      emailVerified: token.email_verified === true, authTime: token.auth_time,
+      email: typeof token.email === 'string' ? token.email : null };
   }
 
   // Accepts exactly one of the given shapes; no extra fields, so a client cannot
@@ -110,7 +116,11 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
   }
 
   const generation = createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now, newSeed, log,
-    retryTransient });
+    retryTransient, metrics });
+
+  // Only the owner's own Google sign-in reads the insights.
+  const ownsInsights = actor => actor.provider === 'google.com' && actor.emailVerified && actor.email !== null &&
+    owners.has(digest(actor.email.trim().toLowerCase()));
 
   // A target ID plus one search request. The search is parsed by its own
   // strict contract; its origin is used for this call and never kept. Fields
@@ -242,6 +252,7 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
     const likes = Object.fromEntries(deckIds.map(id => [id, 0]));
     let voters = 0;
     let complete = true;
+    const stats = { ballots: 0, liked: 0, timedOut: 0 };
     const startedAt = state.startedAt?.toMillis?.() ?? null;
     for (const member of members.docs) {
       const ballots = await tx.get(room.collection('votes').doc(member.id).collection('ballot'));
@@ -252,6 +263,9 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       if (ballots.size < (state.candidateCount ?? deckIds.length) && !away) complete = false;
       for (const ballot of ballots.docs) {
         if (ballot.data().liked === true && ballot.id in likes) likes[ballot.id]++;
+        stats.ballots++;
+        if (ballot.data().liked === true) stats.liked++;
+        if (ballot.data().auto === true) stats.timedOut++;
       }
     }
     // Most likes wins; deck order (best ranked first) breaks ties.
@@ -259,11 +273,14 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
     const card = id => resultCard(deckData?.candidates?.find(candidate => candidate.id === id));
     const winner = ranking[0] ?? null;
     const backup = ranking[1] ?? null;
-    return { complete, deck: deck?.exists ? deck : null,
+    return { complete, deck: deck?.exists ? deck : null, stats,
+      winnerCandidate: deckData?.candidates?.find(candidate => candidate.id === winner) ?? null,
       results: { likes, winner, backup, voters, winnerCard: card(winner), backupCard: card(backup) } };
   }
 
   // Closing keeps the result on the room and lets the deck go shortly after.
+  // Returns what the close adds to the usage counts, recorded once the
+  // transaction has committed.
   function closeInto(tx, room, state, outcome) {
     tx.update(room, { status: 'closed', closedAt: FieldValue.serverTimestamp(), joinCode: FieldValue.delete(),
       ...(outcome?.results ? { results: outcome.results } : {}) });
@@ -272,6 +289,20 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
     if (outcome?.deck && outcome.deck.data().expiresAt.toMillis() > soon) {
       tx.update(outcome.deck.ref, { expiresAt: Timestamp.fromMillis(soon) });
     }
+    const winner = outcome?.winnerCandidate ?? null;
+    return {
+      // Voting started a fixed window before its deadline; both use the same clock as now().
+      counts: roomCounts({ outcome, stats: outcome?.stats, at: now(), winner,
+        startedAt: state.votingEndsAt?.toMillis ? state.votingEndsAt.toMillis() - VOTING_WINDOW_MS : null }),
+      win: winner ? { cardId: winner.id, voters: outcome.results.voters,
+        likes: outcome.results.likes[winner.id] ?? 0 } : null,
+    };
+  }
+
+  async function afterClose(closed) {
+    if (!closed) return;
+    await metrics.add(closed.counts);
+    if (closed.win) await metrics.recordWin(closed.win);
   }
 
   return {
@@ -289,7 +320,7 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
             nicknameOf(tx, actor)]);
           if (previous.exists) {
             const existing = await tx.get(roomRef(previous.data().roomId));
-            return { roomId: existing.id, joinCode: existing.data()?.joinCode ?? null };
+            return { roomId: existing.id, joinCode: existing.data()?.joinCode ?? null, repeat: true };
           }
           if (taken.exists) return null;
           const expiresAt = expiry(ROOM_TTL_MS);
@@ -303,7 +334,10 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
           tx.create(receipt, { roomId, uidHash: digest(actor.uid), expiresAt: expiry(RECEIPT_TTL_MS) });
           return { roomId, joinCode };
         });
-        if (created) return created;
+        if (created) {
+          if (!created.repeat) await metrics.add({ roomsCreated: 1 });
+          return { roomId: created.roomId, joinCode: created.joinCode };
+        }
       }
       throw new HttpsError('unavailable', 'Please try again.');
     },
@@ -313,7 +347,7 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       // Failed attempts also count; missing, closed and revoked rooms share one response.
       await limit(actor.uid, 'join', 10, 60000);
       const { joinCode, roomId: knownRoom } = input(request, { joinCode: CODE }, { roomId: ROOM_ID });
-      return db.runTransaction(async tx => {
+      const joined = await db.runTransaction(async tx => {
         let roomId = knownRoom;
         if (joinCode) {
           const code = await tx.get(codeRef(joinCode));
@@ -343,8 +377,12 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
         tx.create(member, { uid: actor.uid, active: true, seat, joinedAt: FieldValue.serverTimestamp(),
           expiresAt: snapshot.data().expiresAt });
         tx.update(room, { memberCount: state.memberCount + 1, [`roster.${seat}`]: { name, host: false } });
-        return { roomId };
+        return { roomId, joined: true };
       });
+      if (joined.joined) {
+        await metrics.add({ roomJoins: 1, ...(actor.provider === 'anonymous' ? { roomJoinsGuest: 1 } : {}) });
+      }
+      return { roomId: joined.roomId };
     },
 
     async startRoom(request) {
@@ -358,7 +396,9 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       }
       await limit(actor.uid, 'start', 10, 60000);
       const { lists, shared } = await roomLists(roomId, use);
-      return generation.generateDeck({ uid: actor.uid, mode: 'room', targetId: roomId, search, lists, target: {
+      return generation.generateDeck({ uid: actor.uid, mode: 'room', targetId: roomId, search, lists,
+        counts: { ...(use.favorites ? { roomsWithFavorites: 1 } : {}), ...(use.never ? { roomsWithNever: 1 } : {}) },
+        target: {
         async check(tx) {
           const { room, snapshot, state } = await memberView(tx, roomId, actor.uid);
           if (state.creator !== actor.uid) deny();
@@ -404,7 +444,9 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       if (spots.length < 2) invalid();
       const roomId = value.roomId;
       await limit(actor.uid, 'start', 10, 60000);
-      return db.runTransaction(async tx => {
+      let started = false;
+      const view = await db.runTransaction(async tx => {
+        started = false;
         const { room, snapshot, state } = await memberView(tx, roomId, actor.uid);
         if (state.creator !== actor.uid) deny();
         if (state.status !== 'lobby') return startedView(roomId, state);
@@ -425,9 +467,12 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
           joinCode: FieldValue.delete(), startedAt: FieldValue.serverTimestamp(),
           votingEndsAt: expiry(VOTING_WINDOW_MS) });
         if (state.joinCode) tx.delete(codeRef(state.joinCode));
+        started = true;
         return { roomId, deckId: deck.id, candidateCount: document.candidates.length,
           candidates: document.candidates };
       });
+      if (started) await metrics.add({ roomsStartedOwnList: 1 });
+      return view;
     },
 
     // One live deck for one person, revealed a card at a time. The request ID
@@ -469,7 +514,9 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       const actor = identity(request);
       const { quickPickId, from } = rerollInput(request);
       await limit(actor.uid, 'reroll', 30, 60000);
-      return db.runTransaction(async tx => {
+      let advanced = false;
+      const view = await db.runTransaction(async tx => {
+        advanced = false;
         const ref = quickPickRef(quickPickId);
         const snapshot = await tx.get(ref);
         const data = snapshot.data();
@@ -480,8 +527,11 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
         }
         const next = { ...data, position: data.position + 1, rerollsUsed: data.rerollsUsed + 1 };
         tx.update(ref, { position: next.position, rerollsUsed: next.rerollsUsed });
+        advanced = true;
         return quickPickView(quickPickId, next);
       });
+      if (advanced) await metrics.add({ quickPickRerolls: 1 });
+      return view;
     },
 
     // Whether this build of the app is too old to use. Purely a courtesy to
@@ -497,17 +547,69 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
 
     // Any signed-in session, guests included, can report an app error.
     async reportClientError(request) {
-      return reportError(identity(request).uid, request.data);
+      const reported = await reportError(identity(request).uid, request.data);
+      await metrics.add({ clientErrors: 1 });
+      return reported;
     },
 
+    // A tap the server never sees, from the fixed list in metrics.js. The app
+    // sends none when the person has turned usage counts off.
+    async countEvent(request) {
+      const actor = identity(request);
+      const { name } = input(request, { name: /^[A-Za-z]{1,40}$/ });
+      if (!CLIENT_EVENTS.includes(name)) invalid();
+      await limit(actor.uid, 'countEvent', 300, 3600000);
+      await metrics.add({ [`tap_${name}`]: 1 });
+      return { counted: true };
+    },
+
+    // Daily totals for the owner's insights page, plus the provider ledger
+    // and the live search settings they are read against.
+    async insightsReport(request) {
+      const actor = identity(request);
+      if (!ownsInsights(actor)) {
+        log({ event: 'insights_denied' });
+        deny();
+      }
+      const range = parseRange(request.data);
+      if (!range) invalid();
+      await limit(actor.uid, 'insights', 120, 3600000);
+      const months = [];
+      for (let at = Date.parse(`${range.from.slice(0, 7)}-01`); at <= Date.parse(range.to);) {
+        months.push(monthOf(at));
+        const next = new Date(at);
+        at = Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 1);
+      }
+      const [days, ledgers, config] = await Promise.all([metrics.report(range.from, range.to),
+        db.getAll(...months.map(month => db.doc(`usageMonths/${provider.id}_${month}`))),
+        db.doc('config/liveSearch').get()]);
+      const live = config.data() ?? {};
+      return {
+        days,
+        months: Object.fromEntries(ledgers.map((ledger, i) => [months[i], {
+          providerCalls: (ledger.data()?.callsCompleted ?? 0) + (ledger.data()?.callsReserved ?? 0),
+          decks: ledger.data()?.generationsCompleted ?? 0,
+        }])),
+        live: { enabled: live.enabled === true, weeklyCap: live.weeklyCaps?.free ?? null,
+          monthlyCallStop: live.monthlyCallStop ?? null, provider: provider.id },
+      };
+    },
+
+    // Asked once when the app opens, so it also marks the session active for
+    // the day: only dates and yes/no flags, kept with the account.
     async appStatus(request) {
-      identity(request);
+      const actor = identity(request);
       const value = request.data ?? {};
-      if (typeof value !== 'object' || Array.isArray(value) || Object.keys(value).join() !== 'build' ||
-        !Number.isInteger(value.build) || value.build < 0 || value.build > 1e9) {
+      const keys = typeof value === 'object' && value !== null && !Array.isArray(value)
+        ? Object.keys(value).sort().join() : '';
+      if (!['build', 'build,platform'].includes(keys) ||
+        !Number.isInteger(value.build) || value.build < 0 || value.build > 1e9 ||
+        (value.platform !== undefined && !PLATFORMS.includes(value.platform))) {
         invalid();
       }
-      const config = await db.doc('config/liveSearch').get();
+      const [config] = await Promise.all([db.doc('config/liveSearch').get(),
+        metrics.recordActivity({ uid: actor.uid, registered: isRegistered(actor), platform: value.platform,
+          build: value.build })]);
       const minimum = config.data()?.minimumClientBuild;
       return { updateRequired: Number.isInteger(minimum) && value.build < minimum };
     },
@@ -591,14 +693,18 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       const actor = identity(request);
       const { roomId } = input(request, { roomId: ROOM_ID });
       await limit(actor.uid, 'close', 30, 60000);
-      return db.runTransaction(async tx => {
+      let closed = null;
+      const view = await db.runTransaction(async tx => {
+        closed = null;
         const { room, state } = await memberView(tx, roomId, actor.uid);
         if (state.creator !== actor.uid) deny();
         if (state.status === 'closed') return { roomId, status: 'closed', results: state.results ?? null };
         const outcome = state.status === 'voting' ? await tally(tx, room, state) : null;
-        closeInto(tx, room, state, outcome);
+        closed = closeInto(tx, room, state, outcome);
         return { roomId, status: 'closed', results: outcome?.results ?? null };
       });
+      await afterClose(closed);
+      return view;
     },
 
     // Members ask for results; the room closes itself here once everyone has voted
@@ -607,7 +713,9 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       const actor = identity(request);
       const { roomId } = input(request, { roomId: ROOM_ID });
       await limit(actor.uid, 'results', 60, 60000);
-      return db.runTransaction(async tx => {
+      let closed = null;
+      const view = await db.runTransaction(async tx => {
+        closed = null;
         const { room, state } = await memberView(tx, roomId, actor.uid);
         if (state.status === 'closed') return { roomId, status: 'closed', results: state.results ?? null };
         if (state.status !== 'voting') return { roomId, status: state.status, results: null };
@@ -616,9 +724,11 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
         if (!outcome.complete && !ended) {
           return { roomId, status: 'voting', results: null, voters: outcome.results.voters };
         }
-        closeInto(tx, room, state, outcome);
+        closed = closeInto(tx, room, state, outcome);
         return { roomId, status: 'closed', results: outcome.results };
       });
+      await afterClose(closed);
+      return view;
     },
 
     // Scheduled: closes rooms whose voting ended with nobody asking for results,
@@ -629,13 +739,16 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       const stale = await db.collection('rooms').where('status', '==', 'voting')
         .where('votingEndsAt', '<=', Timestamp.fromMillis(now())).limit(SWEEP_BATCH).get();
       for (const snapshot of stale.docs) {
-        closed += await retryTransient(() => db.runTransaction(async tx => {
+        const swept = await retryTransient(() => db.runTransaction(async tx => {
           const current = await tx.get(snapshot.ref);
           const state = current.exists ? stateOf(current) : null;
-          if (state?.status !== 'voting' || !(state.votingEndsAt?.toMillis() <= now())) return 0;
-          closeInto(tx, current.ref, state, await tally(tx, current.ref, state));
-          return 1;
+          if (state?.status !== 'voting' || !(state.votingEndsAt?.toMillis() <= now())) return null;
+          return closeInto(tx, current.ref, state, await tally(tx, current.ref, state));
         }));
+        if (swept) {
+          closed++;
+          await afterClose(swept);
+        }
       }
       const expired = await db.collection('restaurantDecks').where('expiresAt', '<=', Timestamp.fromMillis(now()))
         .limit(SWEEP_BATCH).get();
@@ -798,7 +911,7 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       const { cardId, kind } = report;
       const entry = db.doc(`placeReports/${cardId}/byAccount/${digest(`${actor.uid}:${kind}`)}`);
       const flagRef = db.doc(`placeFlags/${cardId}`);
-      return retryTransient(() => db.runTransaction(async tx => {
+      const reported = await retryTransient(() => db.runTransaction(async tx => {
         const card = report.from === 'room' ? await shownInRoom(tx, report.targetId, actor.uid, cardId)
           : await shownInPick(tx, report.targetId, actor.uid, cardId);
         if (!reportable(card, kind)) deny();
@@ -811,7 +924,7 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
         const recent = others.docs.filter(other => other.id !== entry.id &&
           other.data().at.toMillis() > at - REPORT_WINDOW_MS).length + 1;
         const field = KINDS[kind];
-        if (!field || recent < REPORTS_TO_HIDE) return { counted: true };
+        if (!field || recent < REPORTS_TO_HIDE) return { counted: true, hidden: false };
         const until = at + HIDDEN_MS;
         const longest = Math.max(until, ...Object.values(KINDS).filter(Boolean)
           .map(name => flag.data()?.[name]?.toMillis?.() ?? 0));
@@ -822,8 +935,12 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
           ...(kind === 'closed' ? { name: card.name, address: card.address ?? '', hiddenAt: Timestamp.fromMillis(at),
             detailsExpireAt: Timestamp.fromMillis(at + FLAG_DETAILS_MS) } : {}) }, { merge: true });
         log({ event: 'place_hidden', kind });
-        return { counted: true };
+        return { counted: true, hidden: true };
       }));
+      if (reported.counted) {
+        await metrics.add({ [`placeReports_${kind}`]: 1, ...(reported.hidden ? { placesHidden: 1 } : {}) });
+      }
+      return { counted: reported.counted };
     },
 
     async deleteAccount(request) {
@@ -897,6 +1014,7 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       await retryTransient(() => db.doc(`userLists/${actor.uid}`).delete());
       await retryTransient(() => placesRef(actor.uid).delete());
       await retryTransient(() => profileRef(actor.uid).delete());
+      await retryTransient(() => db.doc(`userActivity/${actor.uid}`).delete());
       try {
         await deleteAuthUser(actor.uid);
       } catch (error) {
@@ -904,6 +1022,7 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       }
       // No UID, email or ballot content in the record.
       log({ event: 'account_deleted', hostedRooms: hosted.size, memberships: memberships.size, decks: decks.size });
+      await metrics.add({ [actor.provider === 'anonymous' ? 'guestsDeleted' : 'accountsDeleted']: 1 });
       return { deleted: true };
     },
   };
@@ -912,6 +1031,7 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
 const CALLABLES = ['createRoom', 'joinRoom', 'startRoom', 'closeRoom', 'roomResults',
   'revokeMember', 'rotateJoinCode', 'deleteAccount', 'liveSearchStatus', 'createQuickPick', 'rerollQuickPick',
   'appStatus', 'reportClientError', 'checkEmailDomain', 'saveOwnList',
-  'startRoomFromList', 'saveMyPlaces', 'shareRoomLists', 'setNoTimer', 'setNickname', 'reportPlace'];
+  'startRoomFromList', 'saveMyPlaces', 'shareRoomLists', 'setNoTimer', 'setNickname', 'reportPlace',
+  'countEvent', 'insightsReport'];
 
 module.exports = { createRoomHandlers, CALLABLES, CODE_ALPHABET, CAPACITY };

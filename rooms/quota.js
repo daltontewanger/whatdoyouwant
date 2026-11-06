@@ -52,6 +52,7 @@ function deckFeatures(data) {
   return {
     notices: valid ? { every: notices.every, title: words(notices.title, 60), text: words(notices.text, 200) } : null,
     photos: data?.photos?.enabled === true,
+    hotPicks: data?.hotPicks?.enabled === true,
   };
 }
 
