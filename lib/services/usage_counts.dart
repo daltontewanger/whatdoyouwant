@@ -31,16 +31,16 @@ enum UsageEvent {
 /// they turn it off in Account.
 class UsageCounts extends ChangeNotifier {
   static const _offKey = 'usageCounts.off';
-  static const _demoKey = 'usageCounts.demoSeen';
 
   bool enabled = true;
+
+  // Only for this visit: nothing is stored on the device just to count.
   bool _demoSeen = false;
 
   Future<void> load() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final saved = !(prefs.getBool(_offKey) ?? false);
-      _demoSeen = prefs.getBool(_demoKey) ?? false;
       if (saved != enabled) {
         enabled = saved;
         notifyListeners();
@@ -67,24 +67,14 @@ class UsageCounts extends ChangeNotifier {
     unawaited(backend.countEvent(event.name).catchError((_) {}));
   }
 
-  /// The demo was opened on this device, so a sign-up later can say so.
-  Future<void> markDemoSeen() async {
-    _demoSeen = true;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_demoKey, true);
-    } catch (_) {}
-  }
+  /// The demo was opened during this visit, so a sign-up after it can say so.
+  void markDemoSeen() => _demoSeen = true;
 
-  /// Counts a sign-up that followed the demo, once per device.
+  /// Counts a sign-up that followed the demo in the same visit, once.
   Future<void> signedUp(RoomBackend backend) async {
     if (!_demoSeen) return;
-    send(backend, UsageEvent.signUpAfterDemo);
     _demoSeen = false;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_demoKey, false);
-    } catch (_) {}
+    send(backend, UsageEvent.signUpAfterDemo);
   }
 }
 

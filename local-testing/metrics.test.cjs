@@ -75,7 +75,7 @@ test('activity: once a day, with new, upgraded and returning sessions', () => {
   const month = activity({ previous: again.record, registered: true, at: at + 45 * DAY });
   assert.deepEqual(month.cohorts, { '2026-11-06': { returned_d30: 1, accountReturned_d30: 1 } });
   assert.equal(month.record.expiresAt, at + 45 * DAY + 400 * DAY);
-  assert.equal(first.record.expiresAt, at + 60 * DAY, 'guests go sooner');
+  assert.equal(first.record.expiresAt, at + 30 * DAY, 'guests go sooner');
   const text = JSON.stringify(month);
   assert.ok(!/uid|email|room/i.test(text));
 });

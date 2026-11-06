@@ -254,27 +254,33 @@ void main() {
     expect(backend.events, ['introSkipped']);
   });
 
-  test(
-    'the switch is kept on the device, and a sign-up after the demo counts once',
-    () async {
-      final counts = UsageCounts();
-      await counts.setEnabled(false);
-      final again = UsageCounts();
-      await again.load();
-      expect(again.enabled, isFalse);
-      await again.setEnabled(true);
-      final backend = FakeRoomBackend();
-      await again.signedUp(backend);
-      expect(backend.events, isEmpty, reason: 'no demo first');
-      await again.markDemoSeen();
-      final later = UsageCounts();
-      await later.load();
-      await later.signedUp(backend);
-      await later.signedUp(backend);
-      await Future<void>.delayed(Duration.zero);
-      expect(backend.events, ['signUpAfterDemo']);
-    },
-  );
+  test('only the switch is kept on the device; a sign-up after the demo '
+      'counts once', () async {
+    final counts = UsageCounts();
+    await counts.setEnabled(false);
+    final again = UsageCounts();
+    await again.load();
+    expect(again.enabled, isFalse);
+    await again.setEnabled(true);
+    final prefs = await SharedPreferences.getInstance();
+    final backend = FakeRoomBackend();
+    await again.signedUp(backend);
+    await Future<void>.delayed(Duration.zero);
+    expect(backend.events, isEmpty, reason: 'no demo first');
+    again.markDemoSeen();
+    expect(prefs.getKeys(), {
+      'usageCounts.off',
+    }, reason: 'the demo is not remembered on the device');
+    await again.signedUp(backend);
+    await again.signedUp(backend);
+    await Future<void>.delayed(Duration.zero);
+    expect(backend.events, ['signUpAfterDemo']);
+    final nextVisit = UsageCounts();
+    await nextVisit.load();
+    await nextVisit.signedUp(backend);
+    await Future<void>.delayed(Duration.zero);
+    expect(backend.events, ['signUpAfterDemo']);
+  });
 
   testWidgets('Account offers the usage counts switch', (tester) async {
     tester.view.physicalSize = const Size(800, 2400);

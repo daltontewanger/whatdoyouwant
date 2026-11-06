@@ -139,8 +139,8 @@ function activity({ previous, registered, platform, build, at }) {
   };
   credit(record.firstDay, '');
   credit(record.accountDay, 'a');
-  // Guests left idle are removed weekly, so their record need not outlast that.
-  record.expiresAt = at + (record.registered ? 400 : 60) * DAY_MS;
+  // Guests idle for 30 days are deleted, and their record goes with them.
+  record.expiresAt = at + (record.registered ? 400 : 30) * DAY_MS;
   return { record, today: today_, cohorts };
 }
 
