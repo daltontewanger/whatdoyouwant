@@ -165,6 +165,7 @@ void main() {
     testWidgets('anyone else is quietly sent back home ($code)', (
       tester,
     ) async {
+      var cleared = 0;
       final backend =
           FakeRoomBackend()
             ..insightsError = FirebaseFunctionsException(
@@ -181,7 +182,11 @@ void main() {
                       () => Navigator.push(
                         context,
                         MaterialPageRoute<void>(
-                          builder: (_) => InsightsScreen(today: today),
+                          builder:
+                              (_) => InsightsScreen(
+                                today: today,
+                                leaveAddress: () => cleared++,
+                              ),
                         ),
                       ),
                   child: const Text('Home'),
@@ -201,6 +206,7 @@ void main() {
       expect(find.text('Home'), findsOneWidget);
       expect(find.textContaining('owner'), findsNothing);
       expect(find.textContaining('Google'), findsNothing);
+      expect(cleared, 1, reason: 'the address no longer names the page');
     });
   }
 

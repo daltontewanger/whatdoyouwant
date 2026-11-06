@@ -2,16 +2,24 @@ import 'package:flutter/material.dart';
 
 import '../models/cuisines.dart';
 import '../models/insights.dart';
+import '../services/browser_address.dart';
 import '../services/room_backend.dart';
 
 /// The owner's usage page: daily totals only, read-only, and refused by the
 /// server to anyone but the owner. Nothing shows until the server agrees;
 /// anyone else is quietly taken back to Home, so the page gives nothing away.
 class InsightsScreen extends StatefulWidget {
-  const InsightsScreen({super.key, this.today});
+  const InsightsScreen({
+    super.key,
+    this.today,
+    this.leaveAddress = showAppHomeAddress,
+  });
 
   /// Fixed in tests; the device's date otherwise.
   final DateTime? today;
+
+  /// Clears this page from the browser's address when someone is turned away.
+  final void Function() leaveAddress;
 
   static const ranges = [7, 30, 90, 180];
 
@@ -61,6 +69,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
     } catch (error) {
       if (!mounted || request != _request) return;
       if (!_allowed) {
+        widget.leaveAddress();
         Navigator.of(context).maybePop();
         return;
       }
