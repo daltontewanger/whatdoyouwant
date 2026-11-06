@@ -247,10 +247,10 @@ class SwipeScreenState extends State<SwipeScreen> {
   double _cardHeight(BuildContext context) {
     final scaler = MediaQuery.textScalerOf(context);
     final growth = scaler.scale(10) / 10 - 1;
-    // A line of food chips above the name, when the deck has any.
+    // Up to two rows of food chips above the name, when the deck has any.
     final chips =
         swipeOptions.any((r) => r.foodLabels.isNotEmpty)
-            ? scaler.scale(18) + 20
+            ? 2 * scaler.scale(18) + 26
             : 0.0;
     return 380 + chips + 150 * growth.clamp(0.0, 2.0);
   }
@@ -286,7 +286,11 @@ class SwipeScreenState extends State<SwipeScreen> {
                 children: [
                   // What it serves, for places nobody has heard of.
                   if (restaurant.foodLabels.isNotEmpty) ...[
-                    FoodChips(labels: restaurant.foodLabels, singleLine: true),
+                    FoodChips(
+                      labels: restaurant.foodLabels,
+                      max: 4,
+                      maxRows: 2,
+                    ),
                     const SizedBox(height: 12),
                   ],
                   Text(

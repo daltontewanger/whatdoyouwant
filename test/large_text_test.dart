@@ -122,7 +122,7 @@ void main() {
           ),
         );
         await tester.pump();
-        expect(find.text('Sandwiches'), findsNothing, reason: 'three at most');
+        expect(find.text('Latin American & Caribbean'), findsOneWidget);
         await tester.pumpWidget(const SizedBox());
       });
 

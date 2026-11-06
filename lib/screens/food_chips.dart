@@ -75,7 +75,10 @@ const _icons = <(List<String>, IconData)>[
 ];
 
 /// What a place serves, as chips with an icon and a word: the first [max],
-/// and with [expandable] a "+ more" chip that shows the rest.
+/// and with [expandable] a "+ more" chip that shows the rest. With
+/// [maxRows] the chips are centred and kept to that many rows: a chip that
+/// would need another row is left out rather than shortened, so the ones
+/// shown stay readable.
 class FoodChips extends StatefulWidget {
   const FoodChips({
     super.key,
@@ -83,20 +86,61 @@ class FoodChips extends StatefulWidget {
     this.max = 3,
     this.expandable = false,
     this.alignment = WrapAlignment.start,
-    this.singleLine = false,
+    this.maxRows,
   });
 
   final List<String> labels;
   final int max;
   final bool expandable;
   final WrapAlignment alignment;
-
-  /// One centred line, long words shortened, so a card keeps its height.
-  final bool singleLine;
+  final int? maxRows;
 
   @override
   State<FoodChips> createState() => _FoodChipsState();
 }
+
+/// The labels, in order, that fit in [rows] rows of [width] when laid out
+/// the way a [Wrap] does. One that would need another row is skipped, so a
+/// shorter one after it can still take the space. The first label always
+/// shows, shortened if it is wider than a whole row.
+List<String> fitInRows(
+  List<String> labels, {
+  required double width,
+  required int rows,
+  required double Function(String) widthOf,
+}) {
+  final fitting = <String>[];
+  var row = 0;
+  var used = 0.0;
+  for (final label in labels) {
+    final need = widthOf(label).clamp(0.0, width);
+    if (fitting.isEmpty) {
+      fitting.add(label);
+      used = need;
+    } else if (used + _chipSpacing + need <= width) {
+      fitting.add(label);
+      used += _chipSpacing + need;
+    } else if (row + 1 < rows) {
+      fitting.add(label);
+      row++;
+      used = need;
+    }
+  }
+  return fitting;
+}
+
+double _chipWidth(BuildContext context, String label, TextStyle style) {
+  final text = TextPainter(
+    text: TextSpan(text: label, style: style),
+    textDirection: Directionality.of(context),
+    textScaler: MediaQuery.textScalerOf(context),
+    maxLines: 1,
+  )..layout();
+  // Padding 8 + 10, border 1 + 1, icon 16 and its gap 4.
+  return text.width + 40;
+}
+
+const _chipSpacing = 6.0;
 
 class _FoodChipsState extends State<FoodChips> {
   bool _open = false;
@@ -109,6 +153,10 @@ class _FoodChipsState extends State<FoodChips> {
     final shown = _open || hidden <= 0 ? labels : labels.take(widget.max);
     final theme = Theme.of(context);
     const ink = Color(0xFF1E5641);
+    final style = theme.textTheme.bodySmall!.copyWith(
+      color: ink,
+      fontWeight: FontWeight.w700,
+    );
     Widget chip(String label) => Container(
       padding: const EdgeInsets.fromLTRB(8, 3, 10, 3),
       decoration: BoxDecoration(
@@ -122,33 +170,39 @@ class _FoodChipsState extends State<FoodChips> {
           Icon(foodIcon(label), size: 16, color: theme.colorScheme.primary),
           const SizedBox(width: 4),
           Flexible(
-            child: Text(
-              label,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall!.copyWith(
-                color: ink,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+            child: Text(label, overflow: TextOverflow.ellipsis, style: style),
           ),
         ],
       ),
     );
-    if (widget.singleLine) {
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (final (i, label) in shown.indexed) ...[
-            if (i > 0) const SizedBox(width: 6),
-            Flexible(child: chip(label)),
-          ],
-        ],
+    if (widget.maxRows case final rows?) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final fitting = fitInRows(
+            labels.take(widget.max).toList(),
+            width: constraints.maxWidth,
+            rows: rows,
+            widthOf: (label) => _chipWidth(context, label, style),
+          );
+          return Wrap(
+            alignment: WrapAlignment.center,
+            spacing: _chipSpacing,
+            runSpacing: _chipSpacing,
+            children: [
+              for (final label in fitting)
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                  child: chip(label),
+                ),
+            ],
+          );
+        },
       );
     }
     return Wrap(
       alignment: widget.alignment,
-      spacing: 6,
-      runSpacing: 6,
+      spacing: _chipSpacing,
+      runSpacing: _chipSpacing,
       children: [
         for (final label in shown) chip(label),
         if (widget.expandable && hidden > 0)
