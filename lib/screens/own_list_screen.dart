@@ -283,7 +283,7 @@ class _OwnListScreenState extends State<OwnListScreen> {
           '${spots.length} of ${OwnSpot.maxSpots} · '
           '${store?.synced == true ? 'saved to your account' : 'saved on this device'}',
           textAlign: TextAlign.center,
-          style: theme.textTheme.bodySmall!.copyWith(color: Colors.black54),
+          style: theme.textTheme.bodySmall!.copyWith(color: inkSoft),
         ),
         const SizedBox(height: 20),
         Center(
@@ -392,7 +392,7 @@ class _OwnListScreenState extends State<OwnListScreen> {
                                 IconButton(
                                   icon: const Icon(
                                     Icons.arrow_back,
-                                    color: Colors.black54,
+                                    color: inkSoft,
                                     size: 28,
                                   ),
                                   tooltip: 'Back',

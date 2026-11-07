@@ -455,7 +455,6 @@ class HomeScreenState extends State<HomeScreen>
                           fontSize: 36,
                           color: theme.colorScheme.primary,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: 2,
                           shadows: [
                             const Shadow(
                               color: Colors.black12,

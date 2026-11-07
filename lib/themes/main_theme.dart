@@ -21,6 +21,10 @@ final Color brandGreen = Color(0xFF65B292); // #65b292
 final Color primaryGreen = Color(0xFF2F7A5C); // #2f7a5c
 final Color lightBackground = Color(0xFFFAFAFA);
 
+/// Secondary text: a green-grey with about 7:1 contrast on white, where
+/// 54% black barely reaches 4.5:1 and falls short on the mint tints.
+const Color inkSoft = Color(0xFF4A5A52);
+
 // The pale green behind the main screens. Solid rather than see-through, so
 // the page underneath never shows through while a new one slides in.
 final Color screenBackground = Color.alphaBlend(
@@ -48,7 +52,6 @@ final ThemeData appTheme = ThemeData(
       fontWeight: FontWeight.w800,
       fontSize: 22,
       color: Colors.white,
-      letterSpacing: 1,
     ),
   ),
   textTheme: GoogleFonts.baloo2TextTheme().copyWith(

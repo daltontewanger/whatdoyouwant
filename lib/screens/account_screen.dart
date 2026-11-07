@@ -10,6 +10,7 @@ import 'main_shell.dart';
 import 'my_places_screen.dart';
 import 'place_marks.dart';
 import 'room_roster.dart';
+import '../themes/main_theme.dart';
 
 /// Turns Auth errors into guidance. Projects with email enumeration protection
 /// report an unknown email and a wrong password the same way, so the specific
@@ -373,7 +374,7 @@ class _AccountScreenState extends State<AccountScreen> {
                       child: TextButton(
                         onPressed: busy ? null : () => deleteAccount(user),
                         style: TextButton.styleFrom(
-                          foregroundColor: Colors.black54,
+                          foregroundColor: inkSoft,
                           textStyle: Theme.of(context).textTheme.bodySmall,
                         ),
                         child: const Text('Delete account'),
@@ -643,7 +644,8 @@ class _DeletePromptState extends State<_DeletePrompt> {
       ),
       TextButton(
         onPressed: () => Navigator.pop(context, password.text),
-        child: const Text('Delete'),
+        style: TextButton.styleFrom(foregroundColor: Colors.red[800]),
+        child: const Text('Delete account'),
       ),
     ],
   );

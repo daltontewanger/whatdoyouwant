@@ -142,7 +142,7 @@ class JoinRoomScreenState extends State<JoinRoomScreen> {
                     IconButton(
                       icon: const Icon(
                         Icons.arrow_back,
-                        color: Colors.black54,
+                        color: inkSoft,
                         size: 28,
                       ),
                       tooltip: 'Back',
@@ -159,7 +159,6 @@ class JoinRoomScreenState extends State<JoinRoomScreen> {
                       fontSize: 30,
                       color: theme.colorScheme.primary,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 1.3,
                       shadows: const [
                         Shadow(
                           color: Colors.black12,
@@ -286,7 +285,7 @@ class _WaitingForOptionsScreenState extends State<WaitingForOptionsScreen> {
                     IconButton(
                       icon: const Icon(
                         Icons.arrow_back,
-                        color: Colors.black54,
+                        color: inkSoft,
                         size: 28,
                       ),
                       tooltip: 'Back',
@@ -302,7 +301,6 @@ class _WaitingForOptionsScreenState extends State<WaitingForOptionsScreen> {
                       fontSize: 26,
                       color: theme.colorScheme.primary,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 1.2,
                     ),
                   ),
                 ),

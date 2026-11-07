@@ -310,7 +310,7 @@ class _QuickPickScreenState extends State<QuickPickScreen> with SearchStarter {
                                 IconButton(
                                   icon: const Icon(
                                     Icons.arrow_back,
-                                    color: Colors.black54,
+                                    color: inkSoft,
                                     size: 28,
                                   ),
                                   tooltip: 'Back',

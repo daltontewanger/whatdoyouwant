@@ -330,7 +330,7 @@ class SwipeScreenState extends State<SwipeScreen> {
                       'Distance: ${distanceText(restaurant.distance, RoomBackendScope.distanceUnitOf(context))}',
                       style: Theme.of(
                         context,
-                      ).textTheme.bodyMedium!.copyWith(color: Colors.black54),
+                      ).textTheme.bodyMedium!.copyWith(color: inkSoft),
                     ),
                 ],
               ),
@@ -434,7 +434,6 @@ class SwipeScreenState extends State<SwipeScreen> {
                                         .copyWith(
                                           fontWeight: FontWeight.w900,
                                           fontSize: 34,
-                                          letterSpacing: 1.2,
                                           shadows: const [
                                             Shadow(
                                               color: Colors.black12,
@@ -553,8 +552,7 @@ class SwipeScreenState extends State<SwipeScreen> {
                                                           .textTheme
                                                           .titleMedium!
                                                           .copyWith(
-                                                            color:
-                                                                Colors.black54,
+                                                            color: inkSoft,
                                                           ),
                                                     )
                                                     : TweenAnimationBuilder<
@@ -661,7 +659,7 @@ class SwipeScreenState extends State<SwipeScreen> {
                                     child: Text(
                                       'Option ${(_placesBefore(_currentIndex) + 1).clamp(1, _placeCount)} of $_placeCount',
                                       style: theme.textTheme.bodyMedium!
-                                          .copyWith(color: Colors.black54),
+                                          .copyWith(color: inkSoft),
                                     ),
                                   ),
                                 ],
@@ -802,7 +800,7 @@ class _NoticeCard extends StatelessWidget {
           children: [
             Text(
               'Not a place to vote on',
-              style: theme.textTheme.bodySmall!.copyWith(color: Colors.black54),
+              style: theme.textTheme.bodySmall!.copyWith(color: inkSoft),
             ),
             const SizedBox(height: 10),
             Text(

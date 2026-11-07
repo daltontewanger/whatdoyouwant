@@ -5,6 +5,7 @@ import '../models/saved_place.dart';
 import '../services/my_places.dart';
 import '../services/room_backend.dart';
 import 'place_marks.dart';
+import '../themes/main_theme.dart';
 
 /// The person's favorites ("I know what I want") and never list ("Never
 /// what I want"), with their own switches and a way to remove each place.
@@ -109,9 +110,7 @@ class MyPlacesScreen extends StatelessWidget {
                         ? 'Saved to your account. Nobody else in a room sees your lists.'
                         : 'Saved on this device. Sign in to keep them with your '
                             'account. Nobody else in a room sees your lists.',
-                    style: theme.textTheme.bodySmall!.copyWith(
-                      color: Colors.black54,
-                    ),
+                    style: theme.textTheme.bodySmall!.copyWith(color: inkSoft),
                   ),
                 ],
               ),
@@ -217,9 +216,7 @@ class _Empty extends StatelessWidget {
     padding: const EdgeInsets.symmetric(vertical: 8),
     child: Text(
       text,
-      style: Theme.of(
-        context,
-      ).textTheme.bodyMedium!.copyWith(color: Colors.black54),
+      style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: inkSoft),
     ),
   );
 }

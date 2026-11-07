@@ -11,6 +11,7 @@ import '../services/place_links.dart';
 import '../services/room_backend.dart';
 import '../services/search_defaults.dart';
 import '../services/usage_counts.dart';
+import '../themes/main_theme.dart';
 
 /// A chosen restaurant as the results screens show it: name, address and
 /// distance in the person's own unit, with an optional note after the
@@ -102,9 +103,7 @@ class PlaceCard extends StatelessWidget {
                     if (!restaurant.userEntered) 'Distance: $distance',
                     if (note case final note?) note,
                   ].join(' · '),
-                  style: theme.textTheme.bodyMedium!.copyWith(
-                    color: Colors.black54,
-                  ),
+                  style: theme.textTheme.bodyMedium!.copyWith(color: inkSoft),
                 ),
               ],
               if (DietaryNote.textFor(restaurant.dietary) != null) ...[
@@ -200,13 +199,13 @@ class PlaceShareButtons extends StatelessWidget {
       IconButton(
         icon: const Icon(Icons.copy_rounded),
         tooltip: 'Copy',
-        color: Colors.black54,
+        color: inkSoft,
         onPressed: () => copyPlace(context, restaurant),
       ),
       IconButton(
         icon: const Icon(Icons.share),
         tooltip: 'Share',
-        color: Colors.black54,
+        color: inkSoft,
         onPressed: () => sharePlace(context, restaurant),
       ),
     ],
@@ -223,9 +222,7 @@ class PlaceCredit extends StatelessWidget {
         ? 'Made-up places for the demo'
         : 'Place details from HERE',
     textAlign: TextAlign.center,
-    style: Theme.of(
-      context,
-    ).textTheme.bodySmall!.copyWith(color: Colors.black54),
+    style: Theme.of(context).textTheme.bodySmall!.copyWith(color: inkSoft),
   );
 }
 

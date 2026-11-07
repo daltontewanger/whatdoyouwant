@@ -399,7 +399,8 @@ void main() {
       await tester.tap(find.text('Delete account'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'secret123');
-      await tester.tap(find.text('Delete'));
+      // The dialog's own button repeats the page's "Delete account".
+      await tester.tap(find.text('Delete account').last);
       await tester.pumpAndSettle();
       expect(user.calls, ['reauth', 'delete']);
       expect(find.text('Account deleted.'), findsOneWidget);

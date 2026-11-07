@@ -401,9 +401,7 @@ class _ResultViewState extends State<_ResultView> {
             children: [
               Text(
                 'Winner',
-                style: theme.textTheme.bodySmall!.copyWith(
-                  color: Colors.black54,
-                ),
+                style: theme.textTheme.bodySmall!.copyWith(color: inkSoft),
               ),
               Text(
                 widget.winner.name,
@@ -496,7 +494,6 @@ class _ResultViewState extends State<_ResultView> {
                   style: theme.textTheme.headlineMedium!.copyWith(
                     fontWeight: FontWeight.w900,
                     fontSize: 34,
-                    letterSpacing: 1.2,
                     color: theme.colorScheme.primary,
                     shadows: const [
                       Shadow(

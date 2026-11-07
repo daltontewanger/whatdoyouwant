@@ -455,7 +455,7 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
                                         IconButton(
                                           icon: const Icon(
                                             Icons.arrow_back,
-                                            color: Colors.black54,
+                                            color: inkSoft,
                                             size: 28,
                                           ),
                                           tooltip: 'Back',
@@ -663,7 +663,7 @@ class UntimedNotice extends StatelessWidget {
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(Icons.timer_off_outlined, size: 18, color: Colors.black54),
+        const Icon(Icons.timer_off_outlined, size: 18, color: inkSoft),
         const SizedBox(width: 6),
         Flexible(
           child: Text(
@@ -671,7 +671,7 @@ class UntimedNotice extends StatelessWidget {
             textAlign: TextAlign.center,
             style: Theme.of(
               context,
-            ).textTheme.bodySmall!.copyWith(color: Colors.black54),
+            ).textTheme.bodySmall!.copyWith(color: inkSoft),
           ),
         ),
       ],

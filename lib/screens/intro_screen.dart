@@ -9,9 +9,9 @@ import 'place_marks.dart';
 import 'room_roster.dart';
 import 'step_card.dart';
 import '../services/usage_counts.dart';
+import '../themes/main_theme.dart';
 
 const _ink = Color(0xFF1F2A24);
-const _inkSoft = Color(0xFF4A5A52);
 const _line = Color(0xFFCFE6DB);
 
 /// A few pages on how a room works and the other ways to decide, in the
@@ -251,7 +251,7 @@ class _IntroPage extends StatelessWidget {
                 text,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyLarge!.copyWith(
-                  color: _inkSoft,
+                  color: inkSoft,
                   height: 1.4,
                 ),
               ),
@@ -536,7 +536,7 @@ class _SwipeScene extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     'Distance: $distance',
-                    style: const TextStyle(fontSize: 11, color: Colors.black54),
+                    style: const TextStyle(fontSize: 11, color: inkSoft),
                   ),
                 ],
               ),
@@ -640,7 +640,6 @@ class _ResultsScene extends StatelessWidget {
               color: primary,
               fontWeight: FontWeight.w900,
               fontSize: 24,
-              letterSpacing: 1,
             ),
           ),
           const SizedBox(height: 8),
@@ -692,7 +691,7 @@ class _ResultsScene extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     'Distance: $distance · 3 of 4 liked it',
-                    style: const TextStyle(fontSize: 11, color: Colors.black54),
+                    style: const TextStyle(fontSize: 11, color: inkSoft),
                   ),
                   const SizedBox(height: 8),
                   Row(

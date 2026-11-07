@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/nickname.dart';
 import '../services/room_backend.dart';
+import '../themes/main_theme.dart';
 
 /// Whether the signed-in person can have a nickname: verified accounts only,
 /// the same people who can start a search.
@@ -86,7 +87,7 @@ class RoomRoster extends StatelessWidget {
               Text(
                 capacity == null ? '$count' : '$count of $capacity',
                 style: theme.textTheme.bodyMedium!.copyWith(
-                  color: Colors.black54,
+                  color: inkSoft,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -159,7 +160,7 @@ class RoomRoster extends StatelessWidget {
             Text(
               tags,
               style: theme.textTheme.bodySmall!.copyWith(
-                color: Colors.black54,
+                color: inkSoft,
                 fontWeight: FontWeight.w700,
               ),
             ),
