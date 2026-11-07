@@ -8,6 +8,7 @@ import 'package:url_launcher/link.dart';
 import 'package:whatdoyouwant/models/own_spot.dart';
 import 'package:whatdoyouwant/models/user.dart';
 import 'package:whatdoyouwant/screens/faq_screen.dart';
+import 'package:whatdoyouwant/screens/home_banner.dart';
 import 'package:whatdoyouwant/screens/main_shell.dart';
 import 'package:whatdoyouwant/screens/own_list_screen.dart';
 import 'package:whatdoyouwant/screens/room_screen.dart';
@@ -303,12 +304,9 @@ void main() {
     ]) {
       expect(find.text(title), findsOneWidget, reason: title);
     }
-    expect(
-      find.text(
-        "I know, it's not that simple. Swipe together and let the group decide where to eat.",
-      ),
-      findsOneWidget,
-    );
+    // The banner carries the two lines, so no tagline repeats them.
+    expect(find.textContaining('Swipe together'), findsNothing);
+    expect(find.byType(HomeBanner), findsOneWidget);
     // The steps carry no numbers; the line ends at a place setting.
     for (final number in ['1', '2', '3']) {
       expect(find.text(number), findsNothing);

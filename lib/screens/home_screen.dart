@@ -16,13 +16,12 @@ import 'main_shell.dart';
 import 'own_list_screen.dart';
 import 'search_setup_screen.dart';
 import 'bubble_icons.dart';
+import 'home_banner.dart';
 import 'intro_screen.dart';
 import 'step_card.dart';
 import '../themes/main_theme.dart';
 import '../services/usage_counts.dart';
 import 'insights_screen.dart';
-
-const _inkSoft = Color(0xFF4A5A52);
 
 class HomeScreen extends StatefulWidget {
   final String currentUid;
@@ -466,50 +465,11 @@ class HomeScreenState extends State<HomeScreen>
                           ],
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        "I know, it's not that simple. Swipe together and let "
-                        'the group decide where to eat.',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          color: _inkSoft,
-                          height: 1.4,
-                        ),
-                      ),
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
+                        padding: const EdgeInsets.fromLTRB(4, 12, 4, 16),
                         child: ScaleTransition(
                           scale: _scaleAnimation,
-                          child: AspectRatio(
-                            aspectRatio: 1.83,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: theme.colorScheme.primary,
-                                  width: 3,
-                                ),
-                                borderRadius: BorderRadius.circular(20),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.25),
-                                    blurRadius: 14,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(17),
-                                child: FittedBox(
-                                  fit: BoxFit.contain,
-                                  child: Image.asset(
-                                    'assets/images/wdyw.jpg',
-                                    semanticLabel:
-                                        "A man asks, 'What do you want?!' and a woman answers, 'It's not that simple!'",
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
+                          child: const HomeBanner(),
                         ),
                       ),
                       if (_activeRoom != null) _activeRoomBanner(theme),
