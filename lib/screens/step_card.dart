@@ -186,7 +186,7 @@ class StepCard extends StatelessWidget {
     final theme = Theme.of(context);
     final primary = theme.colorScheme.primary;
     final content = Padding(
-      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+      padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

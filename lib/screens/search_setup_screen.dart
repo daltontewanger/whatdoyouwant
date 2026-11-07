@@ -162,7 +162,7 @@ class _SearchSetupScreenState extends State<SearchSetupScreen> {
   }
 
   Widget _heading(ThemeData theme, String text, {String? hint}) => Padding(
-    padding: const EdgeInsets.only(top: 22, bottom: 8),
+    padding: const EdgeInsets.only(top: 24, bottom: 8),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

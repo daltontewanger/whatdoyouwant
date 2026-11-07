@@ -219,10 +219,10 @@ class _OwnListScreenState extends State<OwnListScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _heading(theme),
-        const SizedBox(height: 18),
+        const SizedBox(height: 16),
         if (left.isNotEmpty) ...[
           Container(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: const Color(0xFFFFF1C9),
               borderRadius: BorderRadius.circular(16),
@@ -307,7 +307,7 @@ class _OwnListScreenState extends State<OwnListScreen> {
           ),
         ],
         if (spots.length < 2) ...[
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Text(
             'Add at least 2 spots to pick from.',
             textAlign: TextAlign.center,
@@ -330,7 +330,7 @@ class _OwnListScreenState extends State<OwnListScreen> {
             color: Colors.black87,
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
         PlaceCard(restaurant: restaurant),
         const SizedBox(height: 20),
         if (_chosen)

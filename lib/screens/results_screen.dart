@@ -92,7 +92,7 @@ class ResultsScreenState extends State<ResultsScreen> {
                       constraints: const BoxConstraints(maxWidth: 420),
                       padding: const EdgeInsets.symmetric(
                         vertical: 38,
-                        horizontal: 18,
+                        horizontal: 16,
                       ),
                       decoration: BoxDecoration(
                         color: theme.cardColor,
@@ -257,7 +257,7 @@ class _ResultViewState extends State<_ResultView> {
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(22, 22, 22, 12),
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -276,7 +276,7 @@ class _ResultViewState extends State<_ResultView> {
                 'will show up for you.',
                 style: TextStyle(color: Colors.white, fontSize: 16),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               const Text(
                 "(I'm not that mean)",
                 style: TextStyle(color: Colors.white70, fontSize: 13),
@@ -303,13 +303,13 @@ class _ResultViewState extends State<_ResultView> {
     children: [
       PlaceActions(links: placeLinksFor(place), alignment: WrapAlignment.start),
       if (SavedPlace.canSave(place)) ...[
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         PlaceListButtons(restaurant: place),
       ],
       // The server takes reports on the room's own winner and backup only,
       // not a backup drawn at random on this phone.
       if (place.id == widget.winner.id || place.id == widget.backup?.id) ...[
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         ReportPlaceLink(
           restaurant: place,
           from: ReportedFrom.room(widget.roomId),
@@ -328,7 +328,7 @@ class _ResultViewState extends State<_ResultView> {
       borderRadius: BorderRadius.circular(16),
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 12, 10, 12),
+        padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
         decoration: BoxDecoration(
           border: Border.all(color: Colors.black26),
           borderRadius: BorderRadius.circular(16),
@@ -368,7 +368,7 @@ class _ResultViewState extends State<_ResultView> {
           shrug: widget.winnerLikes <= 0,
         ),
       ),
-      const SizedBox(height: 14),
+      const SizedBox(height: 16),
       PlaceCard(
         restaurant: widget.winner,
         note: _likedNote(widget.winnerLikes),
@@ -376,7 +376,7 @@ class _ResultViewState extends State<_ResultView> {
         child: _actions(widget.winner),
       ),
       if (_hasBackupTile) ...[
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
         _tile(
           label: Text(
             "It's always good to have a backup plan...",
@@ -414,12 +414,12 @@ class _ResultViewState extends State<_ResultView> {
           tooltip: 'Show the winner',
           onTap: () => setState(() => _backupOpen = false),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
         if (_votedBackup) ...[
           const Center(
             child: _Banner(text: 'Your backup plan', icon: Icons.support),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           PlaceCard(
             restaurant: backup!,
             note: _likedNote(widget.backupLikes),
@@ -430,7 +430,7 @@ class _ResultViewState extends State<_ResultView> {
           const Center(
             child: _Banner(text: 'Your random backup plan', icon: Icons.casino),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           PlaceCard(
             restaurant: random,
             note: 'picked at random',
@@ -439,7 +439,7 @@ class _ResultViewState extends State<_ResultView> {
           ),
         ] else
           Container(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
             decoration: BoxDecoration(
               color: Colors.black.withValues(alpha: 0.04),
               borderRadius: BorderRadius.circular(18),
@@ -453,7 +453,7 @@ class _ResultViewState extends State<_ResultView> {
                   style: theme.textTheme.bodyLarge,
                 ),
                 if (widget.others.isNotEmpty) ...[
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
                   Text(
                     'But, because I like you...',
                     style: theme.textTheme.bodyMedium,
@@ -605,7 +605,7 @@ class _Banner extends StatelessWidget {
     final foreground =
         shrug ? const Color(0xFF633806) : theme.colorScheme.primary;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color:
             shrug
@@ -621,7 +621,7 @@ class _Banner extends StatelessWidget {
             size: 20,
             color: foreground,
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 8),
           Flexible(
             child: Text(
               text,

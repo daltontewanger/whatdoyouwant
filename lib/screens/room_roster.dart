@@ -93,7 +93,7 @@ class RoomRoster extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           if (chips.isEmpty)
             Text(
               count == 1 ? 'Only you so far' : '$count people',
@@ -121,7 +121,7 @@ class RoomRoster extends StatelessWidget {
     ].join(' · ');
     final guest = name == null;
     return Container(
-      padding: const EdgeInsets.fromLTRB(3, 3, 10, 3),
+      padding: const EdgeInsets.fromLTRB(3, 3, 12, 3),
       decoration: BoxDecoration(
         color: guest ? const Color(0xFFF4F4F4) : const Color(0xFFF1F6F3),
         border: Border.all(
@@ -145,7 +145,7 @@ class RoomRoster extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 8),
           Flexible(
             child: Text(
               text,

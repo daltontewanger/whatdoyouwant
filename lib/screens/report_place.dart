@@ -129,7 +129,7 @@ class _ReportSheet extends StatelessWidget {
                 color: const Color(0xFF4A5A52),
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
             for (final (problem, title, note) in choices) ...[
               Material(
                 color: Colors.white,

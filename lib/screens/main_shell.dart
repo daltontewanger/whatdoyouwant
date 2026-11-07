@@ -286,10 +286,10 @@ class _Menu extends StatelessWidget {
                 fontWeight: FontWeight.w800,
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
             for (final (step, choice) in entries) ...[
               StepCard(step: step, onTap: () => Navigator.pop(context, choice)),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
             ],
           ],
         ),

@@ -444,7 +444,7 @@ class _AccountScreenState extends State<AccountScreen> {
                       size: 18,
                       color: Colors.orange,
                     ),
-                    SizedBox(width: 6),
+                    SizedBox(width: 8),
                     Text('Email not verified yet'),
                   ],
                 ),

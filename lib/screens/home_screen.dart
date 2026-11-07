@@ -224,7 +224,7 @@ class HomeScreenState extends State<HomeScreen>
                     child: BubbleIcon(BubbleGlyph.notice, size: 36),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Semantics(
                     button: true,
@@ -522,7 +522,7 @@ class HomeScreenState extends State<HomeScreen>
                         step: quickPickStep,
                         onTap: _isLoading ? null : _quickPick,
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 12),
                       StepCard(
                         step: ownListStep,
                         onTap: _isLoading ? null : _ownList,

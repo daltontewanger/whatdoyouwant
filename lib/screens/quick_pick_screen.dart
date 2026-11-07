@@ -174,7 +174,7 @@ class _QuickPickScreenState extends State<QuickPickScreen> with SearchStarter {
           fontWeight: FontWeight.w800,
         ),
       ),
-      const SizedBox(height: 10),
+      const SizedBox(height: 12),
       Text(
         "We'll help decide what you want by picking a place near you. Not "
         'feeling it? Get another from the same search, up to 5 times, '
@@ -215,7 +215,7 @@ class _QuickPickScreenState extends State<QuickPickScreen> with SearchStarter {
             color: Colors.black87,
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
         PlaceCard(
           restaurant: restaurant,
           menu: _chosen ? PlaceMenu(restaurant: restaurant) : null,
@@ -223,7 +223,7 @@ class _QuickPickScreenState extends State<QuickPickScreen> with SearchStarter {
         const SizedBox(height: 20),
         if (_chosen) ...[
           PlaceActions(links: placeLinksFor(restaurant)),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           PlaceListButtons(
             restaurant: restaurant,
             alignment: WrapAlignment.center,
@@ -250,13 +250,13 @@ class _QuickPickScreenState extends State<QuickPickScreen> with SearchStarter {
             ),
           ),
         ],
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         if (!_busy)
           ReportPlaceLink(
             restaurant: restaurant,
             from: ReportedFrom.quickPick(pick.id),
           ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         if (!_busy)
           TextButton.icon(
             icon: const Icon(Icons.search),

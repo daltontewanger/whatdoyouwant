@@ -140,7 +140,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       widget.accounts.usesEmulator
           ? 'If an account uses ${email.text.trim()}, its reset link is in the local Auth emulator.'
           : "If an account uses ${email.text.trim()}, we've sent it a link to choose a new password. The link works for one hour; check your spam folder if it doesn't arrive.",
-      textAlign: TextAlign.center,
+      textAlign: TextAlign.start,
     ),
     const SizedBox(height: 24),
     ElevatedButton(

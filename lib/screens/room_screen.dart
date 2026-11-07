@@ -288,7 +288,7 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
                   child: Row(
                     children: [
                       ExcludeSemantics(child: icon),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -469,7 +469,7 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
                                         'Room Code',
                                         style: theme.textTheme.titleLarge,
                                       ),
-                                      const SizedBox(height: 6),
+                                      const SizedBox(height: 8),
                                       SelectableText(
                                         shownCode,
                                         style: const TextStyle(
@@ -492,7 +492,7 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
                                         alignment: Alignment.center,
                                         child: Padding(
                                           padding: const EdgeInsets.symmetric(
-                                            horizontal: 10.0,
+                                            horizontal: 12.0,
                                           ),
                                           child: Text(
                                             "Provide this code to those intending to join in on the fun. Once they are all confirmed to be in your lobby, you can start swiping!"
@@ -502,7 +502,7 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
                                               color: Colors.grey[800],
                                               fontWeight: FontWeight.w500,
                                             ),
-                                            textAlign: TextAlign.center,
+                                            textAlign: TextAlign.start,
                                           ),
                                         ),
                                       ),
@@ -664,7 +664,7 @@ class UntimedNotice extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         const Icon(Icons.timer_off_outlined, size: 18, color: inkSoft),
-        const SizedBox(width: 6),
+        const SizedBox(width: 8),
         Flexible(
           child: Text(
             'Someone in this room votes without a timer, so it may take a little longer.',

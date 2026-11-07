@@ -45,7 +45,7 @@ class PlaceCard extends StatelessWidget {
         color: theme.colorScheme.primary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(18),
       ),
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       child: Stack(
         children: [
           Column(
@@ -111,7 +111,7 @@ class PlaceCard extends StatelessWidget {
                 DietaryNote(dietary: restaurant.dietary),
               ],
               if (child case final child?) ...[
-                const SizedBox(height: 14),
+                const SizedBox(height: 16),
                 child,
               ],
             ],

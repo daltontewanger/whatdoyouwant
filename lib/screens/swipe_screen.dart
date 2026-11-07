@@ -304,7 +304,7 @@ class SwipeScreenState extends State<SwipeScreen> {
                       color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 16),
                   Text(
                     restaurant.address,
                     textAlign: TextAlign.center,
@@ -312,7 +312,7 @@ class SwipeScreenState extends State<SwipeScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 16),
                   // Spots from the host's own list were never looked up, so they
                   // have the host's note in place of a distance.
                   if (restaurant.userEntered)
@@ -450,13 +450,13 @@ class SwipeScreenState extends State<SwipeScreen> {
                                   Padding(
                                     padding: const EdgeInsets.fromLTRB(
                                       8,
-                                      10,
+                                      12,
                                       8,
                                       4,
                                     ),
                                     child: Text(
-                                      'Swipe right, tap the thumbs up or Favorite for a place you want'
-                                      ' · Swipe left, tap the thumbs down or Never for a place you '
+                                      'Swipe right, tap the thumbs up or Favorite for a place you want\n'
+                                      'Swipe left, tap the thumbs down or Never for a place you '
                                       "don't want\n"
                                       '${untimed ? "No timer for you, so take your time. If you don't vote for 3 minutes, the rest count as places you don't want" : "After $swipeTimeoutSeconds seconds it will auto vote that you don't want this place"}',
                                       textAlign: TextAlign.center,
@@ -511,7 +511,7 @@ class SwipeScreenState extends State<SwipeScreen> {
                                     Padding(
                                       padding: const EdgeInsets.only(
                                         top: 20,
-                                        bottom: 6,
+                                        bottom: 8,
                                       ),
                                       child: ElevatedButton(
                                         onPressed:
@@ -525,7 +525,7 @@ class SwipeScreenState extends State<SwipeScreen> {
                                     Padding(
                                       padding: const EdgeInsets.only(
                                         top: 20,
-                                        bottom: 6,
+                                        bottom: 8,
                                       ),
                                       // Small thumbs either side of the countdown are
                                       // a tap alternative to swiping, for anyone who
@@ -599,7 +599,7 @@ class SwipeScreenState extends State<SwipeScreen> {
                                                                   ),
                                                             ),
                                                             const SizedBox(
-                                                              height: 6,
+                                                              height: 8,
                                                             ),
                                                             LinearProgressIndicator(
                                                               value: value,
@@ -762,13 +762,13 @@ class _CardAction extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(20),
           child: Padding(
-            padding: const EdgeInsets.all(6),
+            padding: const EdgeInsets.all(8),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (!iconAfter) ...[icon, const SizedBox(width: 6)],
+                if (!iconAfter) ...[icon, const SizedBox(width: 8)],
                 text,
-                if (iconAfter) ...[const SizedBox(width: 6), icon],
+                if (iconAfter) ...[const SizedBox(width: 8), icon],
               ],
             ),
           ),
@@ -802,7 +802,7 @@ class _NoticeCard extends StatelessWidget {
               'Not a place to vote on',
               style: theme.textTheme.bodySmall!.copyWith(color: inkSoft),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             Text(
               notice.name,
               textAlign: TextAlign.center,

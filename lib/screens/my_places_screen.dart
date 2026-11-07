@@ -176,7 +176,7 @@ class _Heading extends StatelessWidget {
     child: Row(
       children: [
         icon,
-        const SizedBox(width: 10),
+        const SizedBox(width: 12),
         Semantics(
           header: true,
           child: Text(title, style: Theme.of(context).textTheme.titleMedium),

@@ -48,7 +48,7 @@ class TextSizeSection extends StatelessWidget {
           (context, _) => Card(
             margin: EdgeInsets.zero,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

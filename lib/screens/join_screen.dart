@@ -150,7 +150,7 @@ class JoinRoomScreenState extends State<JoinRoomScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Center(
                   child: Text(
                     "Join a Room",
@@ -182,7 +182,7 @@ class JoinRoomScreenState extends State<JoinRoomScreen> {
                     hintText: 'Enter 6‑character code',
                   ),
                 ),
-                const SizedBox(height: 26),
+                const SizedBox(height: 24),
                 _isLoading
                     ? const Center(child: FoodLoader())
                     : SizedBox(
@@ -304,7 +304,7 @@ class _WaitingForOptionsScreenState extends State<WaitingForOptionsScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 16),
                 StreamBuilder<RoomState>(
                   stream: _room,
                   builder: (context, snapshot) {
