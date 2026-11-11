@@ -16,6 +16,7 @@ import 'main_shell.dart';
 import 'own_list_screen.dart';
 import 'search_setup_screen.dart';
 import 'bubble_icons.dart';
+import 'demo_screen.dart';
 import 'home_banner.dart';
 import 'intro_screen.dart';
 import 'step_card.dart';
@@ -89,6 +90,8 @@ class HomeScreenState extends State<HomeScreen>
               context,
               MaterialPageRoute<void>(builder: (_) => const InsightsScreen()),
             );
+          case AppLinkTarget.demo:
+            Navigator.push(context, DemoScreen.route());
         }
       });
     }

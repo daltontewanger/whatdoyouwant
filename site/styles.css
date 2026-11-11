@@ -210,7 +210,10 @@ section { position: relative; padding: 4rem 0; }
 .phone::after { right: -3px; top: 130px; height: 80px; }
 .screen {
   position: relative; height: 520px; border-radius: 37px; overflow: hidden; background: #eaf3ee;
+  /* Sideways swipes step through the screens; vertical ones scroll the page. */
+  touch-action: pan-y; user-select: none; -webkit-user-select: none; cursor: grab;
 }
+.screen:active { cursor: grabbing; }
 .screen::before {
   content: ''; z-index: 1; position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
   width: 86px; height: 24px; border-radius: 14px; background: #050607;

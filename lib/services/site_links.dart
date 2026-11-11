@@ -29,7 +29,7 @@ Uri accountReturnLink(String projectId, {Uri? current}) =>
 Uri sitePageLink(String origin, String path) => Uri.parse('$origin$path');
 
 /// What an app address asks the app to open.
-enum AppLinkTarget { host, join, account, accountAction, insights }
+enum AppLinkTarget { host, join, account, accountAction, insights, demo }
 
 /// The account steps an emailed link can finish in the app. Every Firebase
 /// email links to the account page, so any other step still arrives there
@@ -74,7 +74,7 @@ AppLink? takeLaunchLink(Uri uri) {
 }
 
 /// Reads `/app/host`, `/app/join`, `/app/join/<code>`, `/app/account`,
-/// `/app/insights` (the owner's usage page) and
+/// `/app/insights` (the owner's usage page), `/app/demo` (the practice room) and
 /// emailed account links (`/app/account?mode=…&oobCode=…`). The
 /// app is served from `/app` on the site and from the root during local
 /// development.
@@ -106,6 +106,7 @@ AppLink? appLinkFrom(Uri uri) {
     'join' => const AppLink(AppLinkTarget.join),
     'account' => const AppLink(AppLinkTarget.account),
     'insights' => const AppLink(AppLinkTarget.insights),
+    'demo' => const AppLink(AppLinkTarget.demo),
     _ => null,
   };
 }

@@ -225,7 +225,8 @@ function warmUpApp() {
 }
 
 // ---- Hero: the phone steps through real app screens. The dots jump to a
-// screen and the button pauses; with reduced motion it only moves when asked.
+// screen, a sideways swipe or drag on the phone steps back and forward, and
+// the button pauses; with reduced motion it only moves when asked.
 function playScreens() {
   const shots = [...document.querySelectorAll('#hero-phone .shot')];
   const dots = [...document.querySelectorAll('.demo-dots button')];
@@ -257,6 +258,27 @@ function playScreens() {
     setPaused(true);
   }));
   pause.addEventListener('click', () => setPaused(pause.getAttribute('aria-pressed') !== 'true'));
+  // Swiping the phone like the app: left for the next screen, right for the
+  // one before. Mostly-vertical drags are left alone so the page still scrolls.
+  const screen = document.querySelector('#hero-phone .screen');
+  let from = null;
+  screen.addEventListener('pointerdown', event => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    from = { x: event.clientX, y: event.clientY, id: event.pointerId };
+  });
+  const release = event => {
+    if (!from || event.pointerId !== from.id) return;
+    const dx = event.clientX - from.x;
+    const dy = event.clientY - from.y;
+    from = null;
+    if (Math.abs(dx) < 30 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    show(current + (dx < 0 ? 1 : -1));
+    setPaused(true);
+  };
+  screen.addEventListener('pointerup', release);
+  // A touch that turns into a page scroll is cancelled by the browser.
+  screen.addEventListener('pointercancel', () => { from = null; });
+  screen.addEventListener('dragstart', event => event.preventDefault());
   setPaused(reduceMotion);
 }
 
