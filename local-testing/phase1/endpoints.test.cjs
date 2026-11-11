@@ -279,6 +279,36 @@ test('rooms: concurrent new members cannot exceed the room capacity', async () =
   assert.equal((await reconnect(roomId, member)).status, 200, 'members already in can reconnect');
 });
 
+test('results: a member can catch up on the room and its deck without the live connection', async () => {
+  const host = await user(true, true); const guest = await user(); const outsider = await user();
+  const { roomId, joinCode } = await room(host);
+  assert.equal((await join(joinCode, guest)).status, 200);
+  const waiting = (await call('roomResults', { roomId, view: 'room' }, guest)).data.result;
+  assert.equal(waiting.status, 'lobby');
+  assert.equal(waiting.deck, null);
+  assert.equal(waiting.room.creator, host.uid);
+  assert.equal((await start(roomId, host)).status, 200);
+  const stored = await deckOf(roomId);
+  const voting = (await call('roomResults', { roomId, view: 'room' }, guest)).data.result;
+  assert.equal(voting.status, 'voting');
+  assert.equal(voting.room.deckId, (await db.doc(`rooms/${roomId}`).get()).data().deckId);
+  assert.equal(typeof voting.room.votingEndsAt, 'number');
+  assert.deepEqual(voting.deck.candidates.map(card => card.id), stored.candidateIds);
+  // Looking never tallies or closes, even once everyone has voted.
+  for (const member of [host, guest]) {
+    for (const candidate of stored.candidateIds) assert.equal((await vote(roomId, member, candidate, false)).status, 200);
+  }
+  assert.equal((await call('roomResults', { roomId, view: 'room' }, guest)).data.result.status, 'voting');
+  assert.equal((await db.doc(`rooms/${roomId}`).get()).data().status, 'voting');
+  assert.equal((await call('roomResults', { roomId }, guest)).data.result.status, 'closed');
+  const closed = (await call('roomResults', { roomId, view: 'room' }, guest)).data.result;
+  assert.equal(closed.status, 'closed');
+  assert.equal(closed.deck, null);
+  assert.equal(closed.results.voters, 2);
+  assert.equal((await call('roomResults', { roomId, view: 'room' }, outsider)).status, 403);
+  assert.equal((await call('roomResults', { roomId, view: 'everything' }, guest)).status, 400);
+});
+
 test('results: the room closes once every member has voted; only totals are shared', async () => {
   const host = await user(true, true); const guest = await user(); const outsider = await user();
   const { roomId, joinCode } = await room(host);

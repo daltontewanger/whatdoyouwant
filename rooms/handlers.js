@@ -711,8 +711,32 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
     // on every candidate or the voting window has passed, so no scheduler is needed.
     async roomResults(request) {
       const actor = identity(request);
-      const { roomId } = input(request, { roomId: ROOM_ID });
+      const { roomId, view: look } = input(request, { roomId: ROOM_ID }, { roomId: ROOM_ID, view: /^room$/ });
       await limit(actor.uid, 'results', 60, 60000);
+      // A phone's live connection can deliver room changes late. The app then
+      // asks for the room as it is now, with the deck once voting has started,
+      // over this plain call instead. Nothing is counted or closed here.
+      if (look) {
+        return db.runTransaction(async tx => {
+          const { state } = await memberView(tx, roomId, actor.uid);
+          const deck = state.status === 'voting' && state.deckId ? (await tx.get(deckRef(state.deckId))).data() : null;
+          return {
+            roomId,
+            status: state.status,
+            results: state.status === 'closed' ? state.results ?? null : null,
+            room: {
+              status: state.status,
+              creator: state.creator,
+              memberCount: state.memberCount ?? 1,
+              deckId: state.deckId ?? null,
+              untimed: state.untimed === true,
+              votingEndsAt: state.votingEndsAt ? state.votingEndsAt.toMillis() : null,
+              expiresAt: state.expiresAt,
+            },
+            deck: deck ? { candidates: deck.candidates, ...(deck.notices?.length ? { notices: deck.notices } : {}) } : null,
+          };
+        });
+      }
       let closed = null;
       const view = await db.runTransaction(async tx => {
         closed = null;
