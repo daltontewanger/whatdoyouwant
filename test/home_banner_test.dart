@@ -12,14 +12,15 @@ Widget _host({bool calm = false, double width = 360}) => MaterialApp(
 );
 
 void main() {
-  testWidgets('shows both lines and a food card', (tester) async {
+  testWidgets('shows her answer and a food card', (tester) async {
     await tester.pumpWidget(_host());
     await tester.pump();
 
-    expect(find.text('What do you want?!'), findsOneWidget);
+    // The title on Home asks the question; the banner only answers it.
+    expect(find.text('What do you want?!'), findsNothing);
     expect(find.text("It's not that simple!"), findsOneWidget);
     expect(find.text('Pizza'), findsOneWidget);
-    expect(find.bySemanticsLabel(RegExp('What do you want')), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('not that simple')), findsOneWidget);
   });
 
   testWidgets('swipes through the foods once, then rests until tapped', (

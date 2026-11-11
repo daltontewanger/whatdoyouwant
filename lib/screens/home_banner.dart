@@ -24,8 +24,8 @@ const _picks = [
   _Pick('assets/images/bubbles/sushi.webp', 'Sushi', true),
 ];
 
-/// The picture on Home: two friends trading the app's namesake lines while
-/// food cards get swiped between them. Only the portraits are artwork; the
+/// The picture on Home: he asks the question in the title above, she answers
+/// "It's not that simple!", and food cards get swiped between them. Only the portraits are artwork; the
 /// bubbles and cards are drawn here so they stay crisp and match the app.
 class HomeBanner extends StatefulWidget {
   const HomeBanner({super.key});
@@ -91,7 +91,7 @@ class _HomeBannerState extends State<HomeBanner>
     return Semantics(
       image: true,
       label:
-          "A man asks, 'What do you want?!' and a woman answers, "
+          "A man looks exasperated and a woman answers, "
           "'It's not that simple!' while food cards are swiped between them.",
       child: ExcludeSemantics(
         child: GestureDetector(
@@ -110,9 +110,9 @@ class _HomeBannerState extends State<HomeBanner>
   Widget _scene(BuildContext context, Size size) {
     final w = size.width;
     final h = size.height;
-    // Bubble text follows the banner's width but never drops below a
-    // readable size on small phones; large-text settings still apply.
-    final fontSize = math.max(11.0, w * 0.031);
+    // Her line follows the banner's width but never drops below a readable
+    // size on small phones; large-text settings still apply.
+    final fontSize = math.max(15.0, w * 0.054);
     final cardW = w * 0.18;
     final cardH = h * 0.48;
     return Stack(
@@ -140,20 +140,17 @@ class _HomeBannerState extends State<HomeBanner>
             builder: (context, _) => _cards(cardW),
           ),
         ),
-        Align(
-          alignment: const Alignment(-0.14, -0.86),
-          child: _Line(
-            "What do you want?!",
-            fontSize: fontSize,
-            tailBelow: true,
-          ),
-        ),
-        Align(
-          alignment: const Alignment(0.14, 0.86),
-          child: _Line(
-            "It's not that simple!",
-            fontSize: fontSize,
-            tailBelow: false,
+        // The title above asks the question, so only her answer is drawn:
+        // low on her side, clear of the buttons underneath.
+        Positioned(
+          right: w * 0.08,
+          bottom: h * 0.04,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: w * 0.9),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: _Line("It's not that simple!", fontSize: fontSize),
+            ),
           ),
         ),
       ],
@@ -259,53 +256,50 @@ class _FoodCard extends StatelessWidget {
   }
 }
 
-/// A speech bubble with a small tail pointing toward whoever says it.
+/// Her answer: a floating bubble in the title's lettering, with a small tail
+/// pointing up at her.
 class _Line extends StatelessWidget {
-  const _Line(this.text, {required this.fontSize, required this.tailBelow});
+  const _Line(this.text, {required this.fontSize});
 
   final String text;
   final double fontSize;
 
-  /// Tail at the bottom left (pointing down at the man) or the top right
-  /// (pointing up at the woman).
-  final bool tailBelow;
-
   @override
   Widget build(BuildContext context) {
-    final tail = fontSize * 0.7;
+    final tail = fontSize * 0.5;
     final bubble = DecoratedBox(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(fontSize * 0.8),
+        borderRadius: BorderRadius.circular(fontSize * 0.6),
         boxShadow: _hover,
       ),
       child: Padding(
         padding: EdgeInsets.symmetric(
-          horizontal: fontSize * 0.6,
-          vertical: fontSize * 0.05,
+          horizontal: fontSize * 0.45,
+          vertical: fontSize * 0.04,
         ),
         child: Text(
           text,
           maxLines: 1,
           style: TextStyle(
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w900,
             fontSize: fontSize,
-            color: _ink,
-            height: 1.35,
+            color: Theme.of(context).colorScheme.primary,
+            height: 1.25,
           ),
         ),
       ),
     );
-    final pointer = Positioned(
-      left: tailBelow ? fontSize * 0.9 : null,
-      right: tailBelow ? null : fontSize * 0.9,
-      bottom: tailBelow ? -tail * 0.45 : null,
-      top: tailBelow ? null : -tail * 0.45,
-      child: Transform.rotate(
-        angle: math.pi / 4,
-        child: SizedBox.square(
-          dimension: tail,
-          child: const ColoredBox(color: Colors.white),
+    final pointer = Positioned.fill(
+      top: -tail * 0.45,
+      child: Align(
+        alignment: const Alignment(0.5, -1),
+        child: Transform.rotate(
+          angle: math.pi / 4,
+          child: SizedBox.square(
+            dimension: tail,
+            child: const ColoredBox(color: Colors.white),
+          ),
         ),
       ),
     );
