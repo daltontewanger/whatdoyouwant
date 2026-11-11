@@ -11,7 +11,7 @@ import '../models/own_spot.dart';
 import '../models/restaurant.dart';
 import 'device_location.dart';
 import 'live_search.dart';
-import 'lobby_backstop.dart';
+import 'room_backstop.dart';
 import 'room_backend.dart';
 import 'search_defaults.dart';
 import 'site_links.dart';
@@ -261,6 +261,9 @@ class CallableRoomBackend implements RoomBackend {
       );
     }
 
+    // Re-runs [apply] on the room as last known; set once [apply] exists.
+    late final void Function() refresh;
+
     // Decks never change once stored, so one read is enough.
     void loadDeck(String deckId) {
       if (deckRequested) return;
@@ -270,20 +273,42 @@ class CallableRoomBackend implements RoomBackend {
           .get()
           .then((snapshot) {
             final stored = snapshot.data();
-            if (stored != null) deck = deckRestaurants(stored);
-            emit();
+            // The deck may already have come with a catch-up answer.
+            if (stored != null && deck.isEmpty) deck = deckRestaurants(stored);
+            // With the cards known, a finished voter starts waiting for results.
+            refresh();
           })
           .catchError((Object error) {
             if (!controller.isClosed) controller.addError(error);
           });
     }
 
-    late final LobbyBackstop backstop;
+    late final RoomBackstop backstop;
+    // What the server said when the listener was behind; kept until the
+    // listener catches up, so a late snapshot cannot take the room backwards.
+    Map<String, dynamic>? ahead;
     void apply(Map<String, dynamic>? data) {
+      final caughtUp = ahead;
+      if (data != null && caughtUp != null) {
+        if (roomStage(data['status'] as String?) <
+            roomStage(caughtUp['status'] as String?)) {
+          data = {...data, ...caughtUp};
+        } else {
+          ahead = null;
+        }
+      }
       roomData = data;
       if (data == null) return;
-      // The host starts the room, so only guests can be left behind waiting.
-      if (data['status'] == 'lobby' && data['creator'] != _uid) {
+      final status = data['status'];
+      final votable = deck.where((place) => place.votable).length;
+      // Waiting on the room to move on: a guest in the lobby (the host starts
+      // it), anyone whose deck has not arrived yet, or anyone who has voted
+      // on every card and waits for results.
+      final waiting =
+          (status == 'lobby' && data['creator'] != _uid) ||
+          (status == 'voting' && deck.isEmpty) ||
+          (status == 'voting' && votable > 0 && myVotes.length >= votable);
+      if (waiting) {
         backstop.start();
       } else {
         backstop.stop();
@@ -296,13 +321,45 @@ class CallableRoomBackend implements RoomBackend {
       emit();
     }
 
-    backstop = LobbyBackstop(
-      status:
-          () async =>
-              (await _call('roomResults', {'roomId': roomId}))['status']
-                  as String,
+    refresh = () => apply(roomData);
+
+    backstop = RoomBackstop(
+      ask: () => _call('roomResults', {'roomId': roomId, 'view': 'room'}),
+      // Voting without the cards is still the lobby as far as the screen
+      // goes, so a deck read that stalls is caught up too.
+      shown: () {
+        final status = roomData?['status'] as String?;
+        return status == 'voting' && deck.isEmpty ? 'lobby' : status;
+      },
+      onAhead: (view) {
+        final room = Map<String, dynamic>.from(view['room'] as Map);
+        final endsAt = room['votingEndsAt'] as num?;
+        ahead = {
+          'status': room['status'],
+          'creator': room['creator'],
+          'memberCount': room['memberCount'],
+          'untimed': room['untimed'] == true,
+          'deckId': room['deckId'],
+          'votingEndsAt':
+              endsAt == null
+                  ? null
+                  : Timestamp.fromMillisecondsSinceEpoch(endsAt.toInt()),
+          'expiresAt': Timestamp.fromMillisecondsSinceEpoch(
+            (room['expiresAt'] as num).toInt(),
+          ),
+          if (room['status'] == 'closed') 'results': view['results'],
+        };
+        // The deck comes with the answer, so nothing waits on another read.
+        final cards = view['deck'];
+        if (cards is Map && deck.isEmpty) {
+          deck = deckRestaurants(Map<String, dynamic>.from(cards));
+          deckRequested = true;
+        }
+        // Before any snapshot, the server's view is all there is.
+        apply(roomData ?? ahead);
+      },
       // Reconnecting makes Firestore resend the room as it is now.
-      onBehind: () async {
+      reconnect: () async {
         await _db.disableNetwork();
         await _db.enableNetwork();
       },
@@ -310,6 +367,9 @@ class CallableRoomBackend implements RoomBackend {
 
     controller = StreamController<RoomState>(
       onListen: () {
+        // Until the listener's first snapshot, the backstop is the only way
+        // to learn the room if the live connection is slow from the start.
+        backstop.start();
         subscriptions.add(
           room.snapshots().listen(
             (snapshot) => apply(snapshot.data()),
@@ -327,7 +387,8 @@ class CallableRoomBackend implements RoomBackend {
         subscriptions.add(
           room.collection('votes/$_uid/ballot').snapshots().listen((snapshot) {
             myVotes = {for (final doc in snapshot.docs) doc.id};
-            emit();
+            // A last vote can mean waiting for results now.
+            refresh();
           }, onError: controller.addError),
         );
       },
