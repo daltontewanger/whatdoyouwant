@@ -39,8 +39,25 @@ function liveSearchConfig(data) {
   };
 }
 
+// Features held back behind switches in the same document, all off unless
+// set exactly right:
+//   deckNotices: { enabled: true, every: 3-10, title, text }  a card in room
+//     decks every so often that nobody votes on (room for future ad cards).
+//   photos: { enabled: true }  keep a place photo if the provider sends one.
+function deckFeatures(data) {
+  const notices = data?.deckNotices;
+  const words = (value, max) => (typeof value === 'string' && value.trim() && value.length <= max ? value.trim() : null);
+  const valid = notices?.enabled === true && Number.isInteger(notices.every) && notices.every >= 3 &&
+    notices.every <= 10 && words(notices.title, 60) && words(notices.text, 200);
+  return {
+    notices: valid ? { every: notices.every, title: words(notices.title, 60), text: words(notices.text, 200) } : null,
+    photos: data?.photos?.enabled === true,
+    hotPicks: data?.hotPicks?.enabled === true,
+  };
+}
+
 function weeklyCapFor(config, entitlement) {
   return config.weeklyCaps[entitlement] ?? config.weeklyCaps.free ?? 0;
 }
 
-module.exports = { weekOf, monthOf, liveSearchConfig, weeklyCapFor, DAY_MS, WEEK_MS };
+module.exports = { weekOf, monthOf, liveSearchConfig, deckFeatures, weeklyCapFor, DAY_MS, WEEK_MS };

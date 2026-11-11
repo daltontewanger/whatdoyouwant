@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 
 import '../services/room_backend.dart';
 import 'account_screen.dart';
+import 'demo_screen.dart';
+import 'faq_screen.dart';
 import 'home_screen.dart';
+import 'step_card.dart';
 
 /// The app's two main places, Home and Account, behind a bar that floats
-/// over the bottom of the screen. Rooms open on top of it, so the bar steps
-/// aside while a room is running.
+/// over the bottom of the screen, with a menu of the other ways to decide in
+/// its middle. Rooms open on top of it, so the bar steps aside while a room
+/// is running.
 class MainShell extends StatefulWidget {
   const MainShell({super.key, required this.currentUid});
 
@@ -18,11 +22,42 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   var _tab = 0;
+  final _home = GlobalKey<HomeScreenState>();
+
+  Future<void> _openMenu() async {
+    final chosen = await showModalBottomSheet<MenuChoice>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: const Color(0xFFFFFAF0),
+      isScrollControlled: true,
+      builder: (context) => const _Menu(),
+    );
+    final home = _home.currentState;
+    if (chosen == null || home == null || !mounted) return;
+    setState(() => _tab = 0);
+    switch (chosen) {
+      case MenuChoice.quickPick:
+        await home.openQuickPick();
+      case MenuChoice.ownList:
+        await home.openOwnList();
+      case MenuChoice.searchSettings:
+        await home.openSearchSettings();
+      case MenuChoice.howItWorks:
+        await home.openIntro();
+      case MenuChoice.demo:
+        await Navigator.push(context, DemoScreen.route());
+      case MenuChoice.questions:
+        await Navigator.push(
+          context,
+          MaterialPageRoute<void>(builder: (_) => const FaqScreen()),
+        );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final accounts = RoomBackendScope.of(context).accounts;
-    final home = HomeScreen(currentUid: widget.currentUid);
+    final home = HomeScreen(key: _home, currentUid: widget.currentUid);
     // Builds without accounts have nothing to show on an Account tab.
     if (accounts == null) return home;
     return FloatingBarInset(
@@ -48,6 +83,7 @@ class _MainShellState extends State<MainShell> {
                     child: _FloatingBar(
                       selected: _tab,
                       onSelected: (tab) => setState(() => _tab = tab),
+                      onMenu: _openMenu,
                     ),
                   ),
                 ),
@@ -84,15 +120,45 @@ class FloatingBarInset extends InheritedWidget {
 }
 
 class _FloatingBar extends StatelessWidget {
-  const _FloatingBar({required this.selected, required this.onSelected});
+  const _FloatingBar({
+    required this.selected,
+    required this.onSelected,
+    required this.onMenu,
+  });
 
   final int selected;
   final ValueChanged<int> onSelected;
+  final VoidCallback onMenu;
 
   static const _items = [
     (Icons.home_outlined, Icons.home_rounded, 'Home'),
     (Icons.account_circle_outlined, Icons.account_circle, 'Account'),
   ];
+
+  Widget _tab(int index, Color primary) {
+    final (icon, active, label) = _items[index];
+    return Expanded(
+      child: Semantics(
+        selected: index == selected,
+        button: true,
+        label: label,
+        excludeSemantics: true,
+        child: Tooltip(
+          message: label,
+          child: InkResponse(
+            onTap: () => onSelected(index),
+            radius: 28,
+            // The unselected green-grey keeps 3:1 contrast on mint.
+            child: Icon(
+              index == selected ? active : icon,
+              size: 30,
+              color: index == selected ? primary : const Color(0xFF5E7A6C),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -123,33 +189,109 @@ class _FloatingBar extends StatelessWidget {
           height: _barHeight,
           child: Row(
             children: [
-              for (final (index, (icon, active, label)) in _items.indexed)
-                Expanded(
-                  child: Semantics(
-                    selected: index == selected,
-                    button: true,
-                    label: label,
-                    excludeSemantics: true,
-                    child: Tooltip(
-                      message: label,
-                      child: InkResponse(
-                        onTap: () => onSelected(index),
-                        radius: 28,
-                        // The unselected green-grey keeps 3:1 contrast on mint.
-                        child: Icon(
-                          index == selected ? active : icon,
-                          size: 30,
-                          color:
-                              index == selected
-                                  ? primary
-                                  : const Color(0xFF5E7A6C),
+              _tab(0, primary),
+              Expanded(
+                child: Center(
+                  child: Tooltip(
+                    message: "You've been found wanting",
+                    child: Material(
+                      color: primary,
+                      shape: const CircleBorder(),
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        onTap: onMenu,
+                        child: const SizedBox(
+                          width: 44,
+                          height: 44,
+                          child: Icon(Icons.menu, color: Colors.white),
                         ),
                       ),
                     ),
                   ),
                 ),
+              ),
+              _tab(1, primary),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+enum MenuChoice {
+  quickPick,
+  ownList,
+  searchSettings,
+  howItWorks,
+  demo,
+  questions,
+}
+
+/// The other ways to decide, and the saved search settings. Returns the
+/// choice, so the sheet is closed before anything opens.
+class _Menu extends StatelessWidget {
+  const _Menu();
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = [
+      (quickPickStep, MenuChoice.quickPick),
+      (ownListStep, MenuChoice.ownList),
+      (
+        const HomeStep(
+          'Search settings',
+          'Distance, cuisines and options for your searches.',
+          icon: Icons.tune,
+        ),
+        MenuChoice.searchSettings,
+      ),
+      (
+        const HomeStep(
+          'How it works',
+          'A quick look at rooms and the ways to decide.',
+          icon: Icons.play_circle_outline,
+        ),
+        MenuChoice.howItWorks,
+      ),
+      (
+        const HomeStep(
+          'Try the demo',
+          'Host a pretend room with made-up places. Nothing is saved.',
+          icon: Icons.science_outlined,
+        ),
+        MenuChoice.demo,
+      ),
+      (
+        const HomeStep(
+          'Questions & answers',
+          'What the names mean, and why a place may have no website.',
+          icon: Icons.help_outline,
+        ),
+        MenuChoice.questions,
+      ),
+    ];
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              "You've been found wanting",
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge!.copyWith(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 16),
+            for (final (step, choice) in entries) ...[
+              StepCard(step: step, onTap: () => Navigator.pop(context, choice)),
+              const SizedBox(height: 12),
+            ],
+          ],
         ),
       ),
     );

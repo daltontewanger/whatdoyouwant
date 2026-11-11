@@ -9,15 +9,15 @@ const { Firestore, Timestamp, FieldValue } = fromRooms('firebase-admin/firestore
 const db = new Firestore({ projectId: PROJECT, host: '127.0.0.1:8080', ssl: false });
 const base = `http://127.0.0.1:8080/v1/projects/${PROJECT}/databases/(default)/documents`;
 // Unsigned claims are accepted ONLY by the emulator. They are not real logins.
-function token(uid) {
+function token(uid, { provider = 'anonymous', verified = false } = {}) {
   const encode = obj => Buffer.from(JSON.stringify(obj)).toString('base64url');
   return `${encode({ alg: 'none', typ: 'JWT' })}.${encode({ sub: uid, user_id: uid,
     aud: PROJECT, iss: `https://securetoken.google.com/${PROJECT}`, iat: Math.floor(Date.now()/1000),
-    exp: Math.floor(Date.now()/1000)+3600, firebase: { sign_in_provider: 'anonymous' } })}.`;
+    exp: Math.floor(Date.now()/1000)+3600, email_verified: verified, firebase: { sign_in_provider: provider } })}.`;
 }
-async function request(path, method = 'GET', body, uid) {
+async function request(path, method = 'GET', body, uid, identity) {
   const response = await fetch(`${base}${path}`, { method,
-    headers: { 'Content-Type': 'application/json', ...(uid ? { Authorization: `Bearer ${token(uid)}` } : {}) },
+    headers: { 'Content-Type': 'application/json', ...(uid ? { Authorization: `Bearer ${token(uid, identity)}` } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(15000) });
   return response.status;
 }
@@ -171,4 +171,90 @@ test('closed, lobby, expired and revoked membership prevent voting', async () =>
   await db.doc('rooms/ROOM/members/guest').update({ active: false });
   assert.equal(await ballot('guest'), 403);
   assert.equal(await request('/rooms/ROOM', 'GET', undefined, 'guest'), 403);
+});
+
+// Search defaults: a verified account's own document, checked field by field.
+const VERIFIED = { provider: 'password', verified: true };
+const settingsFields = (overrides = {}) => {
+  const value = v => {
+    if (Array.isArray(v)) return { arrayValue: { values: v.map(id => ({ stringValue: id })) } };
+    if (typeof v === 'boolean') return { booleanValue: v };
+    if (typeof v === 'number') return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
+    return { stringValue: v };
+  };
+  const plain = { unit: 'mi', radius: 5, deckSize: 15, includedCuisineIds: ['thai'], excludedCuisineIds: ['pizza'],
+    openNowPreferred: true, ...overrides };
+  return Object.fromEntries(Object.entries(plain).filter(([, v]) => v !== undefined).map(([k, v]) => [k, value(v)]));
+};
+async function saveSettings(uid, fields = settingsFields(), identity = VERIFIED, path = uid, stamp = true) {
+  return request(':commit', 'POST', { writes: [{ update: {
+    name: `projects/${PROJECT}/databases/(default)/documents/userSettings/${path}`, fields },
+    ...(stamp ? { updateTransforms: [{ fieldPath: 'updatedAt', setToServerValue: 'REQUEST_TIME' }] } : {}) }] },
+    uid, identity);
+}
+test('verified accounts save and read only their own search defaults', async () => {
+  assert.equal(await saveSettings('host'), 200);
+  assert.equal(await saveSettings('host', settingsFields({ unit: 'km', radius: 10, deckSize: 25,
+    includedCuisineIds: [], excludedCuisineIds: [], openNowPreferred: false })), 200, 'updates replace them');
+  assert.equal(await request('/userSettings/host', 'GET', undefined, 'host', VERIFIED), 200);
+  assert.equal(await request('/userSettings/host', 'GET', undefined, 'host',
+    { provider: 'google.com', verified: true }), 200);
+  assert.equal(await request('/userSettings/host', 'GET', undefined, 'other', VERIFIED), 403);
+  assert.equal(await request('/userSettings/host', 'GET'), 403);
+  assert.equal(await request('/userSettings', 'GET', undefined, 'host', VERIFIED), 403, 'no listing');
+  assert.equal(await saveSettings('other', settingsFields(), VERIFIED, 'host'), 403, "nobody writes another's");
+  assert.equal(await request('/userSettings/host', 'DELETE', undefined, 'host', VERIFIED), 403);
+  for (const identity of [{}, { provider: 'password', verified: false }, { provider: 'anonymous', verified: true }]) {
+    assert.equal(await saveSettings('guest', settingsFields(), identity), 403, 'guests and unverified accounts stay on the device');
+  }
+});
+test('search defaults accept only the offered values', async () => {
+  for (const overrides of [{ unit: 'ft' }, { radius: 2 }, { radius: 7.5 }, { deckSize: 12 }, { deckSize: '15' },
+    { includedCuisineIds: ['tacos'] }, { includedCuisineIds: ['thai', 'thai'] },
+    { includedCuisineIds: ['pizza'] }, { openNowPreferred: 'yes' }, { unit: undefined },
+    { includedCuisineIds: ['american', 'bbq', 'mexican', 'chinese', 'japanese', 'korean', 'thai', 'indian', 'french'] },
+    { lat: 38 }]) {
+    assert.equal(await saveSettings('host', settingsFields(overrides)), 403, JSON.stringify(overrides));
+  }
+  assert.equal(await saveSettings('host', settingsFields(), VERIFIED, 'host', false), 403, 'updatedAt is the server time');
+  assert.equal(await saveSettings('host'), 200);
+});
+
+test('own lists: only the verified owner reads theirs, and nobody writes them directly', async () => {
+  const list = (path, uid, identity) => request(':commit', 'POST', { writes: [{ update: {
+    name: `projects/${PROJECT}/databases/(default)/documents/userLists/${path}`,
+    fields: { spots: { arrayValue: { values: [] } } } } }] }, uid, identity);
+  assert.equal(await list('host', 'host', VERIFIED), 403, 'only saveOwnList writes, after checking each spot');
+  assert.equal(await request('/userLists/host', 'GET', undefined, 'host', VERIFIED), 404, 'readable, not yet saved');
+  assert.equal(await request('/userLists/host', 'GET', undefined, 'other', VERIFIED), 403);
+  assert.equal(await request('/userLists/host', 'GET', undefined, 'host', { provider: 'password', verified: false }), 403);
+  assert.equal(await request('/userLists/host', 'GET'), 403);
+  assert.equal(await request('/userLists', 'GET', undefined, 'host', VERIFIED), 403, 'no listing');
+  assert.equal(await request('/userLists/host', 'DELETE', undefined, 'host', VERIFIED), 403);
+});
+
+test('favorites and never lists: only the verified owner reads theirs, and nobody writes them directly', async () => {
+  const places = (path, uid, identity) => request(':commit', 'POST', { writes: [{ update: {
+    name: `projects/${PROJECT}/databases/(default)/documents/userPlaces/${path}`,
+    fields: { favorites: { arrayValue: { values: [] } } } } }] }, uid, identity);
+  assert.equal(await places('host', 'host', VERIFIED), 403, 'only saveMyPlaces writes, after checking each entry');
+  assert.equal(await request('/userPlaces/host', 'GET', undefined, 'host', VERIFIED), 404, 'readable, not yet saved');
+  assert.equal(await request('/userPlaces/host', 'GET', undefined, 'other', VERIFIED), 403);
+  assert.equal(await request('/userPlaces/host', 'GET', undefined, 'host', { provider: 'password', verified: false }), 403);
+  assert.equal(await request('/userPlaces/host', 'GET'), 403);
+  assert.equal(await request('/userPlaces', 'GET', undefined, 'host', VERIFIED), 403, 'no listing');
+  assert.equal(await request('/rooms/ROOM/lists/host', 'GET', undefined, 'host'), 403, 'shared room lists are server-only');
+});
+
+test('nicknames: only the verified owner reads theirs, and only setNickname writes them', async () => {
+  const write = (uid, identity) => request(':commit', 'POST', { writes: [{ update: {
+    name: `projects/${PROJECT}/databases/(default)/documents/userProfiles/${uid}`,
+    fields: { nickname: { stringValue: '<script>' } } } }] }, uid, identity);
+  assert.equal(await write('host', VERIFIED), 403, 'the server checks every nickname');
+  assert.equal(await request('/userProfiles/host', 'GET', undefined, 'host', VERIFIED), 404, 'readable, not yet saved');
+  assert.equal(await request('/userProfiles/host', 'GET', undefined, 'other', VERIFIED), 403);
+  assert.equal(await request('/userProfiles/host', 'GET', undefined, 'host', { provider: 'password', verified: false }), 403);
+  assert.equal(await request('/userProfiles/host', 'GET'), 403);
+  assert.equal(await request('/userProfiles', 'GET', undefined, 'host', VERIFIED), 403, 'no listing');
+  assert.equal(await request('/userProfiles/host', 'DELETE', undefined, 'host', VERIFIED), 403);
 });

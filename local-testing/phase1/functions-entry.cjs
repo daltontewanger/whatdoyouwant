@@ -10,6 +10,7 @@ const { initializeApp } = fromRooms('firebase-admin/app');
 const { getAuth } = fromRooms('firebase-admin/auth');
 const { onCall, HttpsError } = fromRooms('firebase-functions/v2/https');
 const { createRoomHandlers, CALLABLES } = require('../../rooms/handlers.js');
+const { createHash } = require('node:crypto');
 
 const db = new Firestore({ projectId: PROJECT, host: '127.0.0.1:8080', ssl: false });
 // FIREBASE_AUTH_EMULATOR_HOST routes Admin Auth to the emulator without credentials.
@@ -20,6 +21,9 @@ const handlers = createRoomHandlers({
     await auth.revokeRefreshTokens(uid);
     await auth.deleteUser(uid);
   },
+  // The Auth emulator's fake Google sign-in with this address opens the
+  // insights page locally.
+  insightsOwners: [createHash('sha256').update('owner@example.test').digest('hex')],
 });
 // Live search fails closed without its config; the emulators start with a
 // generous one so the app can be tried straight away.

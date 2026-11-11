@@ -59,7 +59,13 @@ class AccountService {
   }
 
   /// Switches to an existing Google account, leaving any guest session behind.
-  Future<void> signInWithGoogle() async {
+  /// [credential] is the one Google already handed back when linking failed,
+  /// so the person isn't asked to pick their account a second time.
+  Future<void> signInWithGoogle({AuthCredential? credential}) async {
+    if (credential != null) {
+      await auth.signInWithCredential(credential);
+      return;
+    }
     final provider = GoogleAuthProvider();
     if (web) {
       await auth.signInWithPopup(provider);

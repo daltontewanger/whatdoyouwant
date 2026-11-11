@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 
 import 'environment_guard.dart';
 import 'firebase_options.dart';
+import 'services/usage_counts.dart';
 import 'screens/main_shell.dart';
 import 'screens/update_gate.dart';
 import 'services/account_service.dart';
@@ -16,6 +17,11 @@ import 'services/callable_room_backend.dart';
 import 'services/error_reporter.dart';
 import 'services/site_links.dart';
 import 'services/room_backend.dart';
+import 'services/accessibility.dart';
+import 'services/my_places.dart';
+import 'services/own_list.dart';
+import 'services/search_defaults.dart';
+import 'services/intro_store.dart';
 import 'themes/main_theme.dart';
 
 Future<void> main() async {
@@ -74,6 +80,16 @@ Future<void> main() async {
       backend: CallableRoomBackend(),
       accounts: accounts,
       activeRooms: PreferencesActiveRoomStore(),
+      searchDefaults: AccountSearchDefaults(
+        device: DeviceSearchDefaults(),
+        account: FirestoreAccountSettings(),
+      )..load(),
+      ownList: SyncedOwnList(account: FirebaseOwnListAccount())..load(),
+      // Loads itself whenever someone signs in or out, including at start.
+      myPlaces: SyncedMyPlaces(account: FirebaseMyPlacesAccount()),
+      accessibility: AccessibilitySettings()..load(),
+      intro: PreferencesIntroStore(),
+      usageCounts: UsageCounts()..load(),
     ),
   );
 }
@@ -83,12 +99,24 @@ class MyApp extends StatelessWidget {
   final RoomBackend backend;
   final AccountService? accounts;
   final ActiveRoomStore? activeRooms;
+  final SearchDefaultsStore? searchDefaults;
+  final OwnListStore? ownList;
+  final MyPlacesStore? myPlaces;
+  final AccessibilitySettings? accessibility;
+  final IntroStore? intro;
+  final UsageCounts? usageCounts;
   const MyApp({
     super.key,
     required this.currentUid,
     required this.backend,
     this.accounts,
     this.activeRooms,
+    this.searchDefaults,
+    this.ownList,
+    this.myPlaces,
+    this.accessibility,
+    this.intro,
+    this.usageCounts,
   });
 
   @override
@@ -97,10 +125,19 @@ class MyApp extends StatelessWidget {
       backend: backend,
       accounts: accounts,
       activeRooms: activeRooms,
+      searchDefaults: searchDefaults,
+      ownList: ownList,
+      myPlaces: myPlaces,
+      accessibility: accessibility,
+      intro: intro,
+      usageCounts: usageCounts,
       child: MaterialApp(
         title: 'What Do You Want?!',
         debugShowCheckedModeBanner: false,
         theme: appTheme,
+        builder:
+            (context, child) =>
+                AppTextSize(settings: accessibility, child: child!),
         home: UpdateGate(child: MainShell(currentUid: currentUid)),
       ),
     );

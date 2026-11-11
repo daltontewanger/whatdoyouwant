@@ -11,6 +11,12 @@ import 'firebase_options_local.dart';
 import 'services/account_service.dart';
 import 'services/active_room_store.dart';
 import 'services/callable_room_backend.dart';
+import 'services/accessibility.dart';
+import 'services/my_places.dart';
+import 'services/own_list.dart';
+import 'services/search_defaults.dart';
+import 'services/intro_store.dart';
+import 'services/usage_counts.dart';
 import 'themes/main_theme.dart';
 
 Future<void> main() async {
@@ -68,6 +74,16 @@ Future<void> main() async {
       backend: CallableRoomBackend(usesFictionalRestaurants: true),
       accounts: accounts,
       activeRooms: PreferencesActiveRoomStore(),
+      searchDefaults: AccountSearchDefaults(
+        device: DeviceSearchDefaults(),
+        account: FirestoreAccountSettings(),
+      )..load(),
+      ownList: SyncedOwnList(account: FirebaseOwnListAccount())..load(),
+      // Loads itself whenever someone signs in or out, including at start.
+      myPlaces: SyncedMyPlaces(account: FirebaseMyPlacesAccount()),
+      accessibility: AccessibilitySettings()..load(),
+      intro: PreferencesIntroStore(),
+      usageCounts: UsageCounts()..load(),
     ),
   );
 }

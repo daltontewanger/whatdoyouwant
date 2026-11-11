@@ -5,8 +5,14 @@ import '../models/user.dart';
 import '../services/active_room_store.dart';
 import '../services/callable_room_backend.dart';
 import '../services/room_backend.dart';
+import '../services/room_lists.dart';
+import 'food_loader.dart';
 import 'results_screen.dart';
+import 'room_roster.dart';
+import 'room_screen.dart' show UntimedNotice, announceNoTimer;
 import 'swipe_screen.dart';
+import '../themes/main_theme.dart';
+import '../services/usage_counts.dart';
 
 /// What to tell someone whose join failed. The server answers a wrong code,
 /// a started room and a closed room the same way, so codes cannot be probed.
@@ -18,7 +24,7 @@ String joinErrorMessage(Object error) {
       case 'not-found':
         return 'No open room uses that code. Check it with the host; rooms stop taking new people once voting starts.';
       case 'failed-precondition':
-        return 'This room is full. Rooms hold up to 15 people.';
+        return 'This room is full. Rooms hold up to $roomCapacity people.';
       case 'resource-exhausted':
         return 'Too many attempts. Wait a minute and try again.';
       case 'unauthenticated':
@@ -82,6 +88,12 @@ class JoinRoomScreenState extends State<JoinRoomScreen> {
       final roomId = await scope.backend.joinRoom(code);
       await scope.activeRooms?.remember(ActiveRoom(roomId, host: false));
       if (!mounted) return;
+      countTap(
+        context,
+        code == widget.initialCode?.trim().toUpperCase()
+            ? UsageEvent.joinWithLink
+            : UsageEvent.joinWithCode,
+      );
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -104,7 +116,7 @@ class JoinRoomScreenState extends State<JoinRoomScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.10),
+      backgroundColor: screenBackground,
       body: Center(
         child: SingleChildScrollView(
           child: Container(
@@ -130,7 +142,7 @@ class JoinRoomScreenState extends State<JoinRoomScreen> {
                     IconButton(
                       icon: const Icon(
                         Icons.arrow_back,
-                        color: Colors.black54,
+                        color: inkSoft,
                         size: 28,
                       ),
                       tooltip: 'Back',
@@ -138,7 +150,7 @@ class JoinRoomScreenState extends State<JoinRoomScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Center(
                   child: Text(
                     "Join a Room",
@@ -147,7 +159,6 @@ class JoinRoomScreenState extends State<JoinRoomScreen> {
                       fontSize: 30,
                       color: theme.colorScheme.primary,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 1.3,
                       shadows: const [
                         Shadow(
                           color: Colors.black12,
@@ -171,9 +182,9 @@ class JoinRoomScreenState extends State<JoinRoomScreen> {
                     hintText: 'Enter 6‑character code',
                   ),
                 ),
-                const SizedBox(height: 26),
+                const SizedBox(height: 24),
                 _isLoading
-                    ? const Center(child: CircularProgressIndicator())
+                    ? const Center(child: FoodLoader())
                     : SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -221,11 +232,27 @@ class WaitingForOptionsScreen extends StatefulWidget {
 class _WaitingForOptionsScreenState extends State<WaitingForOptionsScreen> {
   Stream<RoomState>? _room;
   bool _navigated = false;
+  RoomListSharer? _sharer;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _room ??= RoomBackendScope.of(context).backend.watch(widget.roomCode);
+    final scope = RoomBackendScope.of(context);
+    _room ??= scope.backend.watch(widget.roomCode);
+    if (_sharer == null) announceNoTimer(context, widget.roomCode);
+    if (scope.myPlaces case final places? when _sharer == null) {
+      _sharer = RoomListSharer(
+        backend: scope.backend,
+        places: places,
+        roomId: widget.roomCode,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _sharer?.dispose();
+    super.dispose();
   }
 
   @override
@@ -233,7 +260,7 @@ class _WaitingForOptionsScreenState extends State<WaitingForOptionsScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.10),
+      backgroundColor: screenBackground,
       body: Center(
         child: SingleChildScrollView(
           child: Container(
@@ -258,7 +285,7 @@ class _WaitingForOptionsScreenState extends State<WaitingForOptionsScreen> {
                     IconButton(
                       icon: const Icon(
                         Icons.arrow_back,
-                        color: Colors.black54,
+                        color: inkSoft,
                         size: 28,
                       ),
                       tooltip: 'Back',
@@ -274,11 +301,10 @@ class _WaitingForOptionsScreenState extends State<WaitingForOptionsScreen> {
                       fontSize: 26,
                       color: theme.colorScheme.primary,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 1.2,
                     ),
                   ),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 16),
                 StreamBuilder<RoomState>(
                   stream: _room,
                   builder: (context, snapshot) {
@@ -295,7 +321,9 @@ class _WaitingForOptionsScreenState extends State<WaitingForOptionsScreen> {
                       );
                     }
                     if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
+                      return const Center(
+                        child: FoodLoader(size: FoodLoader.largeSize),
+                      );
                     }
                     final room = snapshot.data!;
 
@@ -329,12 +357,14 @@ class _WaitingForOptionsScreenState extends State<WaitingForOptionsScreen> {
                         );
                       });
                       // Show an interim loading widget
-                      return const Center(child: CircularProgressIndicator());
+                      return const Center(
+                        child: FoodLoader(size: FoodLoader.largeSize),
+                      );
                     }
 
                     return Column(
                       children: [
-                        const CircularProgressIndicator(),
+                        const FoodLoader(size: FoodLoader.largeSize),
                         const SizedBox(height: 20),
                         Text(
                           'Waiting for host to choose restaurant options...',
@@ -343,6 +373,17 @@ class _WaitingForOptionsScreenState extends State<WaitingForOptionsScreen> {
                           ),
                           textAlign: TextAlign.center,
                         ),
+                        if (room.untimed) const UntimedNotice(),
+                        const SizedBox(height: 20),
+                        RoomRoster(
+                          people: room.people,
+                          memberCount: room.memberCount,
+                        ),
+                        if (room.people.any(
+                              (person) => person.you && person.guest,
+                            ) &&
+                            canHaveNickname(context))
+                          const NicknameNudge(),
                       ],
                     );
                   },

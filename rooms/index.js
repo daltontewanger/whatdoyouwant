@@ -24,6 +24,8 @@ const PROJECTS = {
     // The billing account's free tier covers three scheduled jobs. Staging's
     // test guests can pile up, so it gives up the weekly cleanup.
     guestCleanup: false,
+    // The owner's Google address, hashed; only it can read the insights.
+    insightsOwners: ['cbd5778632ef765f45bc112979901a494c1ccdd31f270a1f5b09fe48103455cc'],
   },
   'what-do-you-want-8a404': {
     // www and the .com redirect to the main address, so only it calls the backend.
@@ -31,6 +33,7 @@ const PROJECTS = {
       'https://what-do-you-want-8a404.firebaseapp.com'],
     maxInstances: 10,
     guestCleanup: true,
+    insightsOwners: ['cbd5778632ef765f45bc112979901a494c1ccdd31f270a1f5b09fe48103455cc'],
   },
 };
 const project = process.env.GCLOUD_PROJECT || JSON.parse(process.env.FIREBASE_CONFIG || '{}').projectId;
@@ -64,6 +67,7 @@ const handlers = createRoomHandlers({
   // Written as is: logger.error would replace the message with this server's own stack.
   logError: entry => logger.write({ ...entry, severity: 'ERROR' }),
   canReceiveMail: createMailDomainCheck(),
+  insightsOwners: settings.insightsOwners,
 });
 
 const options = {
@@ -78,7 +82,7 @@ const options = {
 
 // Error reports and email-domain checks are cheap and rate limited per
 // caller, so two instances bound what a burst of them can cost.
-const LIMITED = { reportClientError: 2, checkEmailDomain: 2 };
+const LIMITED = { reportClientError: 2, checkEmailDomain: 2, countEvent: 3, insightsReport: 1 };
 for (const name of CALLABLES) {
   const settingsFor = { ...options, ...(LIMITED[name] ? { maxInstances: LIMITED[name] } : {}) };
   exports[name] = onCall(SEARCHING.includes(name) ? { ...settingsFor, secrets: [hereKey] } : settingsFor, handlers[name]);

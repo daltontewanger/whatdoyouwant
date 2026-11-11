@@ -1,9 +1,38 @@
 import 'package:flutter/widgets.dart';
 
+import '../models/insights.dart';
+import '../models/own_spot.dart';
 import '../models/restaurant.dart';
 import 'account_service.dart';
 import 'active_room_store.dart';
 import 'live_search.dart';
+import 'accessibility.dart';
+import 'my_places.dart';
+import 'own_list.dart';
+import 'search_defaults.dart';
+import 'intro_store.dart';
+import 'usage_counts.dart';
+
+/// People per room, host included; the server turns away anyone past it.
+const roomCapacity = 15;
+
+/// What someone can report about a place from a result.
+enum PlaceProblem { closed, website, phone, location }
+
+/// Where a reported place was shown: the server only takes reports about a
+/// room's winner or backup, or a card the person's own pick revealed.
+class ReportedFrom {
+  const ReportedFrom.room(String this.roomId) : quickPickId = null;
+  const ReportedFrom.quickPick(String this.quickPickId) : roomId = null;
+
+  final String? roomId;
+  final String? quickPickId;
+
+  Map<String, String> toJson() => {
+    if (roomId case final id?) 'roomId': id,
+    if (quickPickId case final id?) 'quickPickId': id,
+  };
+}
 
 /// A room as the screens need to see it, whichever backend stores it.
 class RoomState {
@@ -20,7 +49,16 @@ class RoomState {
     this.results,
     this.votedIds = const {},
     this.votingEndsAt,
+    this.untimed = false,
+    this.people = const [],
   });
+
+  /// Who is in the room, where the backend lists them. Empty when it does
+  /// not, in which case only [memberCount] is known.
+  final List<RoomPerson> people;
+
+  /// Someone in the room votes without a card timer, so it may take longer.
+  final bool untimed;
 
   /// Identifier used for every later call; also how members reconnect.
   final String id;
@@ -46,6 +84,19 @@ class RoomState {
 
   /// When the server stops taking votes.
   final DateTime? votingEndsAt;
+}
+
+/// One person in a room as everyone in it sees them: a nickname, or none for
+/// a guest. Nothing else about them is shared.
+class RoomPerson {
+  const RoomPerson({this.name, this.host = false, this.you = false});
+  final String? name;
+  final bool host;
+
+  /// This device's own person.
+  final bool you;
+
+  bool get guest => name == null;
 }
 
 class RoomResults {
@@ -80,6 +131,27 @@ class CreatedRoom {
   final String joinCode;
 }
 
+/// One person's Quick Pick: a stored deck shown one card at a time.
+class QuickPick {
+  const QuickPick({
+    required this.id,
+    required this.position,
+    required this.restaurant,
+    required this.rerollsLeft,
+    required this.cards,
+  });
+
+  final String id;
+
+  /// Which card of the deck is showing; rerolls continue from here.
+  final int position;
+  final Restaurant restaurant;
+  final int rerollsLeft;
+
+  /// Every card in the pick's deck by ID, so a reroll needs no extra read.
+  final Map<String, Restaurant> cards;
+}
+
 /// Everything the room screens do, so they can run on the room callables or
 /// on a fake in tests.
 abstract class RoomBackend {
@@ -95,19 +167,52 @@ abstract class RoomBackend {
   Future<String> joinRoom(String typedCode);
   Stream<RoomState> watch(String roomId);
 
-  /// Starts voting and returns the deck.
+  /// Starts voting and returns the deck. With a [zip] code the search starts
+  /// there instead of at the device. [lists] are the host's switches for the
+  /// members' favorites and never lists.
   Future<List<Restaurant>> start(
     String roomId, {
-    required double radiusMiles,
-    required int maxOptions,
+    required SearchPreferences search,
+    String? zip,
+    DeckLists lists = DeckLists.none,
   });
+
+  /// Shares this person's favorites, never and closed card IDs with a room
+  /// while it waits, for the deck the host starts.
+  Future<void> shareLists(
+    String roomId, {
+    required List<String> favorites,
+    required List<String> never,
+    List<String> closed = const [],
+  });
+
+  /// Reports that [place], shown in [from], is closed or has wrong details.
+  /// Only a verified account's report counts; others are refused, and the
+  /// app hides a closed place on the device either way.
+  Future<void> reportPlace(
+    Restaurant place,
+    PlaceProblem problem,
+    ReportedFrom from,
+  );
+
+  /// Starts voting on spots from the host's own list. No search runs, so it
+  /// never uses a live search.
+  Future<List<Restaurant>> startFromList(String roomId, List<OwnSpot> spots);
+
+  /// Records a vote. [auto] marks a No the app cast because the card's time
+  /// ran out, which does not count as the person taking part.
   Future<void> vote(
     String roomId,
     Restaurant restaurant, {
     required bool liked,
     required int index,
     required int total,
+    bool auto = false,
   });
+
+  /// Tells the room this person votes without a card timer. The room only
+  /// learns that someone does, never who or why.
+  Future<void> setNoTimer(String roomId, {required bool noTimer});
 
   /// Gets ready to start while the host waits in the lobby, for example by
   /// finding the device location. Never prompts the person.
@@ -128,18 +233,95 @@ abstract class RoomBackend {
   /// This week's live searches, or null where there is no allowance to show
   /// (guests, unverified accounts, and backends without one).
   Future<LiveSearchAllowance?> liveSearchAllowance();
+
+  /// Spends one live search on a deck for this person and shows its first
+  /// card. Repeating a [requestId] returns the same pick rather than
+  /// searching again, so a retry after a lost reply costs nothing.
+  Future<QuickPick> createQuickPick({
+    required String requestId,
+    required SearchPreferences search,
+    String? zip,
+  });
+
+  /// The next card from the same deck, without a search or a charge.
+  Future<QuickPick> rerollQuickPick(QuickPick pick);
+
+  /// This account's nickname, or null when it has none (and for guests).
+  Future<String?> nickname();
+
+  /// Saves the nickname shown to people in this account's rooms and returns
+  /// it as stored; an empty one clears it and returns null. Lobbies the person
+  /// is waiting in show the change.
+  Future<String?> setNickname(String nickname);
+
+  /// Adds one to an anonymous daily count of a tap the server never sees,
+  /// named from [UsageEvent].
+  Future<void> countEvent(String name);
+
+  /// The daily usage totals from [from] to [to], for the owner only;
+  /// everyone else is refused.
+  Future<InsightsReport> insightsReport(DateTime from, DateTime to);
 }
 
 /// Makes the backend and, where accounts exist, the account service available
 /// to every screen without passing them through each constructor.
+/// The host's room switches: whether members' favorites go into the deck
+/// and whether their never places are left out.
+@immutable
+class DeckLists {
+  const DeckLists({required this.favorites, required this.never});
+
+  static const none = DeckLists(favorites: false, never: false);
+  static const all = DeckLists(favorites: true, never: true);
+
+  final bool favorites;
+  final bool never;
+
+  DeckLists copyWith({bool? favorites, bool? never}) => DeckLists(
+    favorites: favorites ?? this.favorites,
+    never: never ?? this.never,
+  );
+
+  Map<String, bool> toJson() => {'favorites': favorites, 'never': never};
+
+  @override
+  bool operator ==(Object other) =>
+      other is DeckLists &&
+      other.favorites == favorites &&
+      other.never == never;
+
+  @override
+  int get hashCode => Object.hash(favorites, never);
+}
+
 class RoomBackendScope extends InheritedWidget {
   const RoomBackendScope({
     super.key,
     required this.backend,
     this.accounts,
     this.activeRooms,
+    this.searchDefaults,
+    this.ownList,
+    this.myPlaces,
+    this.accessibility,
+    this.intro,
+    this.usageCounts,
+    this.demo = false,
     required super.child,
   });
+
+  /// Whether this device sends anonymous usage counts.
+  final UsageCounts? usageCounts;
+
+  /// The person's accessibility choices on this device.
+  final AccessibilitySettings? accessibility;
+
+  /// Whether this device has seen the first-run intro.
+  final IntroStore? intro;
+
+  /// The screens are running the demo: made-up places, nothing saved, and
+  /// nothing opened outside the app.
+  final bool demo;
 
   final RoomBackend backend;
   final AccountService? accounts;
@@ -147,12 +329,25 @@ class RoomBackendScope extends InheritedWidget {
   /// Remembers the room in progress where the backend lets members return.
   final ActiveRoomStore? activeRooms;
 
+  /// The setup each search starts from, saved for the person.
+  final SearchDefaultsStore? searchDefaults;
+
+  /// The person's own list for We'll Decide What We Want.
+  final OwnListStore? ownList;
+
+  /// The person's favorites and never list.
+  final MyPlacesStore? myPlaces;
+
   static RoomBackendScope of(BuildContext context) {
     final scope =
         context.dependOnInheritedWidgetOfExactType<RoomBackendScope>();
     assert(scope != null, 'No RoomBackendScope above this widget.');
     return scope!;
   }
+
+  /// The unit this person reads distances in; each member sees their own.
+  static DistanceUnit distanceUnitOf(BuildContext context) =>
+      maybeOf(context)?.searchDefaults?.current.unit ?? DistanceUnit.mi;
 
   /// The scope, where there is one; widgets shown outside the app return null.
   static RoomBackendScope? maybeOf(BuildContext context) =>
@@ -162,5 +357,12 @@ class RoomBackendScope extends InheritedWidget {
   bool updateShouldNotify(RoomBackendScope oldWidget) =>
       backend != oldWidget.backend ||
       accounts != oldWidget.accounts ||
-      activeRooms != oldWidget.activeRooms;
+      activeRooms != oldWidget.activeRooms ||
+      searchDefaults != oldWidget.searchDefaults ||
+      ownList != oldWidget.ownList ||
+      myPlaces != oldWidget.myPlaces ||
+      accessibility != oldWidget.accessibility ||
+      intro != oldWidget.intro ||
+      usageCounts != oldWidget.usageCounts ||
+      demo != oldWidget.demo;
 }

@@ -1,10 +1,16 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../services/account_service.dart';
+import '../services/room_backend.dart';
+import 'accessibility_screen.dart';
 import 'create_account_screen.dart';
 import 'forgot_password_screen.dart';
 import 'help_links.dart';
 import 'main_shell.dart';
+import 'my_places_screen.dart';
+import 'place_marks.dart';
+import 'room_roster.dart';
+import '../themes/main_theme.dart';
 
 /// Turns Auth errors into guidance. Projects with email enumeration protection
 /// report an unknown email and a wrong password the same way, so the specific
@@ -80,6 +86,14 @@ class _AccountScreenState extends State<AccountScreen> {
     super.dispose();
   }
 
+  static const leaveRoomWarning =
+      "The room you're in won't move to that account. Your We'll Decide What We Want list, favorites and never list will.";
+
+  /// A guest only loses something by switching accounts while in a room; there
+  /// is no room history to lose otherwise.
+  Future<bool> guestInRoom() async =>
+      await RoomBackendScope.maybeOf(context)?.activeRooms?.load() != null;
+
   Future<bool> confirm(
     String title,
     String explanation, {
@@ -135,10 +149,8 @@ class _AccountScreenState extends State<AccountScreen> {
       return;
     }
     if (user?.isAnonymous == true &&
-        !await confirm(
-          'Sign in to an existing account?',
-          'Activity from this guest session will not move to that account. To keep it, create an account instead.',
-        )) {
+        await guestInRoom() &&
+        !await confirm('Sign in to an existing account?', leaveRoomWarning)) {
       return;
     }
     if (!mounted) return;
@@ -176,6 +188,10 @@ class _AccountScreenState extends State<AccountScreen> {
     });
     try {
       await accounts.continueWithGoogle();
+      if (mounted) {
+        final scope = RoomBackendScope.maybeOf(context);
+        if (scope != null) await scope.usageCounts?.signedUp(scope.backend);
+      }
       if (mounted) setState(() => message = 'Signed in with Google.');
       returnIfReady();
     } on FirebaseAuthException catch (error) {
@@ -185,15 +201,17 @@ class _AccountScreenState extends State<AccountScreen> {
         setState(() => message = accountErrorMessage(error));
         return;
       }
-      // That Google account already exists; switching is allowed but never merges.
-      if (await confirm(
-        'Switch to your existing Google account?',
-        'This Google account already has an account here. Activity from this guest session will not move to it.',
-        action: 'Switch',
-      )) {
+      // That Google account already exists; switching is allowed but never
+      // merges the accounts. Asking only matters when a room would be left.
+      if (!await guestInRoom() ||
+          await confirm(
+            'Switch to your existing Google account?',
+            'This Google account already has an account here. $leaveRoomWarning',
+            action: 'Switch',
+          )) {
         if (!mounted) return;
         if (await perform(
-          accounts.signInWithGoogle,
+          () => accounts.signInWithGoogle(credential: error.credential),
           'Signed in with Google.',
         )) {
           returnIfReady();
@@ -251,6 +269,10 @@ class _AccountScreenState extends State<AccountScreen> {
       builder: (context, snapshot) {
         final user = snapshot.data;
         final registered = user != null && !user.isAnonymous;
+        final nicknames =
+            registered &&
+            user.emailVerified &&
+            RoomBackendScope.maybeOf(context) != null;
         return Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
@@ -281,6 +303,61 @@ class _AccountScreenState extends State<AccountScreen> {
                       padding: const EdgeInsets.only(top: 16),
                       child: Text(message, textAlign: TextAlign.center),
                     ),
+                  if (nicknames) ...[
+                    const SizedBox(height: 32),
+                    const NicknameTile(),
+                  ],
+                  if (RoomBackendScope.maybeOf(context)?.myPlaces != null) ...[
+                    SizedBox(
+                      height: registered && user.emailVerified ? 12 : 32,
+                    ),
+                    Card(
+                      margin: EdgeInsets.zero,
+                      clipBehavior: Clip.antiAlias,
+                      child: ListTile(
+                        leading: const FavoriteIcon(),
+                        title: const Text('Your lists'),
+                        subtitle: const Text(
+                          'I know what I want · Never what I want',
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap:
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute<void>(
+                                builder: (_) => const MyPlacesScreen(),
+                              ),
+                            ),
+                      ),
+                    ),
+                  ],
+                  if (RoomBackendScope.maybeOf(context)?.accessibility
+                      case final settings?) ...[
+                    const SizedBox(height: 12),
+                    Card(
+                      margin: EdgeInsets.zero,
+                      clipBehavior: Clip.antiAlias,
+                      child: ListTile(
+                        leading: const Icon(Icons.accessibility_new),
+                        title: const Text('Accessibility features'),
+                        subtitle: Text(
+                          settings.web
+                              ? 'Text size · Vote timer · Screen reader'
+                              : 'Text size · Vote timer',
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap:
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute<void>(
+                                builder:
+                                    (_) =>
+                                        AccessibilityScreen(settings: settings),
+                              ),
+                            ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 32),
                   Padding(
                     padding: const EdgeInsets.only(left: 4, bottom: 8),
@@ -290,6 +367,20 @@ class _AccountScreenState extends State<AccountScreen> {
                     ),
                   ),
                   const HelpList(),
+                  // Rarely needed, so it sits quietly at the very bottom.
+                  if (registered) ...[
+                    const SizedBox(height: 32),
+                    Center(
+                      child: TextButton(
+                        onPressed: busy ? null : () => deleteAccount(user),
+                        style: TextButton.styleFrom(
+                          foregroundColor: inkSoft,
+                          textStyle: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        child: const Text('Delete account'),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -321,32 +412,43 @@ class _AccountScreenState extends State<AccountScreen> {
                 style: theme.textTheme.titleMedium,
               ),
               const SizedBox(height: 4),
-              Text(
-                google ? 'Google account' : 'Email account',
-                style: theme.textTheme.bodySmall,
-              ),
-              const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    user.emailVerified
-                        ? Icons.verified
-                        : Icons.mark_email_unread_outlined,
-                    size: 18,
-                    color:
-                        user.emailVerified
-                            ? theme.colorScheme.primary
-                            : Colors.orange,
-                  ),
-                  const SizedBox(width: 6),
+                  // Once verified, a check by the account type is enough.
+                  if (user.emailVerified) ...[
+                    Tooltip(
+                      message: 'Email verified',
+                      triggerMode: TooltipTriggerMode.tap,
+                      child: Icon(
+                        Icons.verified,
+                        size: 18,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
                   Text(
-                    user.emailVerified
-                        ? 'Email verified'
-                        : 'Email not verified yet',
+                    google ? 'Google account' : 'Email account',
+                    style: theme.textTheme.bodySmall,
                   ),
                 ],
               ),
+              if (!user.emailVerified) ...[
+                const SizedBox(height: 12),
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.mark_email_unread_outlined,
+                      size: 18,
+                      color: Colors.orange,
+                    ),
+                    SizedBox(width: 8),
+                    Text('Email not verified yet'),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
@@ -394,12 +496,6 @@ class _AccountScreenState extends State<AccountScreen> {
                   'Signed out. You are playing as a guest.',
                 ),
         child: const Text('Sign out'),
-      ),
-      const SizedBox(height: 24),
-      TextButton(
-        onPressed: busy ? null : () => deleteAccount(user),
-        style: TextButton.styleFrom(foregroundColor: theme.colorScheme.error),
-        child: const Text('Delete account'),
       ),
     ];
   }
@@ -548,7 +644,8 @@ class _DeletePromptState extends State<_DeletePrompt> {
       ),
       TextButton(
         onPressed: () => Navigator.pop(context, password.text),
-        child: const Text('Delete'),
+        style: TextButton.styleFrom(foregroundColor: Colors.red[800]),
+        child: const Text('Delete account'),
       ),
     ],
   );

@@ -6,6 +6,8 @@
 
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Lets Chrome on Android pass the phone's text size to the page, which the app reads. -->
+  <meta name="text-scale" content="scale">
   <meta name="description" content="Decide where to eat together: everyone swipes the same nearby picks and the group settles it in minutes.">
   <meta name="theme-color" content="#2F7A5C">
 
@@ -27,9 +29,82 @@
 
   <title>What Do You Want?!</title>
   <link rel="manifest" href="manifest.json">
+  <!-- Starts the app's code downloading while the loader script runs. -->
+  <link rel="preload" href="main.dart.js" as="script">
+  <style>
+    /* Same pale green as the app's screens, so nothing flashes when it takes over. */
+    html, body { margin: 0; background: #EAF2EF; }
+    #loading {
+      position: fixed; inset: 0; display: flex; align-items: center;
+      justify-content: center; padding: 24px; box-sizing: border-box;
+    }
+    /* The food bubble loader, matching FoodLoader in lib/screens/food_loader.dart:
+       change the size or loop length here and there together. */
+    .food-loader { --size: 150px; --loop: 6s; position: relative; width: var(--size); height: var(--size); }
+    .food-loader .ring { position: absolute; inset: 0; transform-origin: 50% 55%; animation: turn var(--loop) infinite; }
+    .food-loader .slot { position: absolute; width: 42%; translate: -50% -50%; }
+    .food-loader .a { left: 27.5%; top: 68%; }
+    .food-loader .b { left: 50%; top: 29%; }
+    .food-loader .c { left: 72.5%; top: 68%; }
+    .food-loader .upright { animation: unturn var(--loop) infinite; }
+    .food-loader img {
+      display: block; width: 100%; height: auto; transform: scale(0);
+      animation: pop var(--loop) infinite both; animation-delay: calc(var(--loop) * .05 * var(--i));
+    }
+    @keyframes turn {
+      0%, 22% { transform: rotate(0deg); animation-timing-function: cubic-bezier(.68, -.2, .27, 1.25); }
+      32%, 40% { transform: rotate(120deg); animation-timing-function: cubic-bezier(.68, -.2, .27, 1.25); }
+      50%, 58% { transform: rotate(240deg); animation-timing-function: cubic-bezier(.68, -.2, .27, 1.25); }
+      68%, 100% { transform: rotate(360deg); }
+    }
+    @keyframes unturn {
+      0%, 22% { transform: rotate(0deg); animation-timing-function: cubic-bezier(.68, -.2, .27, 1.25); }
+      32%, 40% { transform: rotate(-120deg); animation-timing-function: cubic-bezier(.68, -.2, .27, 1.25); }
+      50%, 58% { transform: rotate(-240deg); animation-timing-function: cubic-bezier(.68, -.2, .27, 1.25); }
+      68%, 100% { transform: rotate(-360deg); }
+    }
+    @keyframes pop {
+      0% { transform: scale(0) rotate(-12deg); }
+      5% { transform: scale(1.18) rotate(4deg); }
+      8% { transform: scale(.94) rotate(-1deg); }
+      10%, 78% { transform: scale(1) rotate(0); }
+      81% { transform: scale(1.12); }
+      86%, 100% { transform: scale(0); }
+    }
+    @keyframes fade { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) {
+      .food-loader .ring, .food-loader .upright { animation: none; }
+      .food-loader img { transform: none; animation: fade 1.8s ease-in-out infinite; animation-delay: calc(.3s * var(--i)); }
+    }
+    /* Read out by screen readers and shown to keyboard users when it has focus. */
+    .reader-only {
+      position: absolute; width: 1px; height: 1px; overflow: hidden;
+      clip-path: inset(50%); white-space: nowrap;
+    }
+    .reader-only:focus {
+      position: fixed; top: 12px; left: 12px; z-index: 10; width: auto; height: auto;
+      clip-path: none; padding: 10px 14px; border-radius: 10px;
+      background: #2F7A5C; color: #fff; font: 600 16px/1.2 system-ui, sans-serif;
+    }
+  </style>
 </head>
 
 <body>
+  <!-- Flutter's own "Enable accessibility" button disappears after a few taps
+       on phones; this one stays. startup.js sets its words and handles it. -->
+  <a id="reader-support" class="reader-only" href="#">Turn on screen reader support</a>
+  <div id="loading" role="status">
+    <span class="reader-only">Loading What Do You Want?!</span>
+    <div class="food-loader" aria-hidden="true">
+      <div class="ring">
+        <div class="slot a"><div class="upright"><img src="assets/assets/images/bubbles/pizza.webp" alt="" style="--i: 0"></div></div>
+        <div class="slot b"><div class="upright"><img src="assets/assets/images/bubbles/burger.webp" alt="" style="--i: 1"></div></div>
+        <div class="slot c"><div class="upright"><img src="assets/assets/images/bubbles/sushi.webp" alt="" style="--i: 2"></div></div>
+      </div>
+    </div>
+  </div>
+  <script src="text_size.js"></script>
+  <script src="startup.js"></script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 

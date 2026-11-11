@@ -1,17 +1,38 @@
 import 'dart:async';
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import '../models/restaurant.dart';
+import '../models/saved_place.dart';
+import '../services/place_links.dart';
 import '../services/result_nudges.dart';
 import '../services/room_backend.dart';
+import 'food_loader.dart';
+import 'place_card.dart';
+import 'place_marks.dart';
+import 'report_place.dart';
+import '../themes/main_theme.dart';
+
+/// The banner over a room's result, from how many voters liked the winner.
+String resultBanner({required int likes, required int voters}) {
+  if (likes <= 0 || voters <= 0) return 'Oops, no one wanted anything';
+  if (likes >= voters) return 'Everyone wanted it';
+  if (likes * 2 >= voters) return 'Well, most of you wanted it';
+  return 'Some of you wanted it';
+}
 
 class ResultsScreen extends StatefulWidget {
   final String roomCode;
   final List<Restaurant> restaurants;
 
+  /// Picks the random backup and decides on the tease; fixed in tests.
+  final Random? random;
+
   const ResultsScreen({
     super.key,
     required this.roomCode,
     required this.restaurants,
+    this.random,
   });
 
   @override
@@ -57,7 +78,7 @@ class ResultsScreenState extends State<ResultsScreen> {
         if (!didPop) _returnToHome();
       },
       child: Scaffold(
-        backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.10),
+        backgroundColor: screenBackground,
         body: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -71,7 +92,7 @@ class ResultsScreenState extends State<ResultsScreen> {
                       constraints: const BoxConstraints(maxWidth: 420),
                       padding: const EdgeInsets.symmetric(
                         vertical: 38,
-                        horizontal: 18,
+                        horizontal: 16,
                       ),
                       decoration: BoxDecoration(
                         color: theme.cardColor,
@@ -115,8 +136,10 @@ class ResultsScreenState extends State<ResultsScreen> {
 
                           final results = room.results;
                           final Map<String, Restaurant> byId = {
-                            for (final r in widget.restaurants) r.id: r,
-                            for (final r in room.restaurants) r.id: r,
+                            for (final r in widget.restaurants)
+                              if (r.votable) r.id: r,
+                            for (final r in room.restaurants)
+                              if (r.votable) r.id: r,
                           };
                           final Restaurant? winning =
                               results == null
@@ -132,106 +155,23 @@ class ResultsScreenState extends State<ResultsScreen> {
                               ),
                             );
                           }
-                          final int winnerLikes = results.winnerLikes;
-                          final int participantsCount = results.participants;
-
-                          return IntrinsicHeight(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Center(
-                                  child: Text(
-                                    'Results',
-                                    textAlign: TextAlign.center,
-                                    style: theme.textTheme.headlineMedium!
-                                        .copyWith(
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 34,
-                                          letterSpacing: 1.2,
-                                          color: theme.colorScheme.primary,
-                                          shadows: const [
-                                            Shadow(
-                                              color: Colors.black12,
-                                              blurRadius: 4,
-                                              offset: Offset(1, 2),
-                                            ),
-                                          ],
-                                        ),
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-
-                                const Spacer(),
-
-                                Text(
-                                  'Winning Restaurant:',
-                                  style: theme.textTheme.titleLarge!.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 22,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                                const SizedBox(height: 14),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.primary.withValues(
-                                      alpha: 0.08,
-                                    ),
-                                    borderRadius: BorderRadius.circular(18),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 18,
-                                    horizontal: 18,
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        winning.name,
-                                        style: theme.textTheme.headlineSmall!
-                                            .copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 24,
-                                            ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        winning.address,
-                                        style: theme.textTheme.bodyLarge,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Distance: ${winning.distance.toStringAsFixed(2)} miles',
-                                        style: theme.textTheme.bodyMedium!
-                                            .copyWith(color: Colors.black54),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 18),
-                                Center(
-                                  child: Text(
-                                    'Votes: $winnerLikes of $participantsCount',
-                                    style: theme.textTheme.bodyLarge!.copyWith(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 18,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                ),
-
-                                const Spacer(),
-
-                                Center(
-                                  child: ElevatedButton(
-                                    onPressed: _returnToHome,
-                                    style: theme.elevatedButtonTheme.style,
-                                    child: const Text('Back to Home'),
-                                  ),
-                                ),
-                              ],
-                            ),
+                          final backupId = results.backupId;
+                          return _ResultView(
+                            roomId: widget.roomCode,
+                            winner: winning,
+                            winnerLikes: results.winnerLikes,
+                            voters: results.participants,
+                            backup:
+                                backupId == null
+                                    ? null
+                                    : byId[backupId] ?? results.backupCard,
+                            backupLikes: results.likes[backupId] ?? 0,
+                            others: [
+                              for (final r in byId.values)
+                                if (r.id != winning.id) r,
+                            ],
+                            random: widget.random,
+                            onHome: _returnToHome,
                           );
                         },
                       ),
@@ -242,6 +182,457 @@ class ResultsScreenState extends State<ResultsScreen> {
             },
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The winner, with a backup kept folded away until someone asks for it.
+class _ResultView extends StatefulWidget {
+  const _ResultView({
+    required this.roomId,
+    required this.winner,
+    required this.winnerLikes,
+    required this.voters,
+    required this.backup,
+    required this.backupLikes,
+    required this.others,
+    required this.random,
+    required this.onHome,
+  });
+
+  final String roomId;
+  final Restaurant winner;
+  final int winnerLikes;
+  final int voters;
+  final Restaurant? backup;
+  final int backupLikes;
+
+  /// Every other place in the room, for a random backup when nothing else
+  /// got a vote. Empty once the deck is gone.
+  final List<Restaurant> others;
+  final Random? random;
+  final VoidCallback onHome;
+
+  @override
+  State<_ResultView> createState() => _ResultViewState();
+}
+
+class _ResultViewState extends State<_ResultView> {
+  late final Random _random = widget.random ?? Random();
+  bool _backupOpen = false;
+  Restaurant? _randomBackup;
+
+  bool get _votedBackup => widget.backup != null && widget.backupLikes > 0;
+
+  bool get _hasBackupTile => widget.backup != null || widget.others.isNotEmpty;
+
+  /// The place Copy and Share send: whichever card is open.
+  Restaurant get _shown {
+    if (!_backupOpen) return widget.winner;
+    if (_votedBackup) return widget.backup!;
+    return _randomBackup ?? widget.winner;
+  }
+
+  // Drawn on the phone from the room's own places, so it costs no search.
+  // Each person gets their own.
+  Future<void> _pickRandom() async {
+    final pick = widget.others[_random.nextInt(widget.others.length)];
+    if (_random.nextInt(4) == 0) await _tease();
+    if (mounted) setState(() => _randomBackup = pick);
+  }
+
+  Future<void> _tease() => showDialog<void>(
+    context: context,
+    builder: (context) {
+      final theme = Theme.of(context);
+      return Dialog(
+        backgroundColor: theme.colorScheme.primary,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+            bottomRight: Radius.circular(24),
+            bottomLeft: Radius.circular(4),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Haha! You fell for it!',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'I am only kidding, when you close this the random option '
+                'will show up for you.',
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                "(I'm not that mean)",
+                style: TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  style: TextButton.styleFrom(foregroundColor: Colors.white),
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Close'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+
+  String _likedNote(int likes) => '$likes of ${widget.voters} liked it';
+
+  Widget _actions(Restaurant place) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      PlaceActions(links: placeLinksFor(place), alignment: WrapAlignment.start),
+      if (SavedPlace.canSave(place)) ...[
+        const SizedBox(height: 12),
+        PlaceListButtons(restaurant: place),
+      ],
+      // The server takes reports on the room's own winner and backup only,
+      // not a backup drawn at random on this phone.
+      if (place.id == widget.winner.id || place.id == widget.backup?.id) ...[
+        const SizedBox(height: 8),
+        ReportPlaceLink(
+          restaurant: place,
+          from: ReportedFrom.room(widget.roomId),
+        ),
+      ],
+    ],
+  );
+
+  Widget _tile({
+    required Widget label,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) => Material(
+    color: Colors.transparent,
+    child: InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.black26),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            Expanded(child: label),
+            Tooltip(
+              message: tooltip,
+              child: Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.black26),
+                ),
+                child: const Icon(Icons.add, size: 20),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  static Duration _switchTime(BuildContext context) =>
+      MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 550);
+
+  Widget _winnerView(ThemeData theme) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Center(
+        child: _Banner(
+          text: resultBanner(likes: widget.winnerLikes, voters: widget.voters),
+          shrug: widget.winnerLikes <= 0,
+        ),
+      ),
+      const SizedBox(height: 16),
+      PlaceCard(
+        restaurant: widget.winner,
+        note: _likedNote(widget.winnerLikes),
+        menu: PlaceMenu(restaurant: widget.winner),
+        child: _actions(widget.winner),
+      ),
+      if (_hasBackupTile) ...[
+        const SizedBox(height: 16),
+        _tile(
+          label: Text(
+            "It's always good to have a backup plan...",
+            style: theme.textTheme.bodyLarge,
+          ),
+          tooltip: 'Show the backup',
+          onTap: () => setState(() => _backupOpen = true),
+        ),
+      ],
+    ],
+  );
+
+  Widget _backupView(ThemeData theme) {
+    final backup = widget.backup;
+    final random = _randomBackup;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _tile(
+          label: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Winner',
+                style: theme.textTheme.bodySmall!.copyWith(color: inkSoft),
+              ),
+              Text(
+                widget.winner.name,
+                style: theme.textTheme.titleMedium!.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          tooltip: 'Show the winner',
+          onTap: () => setState(() => _backupOpen = false),
+        ),
+        const SizedBox(height: 16),
+        if (_votedBackup) ...[
+          const Center(
+            child: _Banner(text: 'Your backup plan', icon: Icons.support),
+          ),
+          const SizedBox(height: 16),
+          PlaceCard(
+            restaurant: backup!,
+            note: _likedNote(widget.backupLikes),
+            menu: PlaceMenu(restaurant: backup),
+            child: _actions(backup),
+          ),
+        ] else if (random != null) ...[
+          const Center(
+            child: _Banner(text: 'Your random backup plan', icon: Icons.casino),
+          ),
+          const SizedBox(height: 16),
+          PlaceCard(
+            restaurant: random,
+            note: 'picked at random',
+            menu: PlaceMenu(restaurant: random),
+            child: _actions(random),
+          ),
+        ] else
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  'You were all too picky to have a backup plan! '
+                  'Nothing else had even 1 vote.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyLarge,
+                ),
+                if (widget.others.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'But, because I like you...',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.casino),
+                    label: const Text('Pick a random one for me'),
+                    onPressed: _pickRandom,
+                  ),
+                ],
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // Title, card and Back to Home spread down the screen. Without flexible
+    // gaps the page never has to measure its height ahead, so the card can
+    // ease between sizes even when big text makes the page scroll.
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                Text(
+                  'Results',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.headlineMedium!.copyWith(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 34,
+                    color: theme.colorScheme.primary,
+                    shadows: const [
+                      Shadow(
+                        color: Colors.black12,
+                        blurRadius: 4,
+                        offset: Offset(1, 2),
+                      ),
+                    ],
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: PlaceShareButtons(restaurant: _shown),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+        // The card leaving fades out first, then the other grows in with a
+        // little bounce, and the space between them eases to its new height.
+        AnimatedSize(
+          duration: _switchTime(context) * 0.7,
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: AnimatedSwitcher(
+            duration: _switchTime(context),
+            transitionBuilder: (child, animation) {
+              final entering = child.key == ValueKey(_backupOpen);
+              final fade = CurvedAnimation(
+                parent: animation,
+                curve:
+                    entering
+                        ? const Interval(0.35, 0.8, curve: Curves.easeOut)
+                        : const Interval(0.6, 1, curve: Curves.easeIn),
+              );
+              final scale =
+                  entering
+                      ? Tween(begin: 0.9, end: 1.0).animate(
+                        CurvedAnimation(
+                          parent: animation,
+                          curve: const Interval(
+                            0.35,
+                            1,
+                            curve: Curves.easeOutBack,
+                          ),
+                        ),
+                      )
+                      : Tween(begin: 0.96, end: 1.0).animate(animation);
+              return FadeTransition(
+                opacity: fade,
+                child: ScaleTransition(scale: scale, child: child),
+              );
+            },
+            // Only the card shown sets the height; the one leaving is laid
+            // over it while it fades.
+            layoutBuilder:
+                (current, previous) => Stack(
+                  alignment: Alignment.topCenter,
+                  clipBehavior: Clip.none,
+                  children: [
+                    for (final old in previous)
+                      Positioned(top: 0, left: 0, right: 0, child: old),
+                    if (current case final shown?) shown,
+                  ],
+                ),
+            child: KeyedSubtree(
+              key: ValueKey(_backupOpen),
+              child: _backupOpen ? _backupView(theme) : _winnerView(theme),
+            ),
+          ),
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 20),
+            Center(
+              child: ElevatedButton(
+                onPressed: widget.onHome,
+                style: theme.elevatedButtonTheme.style,
+                child: const Text('Back to Home'),
+              ),
+            ),
+            // A room from the host's own list has nothing from HERE in it.
+            if (!widget.winner.userEntered) ...[
+              const SizedBox(height: 12),
+              const PlaceCredit(),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// A rounded label above the card: the vote banner, or which backup it is.
+class _Banner extends StatelessWidget {
+  const _Banner({required this.text, this.icon, this.shrug = false});
+
+  final String text;
+  final IconData? icon;
+
+  /// Nobody liked anything: a shrug in place of the celebration.
+  final bool shrug;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final foreground =
+        shrug ? const Color(0xFF633806) : theme.colorScheme.primary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color:
+            shrug
+                ? const Color(0xFFFAEEDA)
+                : theme.colorScheme.primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon ?? (shrug ? Icons.sentiment_neutral : Icons.celebration),
+            size: 20,
+            color: foreground,
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              text,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleSmall!.copyWith(
+                color: foreground,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -259,7 +650,7 @@ class _ResultsLoader extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         const SizedBox(height: 20),
-        CircularProgressIndicator(color: Theme.of(context).colorScheme.primary),
+        const FoodLoader(size: FoodLoader.largeSize),
         const SizedBox(height: 28),
         Text(
           remaining != null

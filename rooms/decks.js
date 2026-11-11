@@ -1,6 +1,12 @@
 // restaurantDecks/{deckId}: one immutable deck per decision, written only by
 // callables and removed by TTL with the room or Quick Pick it belongs to.
 const { filterSummary } = require('./search/request');
+const { CUISINES } = require('./search/cuisines');
+
+// What a card shows about its food: the provider's own detail, or our
+// cuisine names when the listing has none.
+const foodLabelsOf = candidate => (candidate.foodLabels?.length ? candidate.foodLabels
+  : (candidate.cuisineIds ?? []).map(id => CUISINES[id]?.label).filter(Boolean));
 
 // What a stored card keeps. Chain IDs, categories and dietary hints stay
 // behind; the person's origin is never part of a deck.
@@ -12,6 +18,8 @@ function storedCandidate(candidate) {
     address: candidate.address,
     distanceMeters: candidate.distanceMetersFromOrigin,
     cuisineIds: candidate.cuisineIds,
+    foodLabels: foodLabelsOf(candidate),
+    dietary: candidate.dietaryHints ?? [],
     openStatus: candidate.openStatus,
     phone: candidate.phone,
     website: candidate.website,
@@ -20,15 +28,51 @@ function storedCandidate(candidate) {
     longitude: candidate.longitude,
     provider: candidate.provider,
     providerPlaceId: candidate.providerPlaceId,
+    ...(candidate.photoUrl ? { photoUrl: candidate.photoUrl } : {}),
+    ...(candidate.popular ? { popular: true } : {}),
   };
+}
+
+// Cards nobody votes on, placed after every `every` places but never last,
+// so the deck still ends on a place. They live beside the candidates, never
+// among them: ballots, tallies and Quick Pick rerolls only see places.
+function noticeCards(placeCount, notices) {
+  if (!notices) return [];
+  const cards = [];
+  for (let after = notices.every; after < placeCount; after += notices.every) {
+    cards.push({ id: `n${cards.length + 1}`, after, title: notices.title, text: notices.text });
+  }
+  return cards;
 }
 
 // The winner or backup as the room keeps it after its deck is gone: enough to
 // show the result and its links, nothing more.
 function resultCard(candidate) {
   if (!candidate) return null;
+  if (candidate.userEntered) {
+    const { id, name, address, note } = candidate;
+    return { id, name, userEntered: true, ...(address ? { address } : {}), ...(note ? { note } : {}) };
+  }
   const { id, name, address, distanceMeters, latitude, longitude, phone, website } = candidate;
-  return { id, name, address, distanceMeters, latitude, longitude, phone, website };
+  return { id, name, address, distanceMeters, latitude, longitude, phone, website,
+    foodLabels: candidate.foodLabels ?? [], dietary: candidate.dietary ?? [] };
+}
+
+// A deck from the host's own list: the spots as they typed them, with no
+// provider, position or distance.
+function ownListDeckDocument({ ownerUid, targetId, spots, expiresAt, generatedAt }) {
+  const candidates = spots.map((spot, order) => ({ id: spot.id, order, name: spot.name, userEntered: true,
+    ...(spot.address ? { address: spot.address } : {}), ...(spot.note ? { note: spot.note } : {}) }));
+  return {
+    ownerUid,
+    targetType: 'room',
+    targetId,
+    source: 'ownList',
+    candidateIds: candidates.map(candidate => candidate.id),
+    candidates,
+    generatedAt,
+    expiresAt,
+  };
 }
 
 function deckDocument({ ownerUid, targetType, targetId, provider, result, request, built, seed, expiresAt,
@@ -45,6 +89,7 @@ function deckDocument({ ownerUid, targetType, targetId, provider, result, reques
     seed,
     candidateIds: candidates.map(candidate => candidate.id),
     candidates,
+    ...(built.notices?.length ? { notices: built.notices } : {}),
     pool: built.pool,
     providerCalls: result.providerCalls,
     attribution: result.attribution,
@@ -53,4 +98,4 @@ function deckDocument({ ownerUid, targetType, targetId, provider, result, reques
   };
 }
 
-module.exports = { deckDocument, storedCandidate, resultCard };
+module.exports = { deckDocument, storedCandidate, resultCard, ownListDeckDocument, noticeCards };

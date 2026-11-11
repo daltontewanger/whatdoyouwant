@@ -14,8 +14,8 @@ Repository files and verified console evidence describe actual state. The playbo
 
 ## Current focus
 
-- Phase: 5 (Product enrichment), from 2026-10-26; Phase 4 closed the same day
-- Status doc: `docs/phase5-status.md`
+- Phase: 7 (Security, privacy, operations, and quality), from 2026-11-11; Phase 5 closed the same day and Phase 6 (monetization) is skipped for now
+- Status doc: `docs/phase7-status.md`
 - Data inventory and access matrix: `docs/security/` (update when stored data or access changes)
 - Update this section when the phase changes.
 

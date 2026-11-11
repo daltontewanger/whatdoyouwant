@@ -3,9 +3,11 @@
 // transaction, then commit the deck and settle. Anything that ends without a
 // committed deck refunds the search; provider calls that happened always count.
 const { randomBytes, createHash } = require('node:crypto');
-const { buildDeck } = require('./search/deck');
-const { deckDocument } = require('./decks');
-const { weekOf, monthOf, liveSearchConfig, weeklyCapFor, DAY_MS, WEEK_MS } = require('./quota');
+const { buildDeck, candidateId } = require('./search/deck');
+const { activeFlags } = require('./place-reports');
+const { deckDocument, noticeCards } = require('./decks');
+const { weekOf, monthOf, liveSearchConfig, deckFeatures, weeklyCapFor, DAY_MS, WEEK_MS } = require('./quota');
+const { searchCounts, tooFewCounts } = require('./metrics');
 
 // Longer than the callable timeout, so a lease only expires once its call is gone.
 const LEASE_MS = 90 * 1000;
@@ -24,7 +26,7 @@ const digest = value => createHash('sha256').update(value).digest('hex');
  *              { view, expiresAt } (the deck's expiry).
  */
 function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now, newSeed, log,
-  retryTransient }) {
+  retryTransient, metrics }) {
   const configRef = db.doc('config/liveSearch');
   const leaseRef = (mode, targetId) => db.doc(`deckGenerations/${mode}_${targetId}`);
   const weekRef = (uid, week) => db.doc(`usageWeeks/${uid}_${week.key}`);
@@ -84,7 +86,8 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
         weekPath: weekRef(uid, week).path, monthPath: monthRef(month).path, provider: provider.id,
         callsReserved: calls, leaseExpiresAt: Timestamp.fromMillis(at + LEASE_MS),
         createdAt: updatedAt, expiresAt: Timestamp.fromMillis(at + DAY_MS) });
-      return { reservation: { token, lease, week: weekRef(uid, week), month: monthRef(month), calls } };
+      return { reservation: { token, lease, week: weekRef(uid, week), month: monthRef(month), calls },
+        features: deckFeatures(config.exists ? config.data() : null) };
     });
   }
 
@@ -107,12 +110,33 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
     }));
   }
 
-  async function generateDeck({ uid, mode, targetId, search, target }) {
+  // What reports have hidden for everyone among these places: closed ones,
+  // and places whose website or phone was reported wrong.
+  async function reportedFlags(restaurants) {
+    const ids = [...new Set(restaurants.filter(record => record?.provider && record.providerPlaceId)
+      .map(candidateId))];
+    if (!ids.length) return new Map();
+    const at = now();
+    const flags = await db.getAll(...ids.map(id => db.doc(`placeFlags/${id}`)));
+    return new Map(flags.filter(flag => flag.exists).map(flag => [flag.id, activeFlags(flag.data(), at)]));
+  }
+
+  // `lists` holds the never, closed and favorite card IDs this deck should honour.
+  // `counts` adds to the usage counts once the deck is made.
+  async function generateDeck({ uid, mode, targetId, search, target, lists = {}, counts = {} }) {
     // Wall-clock stage timings for the log; the injected clock is for limits.
     const began = Date.now();
-    const reserved = await reserve({ uid, mode, targetId, target });
+    let reserved;
+    try {
+      reserved = await reserve({ uid, mode, targetId, target });
+    } catch (error) {
+      const reason = error?.details?.reason;
+      if (reason === 'weekly-cap') await metrics.add({ weeklyCapHits: 1 });
+      if (reason === 'live-search-paused') await metrics.add({ livePausedHits: 1 });
+      throw error;
+    }
     if (reserved.done) return reserved.done;
-    const { reservation } = reserved;
+    const { reservation, features } = reserved;
     const reservedAt = Date.now();
 
     // The seed comes first so the provider can use it to vary where it looks.
@@ -125,17 +149,49 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
       const calls = Number.isInteger(error?.providerCalls) ? error.providerCalls : reservation.calls;
       await refund(reservation, calls, 'failed');
       log({ event: 'search_failed', provider: provider.id, providerCalls: calls });
+      await metrics.add({ searchesFailed: 1, providerCalls: calls });
       throw new HttpsError('unavailable', 'Restaurant search is unavailable.');
     }
     const calls = result.providerCalls;
     const searchedAt = Date.now();
-    const built = buildDeck(result.restaurants, search, { seed });
+    let flags;
+    try {
+      flags = await retryTransient(() => reportedFlags(result.restaurants));
+    } catch (error) {
+      await refund(reservation, calls, 'failed');
+      throw error;
+    }
+    const closed = [...(lists.closed ?? []), ...[...flags].filter(([, flag]) => flag.closed).map(([id]) => id)];
+    const built = buildDeck(result.restaurants, search, { seed, never: lists.never, closed,
+      favorites: lists.favorites });
+    // Local favorites, only while that switch is on; a failed read just
+    // leaves the badges off.
+    let hot = new Set();
+    if (features.hotPicks) {
+      try {
+        hot = await metrics.hotPicks(built.candidates.map(candidate => candidate.id));
+      } catch {
+        hot = new Set();
+      }
+    }
+    built.candidates = built.candidates.map(candidate => {
+      const flag = flags.get(candidate.id);
+      const { photoUrl, ...card } = candidate;
+      return { ...card, ...(features.photos && photoUrl ? { photoUrl } : {}),
+        ...(flag?.website ? { website: null } : {}), ...(flag?.phone ? { phone: null } : {}),
+        ...(hot.has(candidate.id) ? { popular: true } : {}) };
+    });
+    // A Quick Pick shows one place at a time, so only rooms get notice cards.
+    built.notices = mode === 'room' ? noticeCards(built.candidates.length, features.notices) : [];
     // Nothing is stored or charged for a pool too thin to use; the person is
-    // asked to widen the search instead.
+    // asked to widen the search, or to start without never lists when those
+    // took out what would have been enough.
     if (!built.pool.sufficient) {
       await refund(reservation, calls, 'too-few-results');
+      await metrics.add({ ...tooFewCounts(search), providerCalls: calls });
       throw new HttpsError('failed-precondition', 'Too few restaurants match.',
-        { reason: 'too-few-results', eligible: built.pool.eligible, minimum: built.pool.minimum });
+        { reason: 'too-few-results', eligible: built.pool.eligible - built.pool.neverLeftOut,
+          minimum: built.pool.minimum, ...(built.pool.neverLeftOut ? { neverLeftOut: built.pool.neverLeftOut } : {}) });
     }
 
     const deck = db.doc(`restaurantDecks/${randomBytes(12).toString('hex')}`);
@@ -160,9 +216,15 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
     }
     // Counts only: no UID, location or restaurant names.
     log({ event: 'deck_created', mode, provider: provider.id, providerCalls: calls, eligible: built.pool.eligible,
+      reportedClosed: built.pool.reportedClosed, neverLeftOut: built.pool.neverLeftOut, favoritesIncluded: built.pool.favoritesIncluded,
       selected: built.pool.selected, kept: Boolean(outcome.view), reserveMs: reservedAt - began,
       providerMs: searchedAt - reservedAt, commitMs: Date.now() - searchedAt });
-    if (outcome.view) return outcome.view;
+    if (outcome.view) {
+      await metrics.add({ ...searchCounts({ mode, search, pool: built.pool, candidates: built.candidates.length,
+        providerCalls: calls, providerMs: searchedAt - reservedAt, at: now() }), ...counts });
+      return outcome.view;
+    }
+    await metrics.add({ providerCalls: calls });
     if (outcome.done) return outcome.done;
     throw new HttpsError('unavailable', 'Please try again.');
   }

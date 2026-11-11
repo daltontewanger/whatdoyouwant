@@ -28,12 +28,25 @@
       "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
     },
     { "collectionGroup": "ballot", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "lists", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "roomCodes", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "_requests", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "_limits", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "usageWeeks", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "deckGenerations", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     { "collectionGroup": "quickPicks", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "byAccount", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "placeFlags", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "userActivity", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "placeStats", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    {
+      "collectionGroup": "byAccount",
+      "fieldPath": "uidHash",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
     {
       "collectionGroup": "members",
       "fieldPath": "uid",

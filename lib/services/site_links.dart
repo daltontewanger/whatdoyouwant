@@ -29,7 +29,7 @@ Uri accountReturnLink(String projectId, {Uri? current}) =>
 Uri sitePageLink(String origin, String path) => Uri.parse('$origin$path');
 
 /// What an app address asks the app to open.
-enum AppLinkTarget { host, join, account, accountAction }
+enum AppLinkTarget { host, join, account, accountAction, insights, demo }
 
 /// The account steps an emailed link can finish in the app. Every Firebase
 /// email links to the account page, so any other step still arrives there
@@ -55,6 +55,15 @@ class AppLink {
 }
 
 bool _launchLinkTaken = false;
+bool _siteArrivalTaken = false;
+
+/// Whether the web app was opened from a button on the public site, which
+/// marks its links with `from=site`. Answered once per page load.
+bool takeSiteArrival(Uri uri) {
+  if (_siteArrivalTaken) return false;
+  _siteArrivalTaken = true;
+  return uri.queryParameters['from'] == 'site';
+}
 
 /// The link the web app was opened with, handed out only once. Home is built
 /// again when a room ends, and it must not rejoin the room it came from.
@@ -64,7 +73,8 @@ AppLink? takeLaunchLink(Uri uri) {
   return appLinkFrom(uri);
 }
 
-/// Reads `/app/host`, `/app/join`, `/app/join/<code>`, `/app/account` and
+/// Reads `/app/host`, `/app/join`, `/app/join/<code>`, `/app/account`,
+/// `/app/insights` (the owner's usage page), `/app/demo` (the practice room) and
 /// emailed account links (`/app/account?mode=…&oobCode=…`). The
 /// app is served from `/app` on the site and from the root during local
 /// development.
@@ -95,6 +105,8 @@ AppLink? appLinkFrom(Uri uri) {
     'host' => const AppLink(AppLinkTarget.host),
     'join' => const AppLink(AppLinkTarget.join),
     'account' => const AppLink(AppLinkTarget.account),
+    'insights' => const AppLink(AppLinkTarget.insights),
+    'demo' => const AppLink(AppLinkTarget.demo),
     _ => null,
   };
 }

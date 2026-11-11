@@ -6,11 +6,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
+import '../models/insights.dart';
+import '../models/own_spot.dart';
 import '../models/restaurant.dart';
 import 'device_location.dart';
 import 'live_search.dart';
-import 'lobby_backstop.dart';
+import 'room_backstop.dart';
 import 'room_backend.dart';
+import 'search_defaults.dart';
 import 'site_links.dart';
 
 export 'device_location.dart' show SearchOrigin;
@@ -37,22 +40,29 @@ const _metersPerMile = 1609.344;
 
 /// The search the server's startRoom expects. The location is rounded to
 /// about 100 m first: plenty for a search measured in miles, and less
-/// precise than where the person actually is.
+/// precise than where the person actually is. A [zip] code is sent instead
+/// of a location, and the server searches around its centre.
 Map<String, Object?> startSearchFor(
-  SearchOrigin origin, {
-  required double radiusMiles,
-  required int deckSize,
+  SearchOrigin? origin,
+  SearchPreferences search, {
+  String? zip,
 }) => {
-  'origin': {
-    'lat': double.parse(origin.lat.toStringAsFixed(3)),
-    'lng': double.parse(origin.lng.toStringAsFixed(3)),
-  },
-  'radius': {'value': radiusMiles.round(), 'unit': 'mi'},
-  'deckSize': deckSize,
+  'origin':
+      zip != null
+          ? {'zip': zip}
+          : {
+            'lat': double.parse(origin!.lat.toStringAsFixed(3)),
+            'lng': double.parse(origin.lng.toStringAsFixed(3)),
+          },
+  'radius': {'value': search.radius, 'unit': search.unit.label},
+  'deckSize': search.deckSize,
+  'includedCuisineIds': search.includedCuisineIds,
+  'excludedCuisineIds': search.excludedCuisineIds,
+  'openNowPreferred': search.openNowPreferred,
 };
 
 /// One card as the server stores it, in a deck or a room's results. Cards keep
-/// meters; the app still shows miles.
+/// meters; the app works in miles and shows the person's own unit.
 Restaurant cardRestaurant(Map raw) => Restaurant(
   id: raw['id'] as String,
   name: raw['name'] as String,
@@ -62,12 +72,85 @@ Restaurant cardRestaurant(Map raw) => Restaurant(
   longitude: (raw['longitude'] as num?)?.toDouble(),
   phone: raw['phone'] as String?,
   website: raw['website'] as String?,
+  userEntered: raw['userEntered'] == true,
+  note: raw['note'] as String?,
+  photoUrl: switch (raw['photoUrl']) {
+    final String url when url.startsWith('https://') => url,
+    _ => null,
+  },
+  foodLabels: _strings(raw['foodLabels']),
+  dietary: _strings(raw['dietary']),
 );
 
-/// The cards of a stored deck, in deck order.
-List<Restaurant> deckRestaurants(Map<String, dynamic> deck) => [
-  for (final raw in deck['candidates'] as List) cardRestaurant(raw as Map),
+List<String> _strings(Object? raw) => [
+  if (raw is List)
+    for (final item in raw)
+      if (item is String && item.isNotEmpty) item,
 ];
+
+/// The cards of a stored deck, in deck order, with any notice cards placed
+/// after the place they follow.
+List<Restaurant> deckRestaurants(Map<String, dynamic> deck) {
+  final places = [
+    for (final raw in deck['candidates'] as List) cardRestaurant(raw as Map),
+  ];
+  final notices = deck['notices'];
+  if (notices is! List || notices.isEmpty) return places;
+  final after = <int, List<Restaurant>>{};
+  for (final raw in notices) {
+    if (raw is! Map ||
+        raw['id'] is! String ||
+        raw['after'] is! int ||
+        raw['title'] is! String ||
+        raw['text'] is! String) {
+      continue;
+    }
+    (after[raw['after'] as int] ??= []).add(
+      Restaurant.notice(
+        id: raw['id'] as String,
+        title: raw['title'] as String,
+        text: raw['text'] as String,
+      ),
+    );
+  }
+  return [
+    for (final (i, place) in places.indexed) ...[
+      place,
+      // Never after the last place, so the deck ends on one.
+      if (i < places.length - 1) ...?after[i + 1],
+    ],
+  ];
+}
+
+/// The room's roster as people see it: host first, then you, then everyone
+/// else by name, with guests last. Seats are the server's random keys; the
+/// one matching [mySeat] is this person.
+List<RoomPerson> roomPeople(Object? roster, String? mySeat) {
+  if (roster is! Map) return const [];
+  final people = [
+    for (final entry in roster.entries)
+      if (entry.value is Map)
+        RoomPerson(
+          name: (entry.value as Map)['name'] as String?,
+          host: (entry.value as Map)['host'] == true,
+          you: entry.key == mySeat,
+        ),
+  ];
+  int rank(RoomPerson person) =>
+      person.host
+          ? 0
+          : person.you
+          ? 1
+          : person.guest
+          ? 3
+          : 2;
+  people.sort((a, b) {
+    final order = rank(a).compareTo(rank(b));
+    if (order != 0) return order;
+    return (a.name ?? '').toLowerCase().compareTo((b.name ?? '').toLowerCase());
+  });
+  return people;
+}
 
 RoomResults? callableResults(Object? raw, int members) {
   if (raw is! Map) return null;
@@ -149,6 +232,7 @@ class CallableRoomBackend implements RoomBackend {
     late final StreamController<RoomState> controller;
     final subscriptions = <StreamSubscription<Object?>>[];
     Map<String, dynamic>? roomData;
+    String? mySeat;
     var deck = <Restaurant>[];
     var myVotes = <String>{};
     var deckRequested = false;
@@ -171,9 +255,14 @@ class CallableRoomBackend implements RoomBackend {
           resultsReady: status == 'closed',
           results: callableResults(data['results'], members),
           votingEndsAt: (data['votingEndsAt'] as Timestamp?)?.toDate(),
+          untimed: data['untimed'] == true,
+          people: roomPeople(data['roster'], mySeat),
         ),
       );
     }
+
+    // Re-runs [apply] on the room as last known; set once [apply] exists.
+    late final void Function() refresh;
 
     // Decks never change once stored, so one read is enough.
     void loadDeck(String deckId) {
@@ -184,20 +273,42 @@ class CallableRoomBackend implements RoomBackend {
           .get()
           .then((snapshot) {
             final stored = snapshot.data();
-            if (stored != null) deck = deckRestaurants(stored);
-            emit();
+            // The deck may already have come with a catch-up answer.
+            if (stored != null && deck.isEmpty) deck = deckRestaurants(stored);
+            // With the cards known, a finished voter starts waiting for results.
+            refresh();
           })
           .catchError((Object error) {
             if (!controller.isClosed) controller.addError(error);
           });
     }
 
-    late final LobbyBackstop backstop;
+    late final RoomBackstop backstop;
+    // What the server said when the listener was behind; kept until the
+    // listener catches up, so a late snapshot cannot take the room backwards.
+    Map<String, dynamic>? ahead;
     void apply(Map<String, dynamic>? data) {
+      final caughtUp = ahead;
+      if (data != null && caughtUp != null) {
+        if (roomStage(data['status'] as String?) <
+            roomStage(caughtUp['status'] as String?)) {
+          data = {...data, ...caughtUp};
+        } else {
+          ahead = null;
+        }
+      }
       roomData = data;
       if (data == null) return;
-      // The host starts the room, so only guests can be left behind waiting.
-      if (data['status'] == 'lobby' && data['creator'] != _uid) {
+      final status = data['status'];
+      final votable = deck.where((place) => place.votable).length;
+      // Waiting on the room to move on: a guest in the lobby (the host starts
+      // it), anyone whose deck has not arrived yet, or anyone who has voted
+      // on every card and waits for results.
+      final waiting =
+          (status == 'lobby' && data['creator'] != _uid) ||
+          (status == 'voting' && deck.isEmpty) ||
+          (status == 'voting' && votable > 0 && myVotes.length >= votable);
+      if (waiting) {
         backstop.start();
       } else {
         backstop.stop();
@@ -210,13 +321,45 @@ class CallableRoomBackend implements RoomBackend {
       emit();
     }
 
-    backstop = LobbyBackstop(
-      status:
-          () async =>
-              (await _call('roomResults', {'roomId': roomId}))['status']
-                  as String,
+    refresh = () => apply(roomData);
+
+    backstop = RoomBackstop(
+      ask: () => _call('roomResults', {'roomId': roomId, 'view': 'room'}),
+      // Voting without the cards is still the lobby as far as the screen
+      // goes, so a deck read that stalls is caught up too.
+      shown: () {
+        final status = roomData?['status'] as String?;
+        return status == 'voting' && deck.isEmpty ? 'lobby' : status;
+      },
+      onAhead: (view) {
+        final room = Map<String, dynamic>.from(view['room'] as Map);
+        final endsAt = room['votingEndsAt'] as num?;
+        ahead = {
+          'status': room['status'],
+          'creator': room['creator'],
+          'memberCount': room['memberCount'],
+          'untimed': room['untimed'] == true,
+          'deckId': room['deckId'],
+          'votingEndsAt':
+              endsAt == null
+                  ? null
+                  : Timestamp.fromMillisecondsSinceEpoch(endsAt.toInt()),
+          'expiresAt': Timestamp.fromMillisecondsSinceEpoch(
+            (room['expiresAt'] as num).toInt(),
+          ),
+          if (room['status'] == 'closed') 'results': view['results'],
+        };
+        // The deck comes with the answer, so nothing waits on another read.
+        final cards = view['deck'];
+        if (cards is Map && deck.isEmpty) {
+          deck = deckRestaurants(Map<String, dynamic>.from(cards));
+          deckRequested = true;
+        }
+        // Before any snapshot, the server's view is all there is.
+        apply(roomData ?? ahead);
+      },
       // Reconnecting makes Firestore resend the room as it is now.
-      onBehind: () async {
+      reconnect: () async {
         await _db.disableNetwork();
         await _db.enableNetwork();
       },
@@ -224,16 +367,28 @@ class CallableRoomBackend implements RoomBackend {
 
     controller = StreamController<RoomState>(
       onListen: () {
+        // Until the listener's first snapshot, the backstop is the only way
+        // to learn the room if the live connection is slow from the start.
+        backstop.start();
         subscriptions.add(
           room.snapshots().listen(
             (snapshot) => apply(snapshot.data()),
             onError: controller.addError,
           ),
         );
+        // Only this person's own membership is readable; it says which seat
+        // on the roster is theirs. Without it the roster just has no "you".
+        subscriptions.add(
+          room.collection('members').doc(_uid).snapshots().listen((snapshot) {
+            mySeat = snapshot.data()?['seat'] as String?;
+            emit();
+          }, onError: (Object _) {}),
+        );
         subscriptions.add(
           room.collection('votes/$_uid/ballot').snapshots().listen((snapshot) {
             myVotes = {for (final doc in snapshot.docs) doc.id};
-            emit();
+            // A last vote can mean waiting for results now.
+            refresh();
           }, onError: controller.addError),
         );
       },
@@ -251,19 +406,55 @@ class CallableRoomBackend implements RoomBackend {
   @override
   Future<List<Restaurant>> start(
     String roomId, {
-    required double radiusMiles,
-    required int maxOptions,
+    required SearchPreferences search,
+    String? zip,
+    DeckLists lists = DeckLists.none,
   }) async {
-    final origin = await _locate();
+    final origin = zip == null ? await _locate() : null;
     final started = await _call('startRoom', {
       'roomId': roomId,
-      'search': startSearchFor(
-        origin,
-        radiusMiles: radiusMiles,
-        deckSize: maxOptions,
-      ),
+      'search': startSearchFor(origin, search, zip: zip),
+      'lists': lists.toJson(),
     });
     // A fresh start returns its cards; a repeat start points at the stored deck.
+    if (started['candidates'] is List) return deckRestaurants(started);
+    final deck = await _db.doc('restaurantDecks/${started['deckId']}').get();
+    return deckRestaurants(deck.data()!);
+  }
+
+  @override
+  Future<void> shareLists(
+    String roomId, {
+    required List<String> favorites,
+    required List<String> never,
+    List<String> closed = const [],
+  }) => _call('shareRoomLists', {
+    'roomId': roomId,
+    'favorites': favorites,
+    'never': never,
+    'closed': closed,
+  });
+
+  @override
+  Future<void> reportPlace(
+    Restaurant place,
+    PlaceProblem problem,
+    ReportedFrom from,
+  ) => _call('reportPlace', {
+    'cardId': place.id,
+    'kind': problem.name,
+    ...from.toJson(),
+  });
+
+  @override
+  Future<List<Restaurant>> startFromList(
+    String roomId,
+    List<OwnSpot> spots,
+  ) async {
+    final started = await _call('startRoomFromList', {
+      'roomId': roomId,
+      'spots': [for (final spot in spots) spot.toJson()],
+    });
     if (started['candidates'] is List) return deckRestaurants(started);
     final deck = await _db.doc('restaurantDecks/${started['deckId']}').get();
     return deckRestaurants(deck.data()!);
@@ -283,14 +474,20 @@ class CallableRoomBackend implements RoomBackend {
     required bool liked,
     required int index,
     required int total,
+    bool auto = false,
   }) async {
     // Ballots carry the room's expiry so they are cleaned up with it.
     await _db.doc('rooms/$roomId/votes/$_uid/ballot/${restaurant.id}').set({
       'liked': liked,
       'at': FieldValue.serverTimestamp(),
       'expiresAt': await _expiryOf(roomId),
+      if (auto) 'auto': true,
     });
   }
+
+  @override
+  Future<void> setNoTimer(String roomId, {required bool noTimer}) =>
+      _call('setNoTimer', {'roomId': roomId, 'noTimer': noTimer});
 
   @override
   Future<void> nudge(String roomId) async {
@@ -317,9 +514,89 @@ class CallableRoomBackend implements RoomBackend {
 
   @override
   Future<bool> updateRequired(int build) async =>
-      (await _call('appStatus', {'build': build}))['updateRequired'] == true;
+      (await _call('appStatus', {
+        'build': build,
+        if (_platform case final platform?) 'platform': platform,
+      }))['updateRequired'] ==
+      true;
+
+  // Sent with the app-open check for the daily count of sessions by platform.
+  static String? get _platform {
+    if (kIsWeb) return 'web';
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.android => 'android',
+      TargetPlatform.iOS => 'ios',
+      _ => null,
+    };
+  }
+
+  @override
+  Future<void> countEvent(String name) async {
+    await _call('countEvent', {'name': name});
+  }
+
+  @override
+  Future<InsightsReport> insightsReport(DateTime from, DateTime to) async =>
+      InsightsReport.fromCallable(
+        await _call('insightsReport', {
+          'from': insightsDay(from),
+          'to': insightsDay(to),
+        }),
+      );
 
   @override
   Future<LiveSearchAllowance?> liveSearchAllowance() async =>
       LiveSearchAllowance.fromCallable(await _call('liveSearchStatus', {}));
+
+  @override
+  Future<QuickPick> createQuickPick({
+    required String requestId,
+    required SearchPreferences search,
+    String? zip,
+  }) async {
+    final origin = zip == null ? await _locate() : null;
+    final view = await _call('createQuickPick', {
+      'requestId': requestId,
+      'search': startSearchFor(origin, search, zip: zip),
+    });
+    final deck = await _db.doc('restaurantDecks/${view['deckId']}').get();
+    return quickPickFrom(view, {
+      for (final card in deckRestaurants(deck.data()!)) card.id: card,
+    });
+  }
+
+  @override
+  Future<QuickPick> rerollQuickPick(QuickPick pick) async {
+    // `from` is the card on screen, so a retried reroll cannot skip one.
+    final view = await _call('rerollQuickPick', {
+      'quickPickId': pick.id,
+      'from': pick.position,
+    });
+    return quickPickFrom(view, pick.cards);
+  }
+
+  @override
+  Future<String?> nickname() async {
+    final user = _auth.currentUser;
+    if (user == null || user.isAnonymous || !user.emailVerified) return null;
+    final profile = await _db.doc('userProfiles/${user.uid}').get();
+    return profile.data()?['nickname'] as String?;
+  }
+
+  @override
+  Future<String?> setNickname(String nickname) async =>
+      (await _call('setNickname', {'nickname': nickname}))['nickname']
+          as String?;
 }
+
+/// A Quick Pick as the server reports it, with the deck's cards.
+QuickPick quickPickFrom(
+  Map<String, dynamic> view,
+  Map<String, Restaurant> cards,
+) => QuickPick(
+  id: view['quickPickId'] as String,
+  position: (view['position'] as num).toInt(),
+  restaurant: cards[view['candidateId']]!,
+  rerollsLeft: (view['rerollsLeft'] as num).toInt(),
+  cards: cards,
+);

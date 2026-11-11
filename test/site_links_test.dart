@@ -15,6 +15,7 @@ void main() {
       ('app/account', AppLinkTarget.account),
       ('app/host', AppLinkTarget.host),
       ('app/join', AppLinkTarget.join),
+      ('app/demo', AppLinkTarget.demo),
     ]) {
       final link = appLinkFrom(Uri.parse('https://example.test/$path'));
       expect((link?.target, link?.joinCode), (target, null), reason: path);

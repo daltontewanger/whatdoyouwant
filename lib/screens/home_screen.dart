@@ -1,15 +1,28 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../models/own_spot.dart';
 import '../models/user.dart';
 import '../services/active_room_store.dart';
 import '../services/room_backend.dart';
+import '../services/search_defaults.dart';
 import '../services/site_links.dart';
 import 'account_action_screen.dart';
 import 'account_screen.dart';
+import 'quick_pick_screen.dart';
 import 'room_screen.dart';
 import 'join_screen.dart';
 import 'main_shell.dart';
+import 'own_list_screen.dart';
+import 'search_setup_screen.dart';
+import 'bubble_icons.dart';
+import 'demo_screen.dart';
+import 'home_banner.dart';
+import 'intro_screen.dart';
+import 'step_card.dart';
+import '../themes/main_theme.dart';
+import '../services/usage_counts.dart';
+import 'insights_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final String currentUid;
@@ -23,7 +36,7 @@ class HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   // Read on use: signing in, out or deleting an account changes the user.
   AppUser get _currentUser {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = _auth.currentUser;
     return AppUser(
       id: user != null && user.uid.isNotEmpty ? user.uid : 'guest',
       name: 'Guest',
@@ -50,6 +63,16 @@ class HomeScreenState extends State<HomeScreen>
     _animationController.forward();
     // A shared join link or a button on the public site opened the app.
     final link = kIsWeb ? takeLaunchLink(Uri.base) : null;
+    if (kIsWeb && takeSiteArrival(Uri.base)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) countTap(context, UsageEvent.openedFromSite);
+      });
+    }
+    // Someone arriving by a link came to do something; the intro can wait
+    // for a later visit.
+    if (link == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowIntro());
+    }
     if (link != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -62,6 +85,13 @@ class HomeScreenState extends State<HomeScreen>
             _openAccount();
           case AppLinkTarget.accountAction:
             _finishAccountLink(link.mode!, link.code!);
+          case AppLinkTarget.insights:
+            Navigator.push(
+              context,
+              MaterialPageRoute<void>(builder: (_) => const InsightsScreen()),
+            );
+          case AppLinkTarget.demo:
+            Navigator.push(context, DemoScreen.route());
         }
       });
     }
@@ -74,8 +104,12 @@ class HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
+  FirebaseAuth get _auth =>
+      RoomBackendScope.maybeOf(context)?.accounts?.auth ??
+      FirebaseAuth.instance;
+
   bool get _verifiedHost {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = _auth.currentUser;
     return user != null && !user.isAnonymous && user.emailVerified;
   }
 
@@ -113,7 +147,11 @@ class HomeScreenState extends State<HomeScreen>
     _loadActiveRoom();
   }
 
+  bool _opening = false;
+
   Future<void> _loadActiveRoom() async {
+    // Home stays still while a new room slides in over it.
+    if (_opening) return;
     final room = await _activeRooms?.load();
     if (mounted) setState(() => _activeRoom = room);
   }
@@ -145,6 +183,7 @@ class HomeScreenState extends State<HomeScreen>
                         isCreator: true,
                         roomCode: active.id,
                         joinCode: room.joinCode,
+                        ownSpots: active.ownSpots,
                       )
                       : WaitingForOptionsScreen(
                         roomCode: active.id,
@@ -164,83 +203,173 @@ class HomeScreenState extends State<HomeScreen>
   }
 
   // The logo's butter yellow makes the room in progress stand out from the
-  // white card; dark brown text on it keeps AA contrast.
-  Widget _activeRoomBanner(ThemeData theme) => Container(
-    margin: const EdgeInsets.only(bottom: 16),
-    decoration: BoxDecoration(
-      color: const Color(0xFFFFF1C9),
-      border: Border.all(color: const Color(0xFFF7C948), width: 1.5),
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: Stack(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(44, 14, 44, 16),
-          child: Column(
-            children: [
-              Text(
-                'You have a room in progress.',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyLarge!.copyWith(
-                  color: const Color(0xFF5A4300),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _returnToRoom,
-                  child: const Text(
-                    'Return to room',
-                    style: TextStyle(fontSize: 16),
+  // white card; dark brown text on it keeps AA contrast. One compact row: a
+  // bobbing alert bubble, the message, and the same arrow as the step cards.
+  Widget _activeRoomBanner(ThemeData theme) {
+    const brown = Color(0xFF5A4300);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Material(
+        color: const Color(0xFFFFF1C9),
+        shape: RoundedRectangleBorder(
+          side: const BorderSide(color: Color(0xFFF7C948), width: 1.5),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: _isLoading ? null : _returnToRoom,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+            child: Row(
+              children: [
+                const ExcludeSemantics(
+                  child: _Bobbing(
+                    child: BubbleIcon(BubbleGlyph.notice, size: 36),
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Semantics(
+                    button: true,
+                    label: 'You have a room in progress. Return to room',
+                    excludeSemantics: true,
+                    child: Text(
+                      'You have a room in progress',
+                      style: theme.textTheme.bodyLarge!.copyWith(
+                        color: brown,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                Tooltip(
+                  message: 'Return to room',
+                  child: ExcludeSemantics(
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.arrow_forward,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Dismiss',
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.close, color: brown, size: 20),
+                  onPressed:
+                      _isLoading
+                          ? null
+                          : () async {
+                            await RoomBackendScope.of(
+                              context,
+                            ).activeRooms?.forget();
+                            await _loadActiveRoom();
+                          },
+                ),
+              ],
+            ),
           ),
         ),
-        Positioned(
-          top: 2,
-          right: 2,
-          child: IconButton(
-            tooltip: 'Dismiss',
-            icon: const Icon(Icons.close, color: Color(0xFF5A4300)),
-            onPressed:
-                _isLoading
-                    ? null
-                    : () async {
-                      await RoomBackendScope.of(context).activeRooms?.forget();
-                      await _loadActiveRoom();
-                    },
-          ),
+      ),
+    );
+  }
+
+  /// Live searches need a verified account; guests can still join rooms.
+  /// Signing in lands back here on home rather than in what was asked for.
+  Future<bool> _verifiedOrSignIn(String toDo) async {
+    if (_verifiedHost) return true;
+    final messenger = ScaffoldMessenger.of(context);
+    await _openAccount();
+    if (!mounted || _verifiedHost) return false;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          'Sign in with a verified email to $toDo. Guests can join without an account.',
         ),
-      ],
+      ),
+    );
+    return false;
+  }
+
+  Future<void> _maybeShowIntro() async {
+    if (!mounted) return;
+    final intro = RoomBackendScope.maybeOf(context)?.intro;
+    if (intro == null || await intro.seen() || !mounted) return;
+    // Marked before it opens, so closing the app mid-way doesn't show it
+    // again on every launch.
+    await intro.markSeen();
+    if (mounted) await openIntro();
+  }
+
+  Future<void> openIntro() => Navigator.push(
+    context,
+    MaterialPageRoute<void>(
+      fullscreenDialog: true,
+      builder: (_) => const IntroScreen(),
     ),
   );
 
-  Future<void> _createRoom() async {
+  /// The extra ways to decide, shared by the step cards and the bar's menu.
+  Future<void> openQuickPick() => _quickPick();
+  Future<void> openOwnList() => _ownList();
+  Future<void> openSearchSettings() => _searchSettings();
+
+  Future<void> _ownList() => Navigator.push(
+    context,
+    MaterialPageRoute<void>(
+      builder: (_) => OwnListScreen(onStartRoom: _createRoom),
+    ),
+  );
+
+  /// Saved search choices, edited without starting a room or pick.
+  Future<void> _searchSettings() async {
+    final defaults = RoomBackendScope.of(context).searchDefaults;
+    final current = await defaults?.load() ?? const SearchPreferences();
+    if (!mounted) return;
+    final chosen = await Navigator.push<SearchSetup>(
+      context,
+      MaterialPageRoute(
+        builder:
+            (_) =>
+                SearchSetupScreen(initial: current, initialZip: defaults?.zip),
+      ),
+    );
+    if (chosen == null) return;
+    defaults?.zip = chosen.zip;
+    await defaults?.save(chosen.search);
+  }
+
+  Future<void> _quickPick() async {
+    if (!await _verifiedOrSignIn('use Tell Me What I Want') || !mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const QuickPickScreen()),
+    );
+  }
+
+  /// Creates a room and opens its lobby; with [ownSpots], the room swipes on
+  /// those spots from the person's own list instead of a search.
+  Future<void> _createRoom([List<OwnSpot>? ownSpots]) async {
     final scope = RoomBackendScope.of(context);
     final messenger = ScaffoldMessenger.of(context);
-    if (!_verifiedHost) {
-      // Hosts need a verified account; guests can still join without one.
-      // Signing in lands back here on home rather than in a new room.
-      await _openAccount();
-      if (!mounted || _verifiedHost) return;
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Sign in with a verified email to create a room. Guests can join without an account.',
-          ),
-        ),
-      );
-      return;
-    }
+    if (!await _verifiedOrSignIn('create a room')) return;
     setState(() => _isLoading = true);
     try {
       final room = await scope.backend.createRoom();
-      await scope.activeRooms?.remember(ActiveRoom(room.id, host: true));
+      _opening = true;
+      await scope.activeRooms?.remember(
+        ActiveRoom(room.id, host: true, ownSpots: ownSpots),
+      );
       if (!mounted) return;
-      Navigator.push(
+      await Navigator.push(
         context,
         MaterialPageRoute(
           builder:
@@ -249,9 +378,10 @@ class HomeScreenState extends State<HomeScreen>
                 isCreator: true,
                 roomCode: room.id,
                 joinCode: room.joinCode,
+                ownSpots: ownSpots,
               ),
         ),
-      ).then((_) => _loadActiveRoom());
+      );
     } catch (e) {
       messenger.showSnackBar(
         const SnackBar(
@@ -261,7 +391,11 @@ class HomeScreenState extends State<HomeScreen>
         ),
       );
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      _opening = false;
+      if (mounted) {
+        setState(() => _isLoading = false);
+        await _loadActiveRoom();
+      }
     }
   }
 
@@ -280,7 +414,7 @@ class HomeScreenState extends State<HomeScreen>
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.10),
+      backgroundColor: screenBackground,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -315,171 +449,46 @@ class HomeScreenState extends State<HomeScreen>
                     ],
                   ),
                   child: Column(
-                    mainAxisSize: MainAxisSize.max,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Top - Logo and Title
-                      Column(
-                        children: [
-                          Image.asset(
-                            'assets/icon/wdywicon2.png',
-                            width: 88,
-                            height: 88,
-                            fit: BoxFit.contain,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            "What Do You Want?!",
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.headlineMedium!.copyWith(
-                              fontSize: 36,
-                              color: theme.colorScheme.primary,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 2,
-                              shadows: [
-                                const Shadow(
-                                  color: Colors.black12,
-                                  blurRadius: 4,
-                                  offset: Offset(1, 2),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.only(top: 20.0, bottom: 10.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "1. ",
-                                  style: theme.textTheme.bodyLarge?.copyWith(
-                                    color: theme.colorScheme.primary,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 17,
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Text(
-                                    "Create a room and invite your friends, or join one with a code.",
-                                    style: theme.textTheme.bodyLarge?.copyWith(
-                                      color: theme.colorScheme.primary,
-                                      fontWeight: FontWeight.w500,
-                                      fontSize: 17,
-                                      height: 1.4,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "2. ",
-                                  style: theme.textTheme.bodyLarge?.copyWith(
-                                    color: theme.colorScheme.primary,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 17,
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Text(
-                                    "Swipe through food options and vote on your favorites.",
-                                    style: theme.textTheme.bodyLarge?.copyWith(
-                                      color: theme.colorScheme.primary,
-                                      fontWeight: FontWeight.w500,
-                                      fontSize: 17,
-                                      height: 1.4,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "3. ",
-                                  style: theme.textTheme.bodyLarge?.copyWith(
-                                    color: theme.colorScheme.primary,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 17,
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Text(
-                                    "When everyone matches on a spot, you'll instantly see where to eat!",
-                                    style: theme.textTheme.bodyLarge?.copyWith(
-                                      color: theme.colorScheme.primary,
-                                      fontWeight: FontWeight.w500,
-                                      fontSize: 17,
-                                      height: 1.4,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                      Text(
+                        "What Do You Want?!",
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.headlineMedium!.copyWith(
+                          fontSize: 36,
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w900,
+                          shadows: [
+                            const Shadow(
+                              color: Colors.black12,
+                              blurRadius: 4,
+                              offset: Offset(1, 2),
                             ),
                           ],
                         ),
                       ),
-                      // Center - Image
                       Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        padding: const EdgeInsets.fromLTRB(4, 12, 4, 16),
                         child: ScaleTransition(
                           scale: _scaleAnimation,
-                          child: AspectRatio(
-                            aspectRatio: 1.83,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: theme.colorScheme.primary,
-                                  width: 4,
-                                ),
-                                borderRadius: BorderRadius.circular(24),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.33),
-                                    blurRadius: 18,
-                                    spreadRadius: 2,
-                                    offset: const Offset(0, 5),
-                                  ),
-                                ],
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(20),
-                                child: FittedBox(
-                                  fit: BoxFit.contain,
-                                  child: Image.asset('assets/images/wdyw.png'),
-                                ),
-                              ),
-                            ),
-                          ),
+                          child: const HomeBanner(),
                         ),
                       ),
-                      // Bottom - Buttons and Privacy
-                      Column(
+                      if (_activeRoom != null) _activeRoomBanner(theme),
+                      Row(
                         children: [
-                          if (_activeRoom != null) _activeRoomBanner(theme),
-                          SizedBox(
-                            width: double.infinity,
+                          Expanded(
                             child: ElevatedButton(
-                              onPressed: _isLoading ? null : _createRoom,
+                              onPressed:
+                                  _isLoading ? null : () => _createRoom(),
                               child: const Text(
                                 'Create Room',
                                 style: TextStyle(fontSize: 16),
                               ),
                             ),
                           ),
-                          const SizedBox(height: 18),
-                          SizedBox(
-                            width: double.infinity,
+                          const SizedBox(width: 12),
+                          Expanded(
                             child: ElevatedButton(
                               onPressed: _isLoading ? null : _joinRoom,
                               style: ElevatedButton.styleFrom(
@@ -499,6 +508,28 @@ class HomeScreenState extends State<HomeScreen>
                           ),
                         ],
                       ),
+                      // The buttons come first so regulars can get going;
+                      // the steps below are there for first-timers.
+                      const SizedBox(height: 24),
+                      const RoomSteps(),
+                      const SizedBox(height: 20),
+                      Text(
+                        'More ways to want',
+                        style: theme.textTheme.titleMedium!.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      StepCard(
+                        step: quickPickStep,
+                        onTap: _isLoading ? null : _quickPick,
+                      ),
+                      const SizedBox(height: 12),
+                      StepCard(
+                        step: ownListStep,
+                        onTap: _isLoading ? null : _ownList,
+                      ),
                     ],
                   ),
                 ),
@@ -517,4 +548,50 @@ class HomeScreenState extends State<HomeScreen>
       ),
     );
   }
+}
+
+/// Bobs its child gently up and down, like the site's speech bubbles. Still
+/// when the device asks for reduced motion.
+class _Bobbing extends StatefulWidget {
+  const _Bobbing({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_Bobbing> createState() => _BobbingState();
+}
+
+class _BobbingState extends State<_Bobbing>
+    with SingleTickerProviderStateMixin {
+  late final _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1600),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _controller.stop();
+    } else if (!_controller.isAnimating) {
+      _controller.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _controller,
+    builder:
+        (context, child) => Transform.translate(
+          offset: Offset(0, -4 * Curves.easeInOut.transform(_controller.value)),
+          child: child,
+        ),
+    child: widget.child,
+  );
 }

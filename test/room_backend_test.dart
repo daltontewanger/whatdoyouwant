@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:whatdoyouwant/services/callable_room_backend.dart';
+import 'package:whatdoyouwant/services/search_defaults.dart';
 
 void main() {
   group('callable mapping', () {
@@ -50,17 +51,33 @@ void main() {
       expect((cards[1].latitude, cards[1].website), (null, null));
     });
 
+    test('a ZIP code search sends the ZIP code and no location', () {
+      expect(
+        startSearchFor(null, const SearchPreferences(), zip: '67202')['origin'],
+        {'zip': '67202'},
+      );
+    });
+
     test('the start search rounds the location and sends offered values', () {
       expect(
         startSearchFor(
           (lat: 38.123456, lng: -98.987654),
-          radiusMiles: 5.0,
-          deckSize: 15,
+          const SearchPreferences(
+            unit: DistanceUnit.km,
+            radius: 10,
+            deckSize: 15,
+            includedCuisineIds: ['thai'],
+            excludedCuisineIds: ['pizza'],
+            openNowPreferred: true,
+          ),
         ),
         {
           'origin': {'lat': 38.123, 'lng': -98.988},
-          'radius': {'value': 5, 'unit': 'mi'},
+          'radius': {'value': 10, 'unit': 'km'},
           'deckSize': 15,
+          'includedCuisineIds': ['thai'],
+          'excludedCuisineIds': ['pizza'],
+          'openNowPreferred': true,
         },
       );
     });

@@ -266,6 +266,7 @@ test('a Quick Pick spends one search; retrying it and rerolling cost nothing', a
     seen.push(current.candidateId);
   }
   assert.equal(new Set(seen).size, 5, 'every reroll shows a card not seen yet');
+  assert.deepEqual(seen, deck.candidateIds, 'cards come in deck order, so preferred cuisines come first');
   assert.deepEqual(await reroll(handlers, 'qp1', pick.quickPickId, current.position - 1), current,
     'a retried reroll does not skip a card');
   await fails(reroll(handlers, 'qp1', pick.quickPickId, current.position), 'failed-precondition', 'no-rerolls');

@@ -3,7 +3,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 require('./network-guard.cjs').installHttpGuard();
-const { parseSearchRequest, filterSummary, InvalidSearchRequest } = require('../rooms/search/request');
+const { parseSearchRequest, filterSummary, InvalidSearchRequest, UnknownZip } = require('../rooms/search/request');
 const { CUISINES, CUISINE_IDS, cuisinesFromHere, dietaryHintsFromHere } = require('../rooms/search/cuisines');
 const { buildDeck, distanceMeters, candidateId } = require('../rooms/search/deck');
 const { createFakeProvider } = require('../rooms/search/fake-provider');
@@ -76,6 +76,22 @@ test('request contract: rejects anything outside the whitelist instead of trimmi
   for (const data of bad) assert.throws(() => parseSearchRequest(data), InvalidSearchRequest, JSON.stringify(data));
 });
 
+test('request contract: a US ZIP code searches around its centre and is not kept', () => {
+  const parsed = request({ origin: { zip: '67202' } });
+  assert.deepEqual(parsed.origin, { lat: 37.687, lng: -97.335 });
+  assert.ok(!JSON.stringify(parsed).includes('67202'), 'nothing downstream sees the ZIP code itself');
+  assert.deepEqual(request({ origin: { zip: '00601' } }).origin, { lat: 18.181, lng: -66.75 }, 'the first row loads');
+  // Well formed but no area to search, such as a PO-box-only ZIP code.
+  for (const zip of ['00000', '99999', '67201']) {
+    assert.throws(() => request({ origin: { zip } }), UnknownZip, zip);
+  }
+  for (const origin of [{ zip: 67202 }, { zip: '6720' }, { zip: '67202-1234' }, { zip: ' 67202' },
+    { zip: '67202', lat: 1 }, { zip: '67202', ...ORIGIN }]) {
+    assert.throws(() => request({ origin }), error => error instanceof InvalidSearchRequest &&
+      !(error instanceof UnknownZip), JSON.stringify(origin));
+  }
+});
+
 test('cuisines: HERE food types, families and categories map to whitelisted IDs only', () => {
   assert.deepEqual(cuisinesFromHere(['201-010']), ['chinese']);
   assert.deepEqual(cuisinesFromHere(['101-003']), ['american', 'bbq']);
@@ -83,6 +99,7 @@ test('cuisines: HERE food types, families and categories map to whitelisted IDs 
   assert.deepEqual(cuisinesFromHere([], ['100-1000-0005']), ['mexican']);
   assert.deepEqual(cuisinesFromHere(['800-067'], ['100-1000-0009']), ['burgers', 'fast_food']);
   assert.deepEqual(cuisinesFromHere(['800-066', '800-085']), [], 'unmapped types are unknown, not a cuisine');
+  assert.deepEqual(cuisinesFromHere(['204-000', '300-000']), [], 'broad "other" regions are not offered, so never excluded');
   assert.deepEqual(cuisinesFromHere([]), []);
   assert.deepEqual(dietaryHintsFromHere(['800-077', '202-000', '800-076']), ['vegan', 'vegetarian']);
   for (const [id, cuisine] of Object.entries(CUISINES)) {
@@ -139,8 +156,62 @@ test('deck: distance comes from the origin; out-of-radius and positively exclude
   assert.ok(!candidates.some(c => c.cuisineIds.includes('mexican')));
   assert.ok(candidates.some(c => c.cuisineIds.length === 0), 'unknown cuisine stays under exclusions (flexible)');
   assert.deepEqual(pool, { received: 26, invalid: 0, outOfRadius: 1, excluded: 2, duplicates: 0, eligible: 23,
-    selected: 23, minimum: 8, sufficient: true });
+    reportedClosed: 0, neverLeftOut: 0, favoritesIncluded: 0, selected: 23, minimum: 8, sufficient: true });
   assert.equal((await fakeDeck({ deckSize: 5 })).pool.minimum, 5, 'a short deck needs only its own size');
+});
+
+async function listDeck(options, fields = { deckSize: 10 }) {
+  const parsed = request(fields);
+  const { restaurants } = await createFakeProvider().searchNearby(parsed);
+  return { restaurants, deck: buildDeck(restaurants, parsed, { seed: 'seed-1', ...options }) };
+}
+
+test('deck: never places are left out and counted; too many leaves the pool short', async () => {
+  const { deck: plain } = await listDeck({});
+  const never = plain.candidates.slice(0, 3).map(c => c.id);
+  const { deck } = await listDeck({ never });
+  assert.ok(deck.candidates.every(c => !never.includes(c.id)));
+  assert.equal(deck.candidates.length, 10);
+  assert.equal(deck.pool.neverLeftOut, 3);
+  assert.equal(deck.pool.eligible, plain.pool.eligible, 'eligible still reports what the search found');
+
+  const { restaurants } = await listDeck({});
+  const everything = restaurants.map(candidateId);
+  const { deck: empty } = await listDeck({ never: everything });
+  assert.deepEqual([empty.candidates.length, empty.pool.sufficient], [0, false]);
+});
+
+test('deck: places reported closed leave the pool itself, so they never count toward enough', async () => {
+  const { deck: plain } = await listDeck({});
+  const closed = plain.candidates.slice(0, 2).map(c => c.id);
+  const { deck } = await listDeck({ closed, never: [plain.candidates[2].id] });
+  assert.ok(deck.candidates.every(c => !closed.includes(c.id)));
+  assert.deepEqual([deck.pool.reportedClosed, deck.pool.neverLeftOut, deck.pool.eligible],
+    [2, 1, plain.pool.eligible - 2]);
+  const { restaurants } = await listDeck({});
+  const { deck: none } = await listDeck({ closed: restaurants.map(candidateId) });
+  assert.deepEqual([none.pool.eligible, none.pool.neverLeftOut, none.pool.sufficient], [0, 0, false],
+    'too few places, with nothing to blame on never lists');
+});
+
+test('deck: one favorite per person, only when found, at most half the deck', async () => {
+  const { restaurants, deck: plain } = await listDeck({}, { deckSize: 5 });
+  const outside = restaurants.map(candidateId).filter(id => !plain.candidates.some(c => c.id === id));
+  // Each person's favorites are all places the plain draw left out.
+  const people = [[outside[0], outside[1]], [outside[2]], [outside[3]], [outside[4]], ['c00000000000000000000']];
+  const { deck } = await listDeck({ favorites: people }, { deckSize: 5 });
+  const used = deck.candidates.filter(c => outside.slice(0, 5).includes(c.id));
+  assert.equal(used.length, 2, 'five cards hold at most two favorites');
+  assert.equal(deck.pool.favoritesIncluded, 2);
+  assert.ok(!(used.some(c => c.id === outside[0]) && used.some(c => c.id === outside[1])), 'one per person');
+  assert.equal(deck.candidates.length, 5);
+  assert.deepEqual((await listDeck({ favorites: people }, { deckSize: 5 })).deck.candidates.map(c => c.id),
+    deck.candidates.map(c => c.id), 'the seed decides, so a retry builds the same deck');
+
+  const { deck: shared } = await listDeck({ favorites: [[outside[0]], [outside[0]]] }, { deckSize: 5 });
+  assert.equal(shared.pool.favoritesIncluded, 1, 'two people with the same favorite share one card');
+  const { deck: neverWins } = await listDeck({ favorites: [[outside[0]]], never: [outside[0]] }, { deckSize: 5 });
+  assert.ok(!neverWins.candidates.some(c => c.id === outside[0]), 'someone else\'s never outweighs a favorite');
 });
 
 test('deck: included cuisines lead, unknown cuisines next, other cuisines last', async () => {
@@ -202,8 +273,9 @@ test('HERE normalization: contract fields only, title stripped from the address,
   const items = fixture('suburb').responses[0].body.items;
   const slice = normalizeHereItem(items[0]);
   assert.deepEqual(Object.keys(slice).sort(), ['address', 'attribution', 'categoryIds', 'chainId', 'cuisineIds',
-    'dietaryHints', 'distanceMetersFromOrigin', 'latitude', 'longitude', 'name', 'openStatus', 'phone', 'provider',
-    'providerPlaceId', 'website'].sort());
+    'dietaryHints', 'distanceMetersFromOrigin', 'foodLabels', 'latitude', 'longitude', 'name', 'openStatus', 'phone', 'photoUrl',
+    'provider', 'providerPlaceId', 'website'].sort());
+  assert.equal(slice.photoUrl, null, 'HERE sends no photos');
   assert.equal(slice.address, '101 Synthetic Ave, Exampleton, KS 67000, United States');
   assert.deepEqual(slice.cuisineIds, ['italian', 'pizza']);
   assert.equal(slice.chainId, 'here:9001');
@@ -218,6 +290,21 @@ test('HERE normalization: contract fields only, title stripped from the address,
   assert.deepEqual(byName('Test Kitchen Curry').dietaryHints, ['vegetarian']);
   assert.equal(normalizeHereItem(items.find(item => item.resultType === 'locality')), null);
   assert.equal(normalizeHereItem({ ...items[0], contacts: [{ www: [{ value: 'javascript:alert(1)' }] }] }).website, null);
+});
+
+test('HERE websites: the place\'s own site first, bare domains made usable', () => {
+  const item = fixture('suburb').responses[0].body.items[0];
+  const site = (...contacts) => normalizeHereItem({ ...item, contacts }).website;
+  assert.equal(site({ www: [{ value: 'https://www.groupon.com/deals/x' }, { value: 'https://own.example/' }] }),
+    'https://own.example/', 'deal sites lose to the place\'s own');
+  assert.equal(site({ phone: [{ value: '+1 555 0100' }] }, { www: [{ value: 'https://own.example/' }] }),
+    'https://own.example/', 'any contact group counts');
+  assert.equal(site({ www: [{ value: 'https://m.doordash.com/store/1' }] }), 'https://m.doordash.com/store/1',
+    'a third-party link is still better than none');
+  assert.equal(site({ www: [{ value: 'www.own.example/menu' }] }), 'https://www.own.example/menu');
+  assert.equal(site({ www: [{ value: 'not a site' }, { value: 'mailto:a@own.example' }] }), null);
+  assert.equal(normalizeHereItem({ ...item, contacts: [{ www: [] }, { phone: [{ value: '+1 555 0100' }] }] }).phone,
+    '+1 555 0100');
 });
 
 test('HERE one-circle: one browse call when the pool is healthy, with no key or free text in it', async () => {
@@ -318,4 +405,43 @@ test('HERE transport: key only in the outgoing URL, bounded by a timeout, error 
   assert.deepEqual(await transport({ endpoint: ENDPOINTS.discover, params: {} }), { status: 401, headers: {}, body: null });
   await assert.rejects(transport({ endpoint: 'https://example.com/steal', params: {} }), /Unexpected HERE endpoint/);
   assert.throws(() => createHereTransport({ apiKey: '' }), /key is required/);
+});
+
+test('cuisines: the app and the Firestore rules offer exactly the server whitelist', () => {
+  const { readFileSync } = require('node:fs');
+  const dart = readFileSync(require.resolve('../lib/models/cuisines.dart'), 'utf8');
+  const inApp = [...dart.matchAll(/Cuisine\('(\w+)', '([^']+)'\)/g)].map(([, id, label]) => [id, label]);
+  assert.deepEqual(inApp, CUISINE_IDS.map(id => [id, CUISINES[id].label]));
+  assert.match(dart, /maxCuisinesPerList = 8;/);
+  const rules = readFileSync(require.resolve('../rooms/firestore.rules'), 'utf8');
+  const list = rules.match(/function cuisineIds\(\) \{\s*return \[([^\]]+)\]/)[1];
+  assert.deepEqual([...list.matchAll(/'(\w+)'/g)].map(([, id]) => id), CUISINE_IDS);
+});
+
+test('notice cards: after every few places, never last, outside the candidates', () => {
+  const { noticeCards } = require('../rooms/decks');
+  const notices = { every: 4, title: 'A word from us', text: 'Thanks.' };
+  assert.deepEqual(noticeCards(10, notices).map(card => [card.id, card.after]), [['n1', 4], ['n2', 8]]);
+  assert.deepEqual(noticeCards(8, notices).map(card => card.after), [4], 'not after the last place');
+  assert.deepEqual(noticeCards(10, null), []);
+});
+
+test("food labels: the provider's names, primary first, regions split out, no dietary or generic entries", () => {
+  const { foodLabelsFromHere } = require('../rooms/search/cuisines');
+  assert.deepEqual(foodLabelsFromHere([{ id: '800-077', name: 'Vegetarian' }, { id: '304-000', name: 'Italian' },
+    { id: '800-057', name: 'Pizza', primary: true }], [{ id: '100-1000-0000', name: 'Restaurant' }]), ['Pizza', 'Italian']);
+  assert.deepEqual(foodLabelsFromHere([{ id: '203-026', name: 'Japanese-Sushi', primary: true },
+    { id: '203-010', name: 'Japanese-Fish/Other Seafood' }], [{ id: '100-1000-0009', name: 'Fast Food' }]),
+  ['Japanese', 'Sushi', 'Fish & Other Seafood', 'Fast Food']);
+  assert.deepEqual(foodLabelsFromHere(undefined, undefined), []);
+  assert.deepEqual(foodLabelsFromHere([{ id: 'x', name: 7 }, null]), []);
+});
+
+test('food labels: stored cards fall back to cuisine names and carry dietary hints for results', () => {
+  const { storedCandidate, resultCard } = require('../rooms/decks');
+  const base = { id: 'c1', cuisineIds: ['thai'], dietaryHints: ['vegan'], foodLabels: [] };
+  assert.deepEqual(storedCandidate(base).foodLabels, ['Thai']);
+  assert.deepEqual(storedCandidate({ ...base, foodLabels: ['Noodles'] }).foodLabels, ['Noodles']);
+  const card = resultCard(storedCandidate(base));
+  assert.deepEqual([card.foodLabels, card.dietary], [['Thai'], ['vegan']]);
 });

@@ -1,15 +1,23 @@
 import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import '../services/accessibility.dart';
 import '../services/live_search.dart';
 import '../services/room_backend.dart';
+import '../services/room_lists.dart';
+import 'food_loader.dart';
+import 'my_places_screen.dart';
+import 'place_marks.dart';
+import 'room_roster.dart';
+import 'search_panel.dart';
 import 'swipe_screen.dart';
+import '../models/own_spot.dart';
 import '../models/user.dart';
+import '../themes/main_theme.dart';
+import '../services/usage_counts.dart';
 
 /// What to tell a host whose room could not be created. Covers both callable
 /// and Firestore errors; anything else gets the generic retry message.
@@ -29,32 +37,15 @@ String createRoomErrorMessage(Object error) {
 
 /// What to tell a host whose room could not start voting.
 String startRoomErrorMessage(Object error) {
-  final limited = liveSearchErrorMessage(error);
-  if (limited != null) return limited;
-  if (error is TimeoutException) {
-    return 'Could not find your location in time. Check that location is on, then try again.';
-  }
-  if (error is PermissionDeniedException) {
-    return 'Location permission is required to find restaurants near you.';
-  }
-  if (error is LocationServiceDisabledException) {
-    return 'Location services are disabled. Please enable them in settings.';
-  }
   if (error is FirebaseException) {
     switch (error.code) {
       case 'permission-denied':
       case 'not-found':
         return 'This room can no longer be started. It may have expired or been closed.';
-      case 'resource-exhausted':
-        return 'Restaurant search is busy right now. Wait a minute and try again.';
-      case 'failed-precondition':
-        return 'Not enough restaurants nearby match. Try a wider distance.';
-      case 'unavailable':
-        return 'Restaurant search is unavailable right now. Try again in a minute.';
-      case 'unauthenticated':
-        return 'This device could not be verified. Restart the app and try again.';
     }
   }
+  final common = searchErrorMessage(error);
+  if (common != null) return common;
   return 'Could not load restaurants. Check your connection and try again.';
 }
 
@@ -68,29 +59,35 @@ class RoomScreen extends StatefulWidget {
   final String? joinCode;
   final AppUser currentUser;
 
+  /// Spots from the host's own list to swipe on in place of a search.
+  final List<OwnSpot>? ownSpots;
+
   const RoomScreen({
     super.key,
     required this.currentUser,
     this.isCreator = true,
     this.roomCode,
     this.joinCode,
+    this.ownSpots,
   });
 
   @override
   State<RoomScreen> createState() => _RoomScreenState();
 }
 
-class _RoomScreenState extends State<RoomScreen> {
+class _RoomScreenState extends State<RoomScreen> with SearchStarter {
   String? _roomCode;
   String? _joinCode;
   Stream<RoomState>? _roomStream;
-  double _selectedRadius = 5.0;
-  int _selectedMaxOptions = 5;
-  final List<int> radiusOptions = [1, 3, 5, 10, 15];
-  final List<int> optionCounts = [5, 10, 15, 25];
   bool _isLoading = false;
 
-  RoomBackend get _backend => RoomBackendScope.of(context).backend;
+  RoomBackend get _backend => backend;
+
+  @override
+  String get startLabel => 'Start Swiping';
+
+  @override
+  String get searchCostNote => 'Starting uses one.';
 
   @override
   void initState() {
@@ -99,12 +96,19 @@ class _RoomScreenState extends State<RoomScreen> {
     _joinCode = widget.joinCode;
   }
 
+  bool _setupLoaded = false;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (widget.isCreator && !_setupLoaded) {
+      _setupLoaded = true;
+      loadSearchSetup();
+    }
     if (_roomCode != null) {
       _roomStream ??= _backend.watch(_roomCode!);
       _prepareStart();
+      _shareLists();
     } else if (widget.isCreator && !_isLoading) {
       _createRoom();
     }
@@ -122,6 +126,7 @@ class _RoomScreenState extends State<RoomScreen> {
         _isLoading = false;
       });
       _prepareStart();
+      _shareLists();
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -132,69 +137,71 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   bool _prepared = false;
+  RoomListSharer? _sharer;
+
+  /// The host's switches for members' favorites and never lists.
+  DeckLists _deckLists = DeckLists.all;
+
+  bool get _fromList => widget.ownSpots != null;
+
+  bool _announced = false;
+
+  // A room from the host's own list has no search for the lists to shape.
+  void _shareLists() {
+    if (!_announced && _roomCode != null) {
+      _announced = true;
+      announceNoTimer(context, _roomCode!);
+    }
+    final places = RoomBackendScope.of(context).myPlaces;
+    if (_sharer != null || _roomCode == null || _fromList || places == null) {
+      return;
+    }
+    _sharer = RoomListSharer(
+      backend: _backend,
+      places: places,
+      roomId: _roomCode!,
+    );
+  }
+
+  @override
+  void dispose() {
+    _sharer?.dispose();
+    super.dispose();
+  }
+
+  /// Never lists took out so many places that the search came up short.
+  Future<bool> _offerWithoutNever(int leftOut) async {
+    final retry = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Too picky, all of you'),
+            content: Text(
+              'Never lists left out $leftOut places, so too few are left. '
+              'Start without never lists? That runs the search again.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Start without them'),
+              ),
+            ],
+          ),
+    );
+    return retry == true;
+  }
 
   /// Lets the backend find the location while the host waits for guests.
   void _prepareStart() {
-    if (_prepared || !widget.isCreator || !_backend.usesDeviceLocation) return;
+    if (_prepared || !widget.isCreator || _fromList || !needsLocation) {
+      return;
+    }
     _prepared = true;
     unawaited(_backend.prepareStart().catchError((_) {}));
-  }
-
-  /// Location permission for backends that search around the device.
-  Future<bool> _locationReady() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      setState(() => _isLoading = false);
-      if (!mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Location services are disabled. Please enable them in settings.',
-          ),
-        ),
-      );
-      return false;
-    }
-
-    LocationPermission permission = await Geolocator.checkPermission();
-    // On the web, asking for permission means taking a full location fix just
-    // to learn the answer. The search's own request prompts instead.
-    if (kIsWeb && permission == LocationPermission.denied) return true;
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        setState(() => _isLoading = false);
-        if (!mounted) return false;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Location permission is required to use this feature.',
-            ),
-          ),
-        );
-        return false;
-      }
-    }
-    if (permission == LocationPermission.deniedForever) {
-      setState(() => _isLoading = false);
-      if (!mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Location permissions are permanently denied. Please enable them in your device settings.',
-          ),
-          action: SnackBarAction(
-            label: 'Open Settings',
-            onPressed: () async {
-              await Geolocator.openAppSettings();
-            },
-          ),
-          duration: const Duration(seconds: 6),
-        ),
-      );
-      return false;
-    }
-    return true;
   }
 
   Future<void> _startSwiping() async {
@@ -202,12 +209,20 @@ class _RoomScreenState extends State<RoomScreen> {
     setState(() => _isLoading = true);
 
     try {
-      if (_backend.usesDeviceLocation && !await _locationReady()) return;
-      final finalRestaurants = await _backend.start(
-        _roomCode!,
-        radiusMiles: _selectedRadius,
-        maxOptions: _selectedMaxOptions,
-      );
+      final spots = widget.ownSpots;
+      if (spots == null && needsLocation && !await locationReady()) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+      final finalRestaurants =
+          spots == null
+              ? await _backend.start(
+                _roomCode!,
+                search: search,
+                zip: zip,
+                lists: _deckLists,
+              )
+              : await _backend.startFromList(_roomCode!, spots);
 
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -219,8 +234,8 @@ class _RoomScreenState extends State<RoomScreen> {
               (_) => SwipeScreen(
                 roomCode: _roomCode!,
                 currentUser: widget.currentUser,
-                radius: _selectedRadius,
-                maxOptions: _selectedMaxOptions,
+                radius: search.radius.toDouble(),
+                maxOptions: finalRestaurants.length,
                 restaurants: finalRestaurants,
               ),
         ),
@@ -228,10 +243,157 @@ class _RoomScreenState extends State<RoomScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
+      if (showBlockedLocation(e)) return;
+      if (neverLeftOut(e) case final leftOut?) {
+        if (await _offerWithoutNever(leftOut) && mounted) {
+          setState(() => _deckLists = _deckLists.copyWith(never: false));
+          await _startSwiping();
+        }
+        return;
+      }
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(startRoomErrorMessage(e))));
     }
+  }
+
+  Widget _listSwitches(ThemeData theme) {
+    // The title opens the person's own list; the switch beside it decides
+    // whether everyone's lists shape this room's deck.
+    Widget row({
+      required Widget icon,
+      required String title,
+      required String subtitle,
+      required bool value,
+      required ValueChanged<bool> onChanged,
+    }) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Tooltip(
+              message: 'See your "$title" list',
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap:
+                    () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => const MyPlacesScreen(),
+                      ),
+                    ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      ExcludeSemantics(child: icon),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '$title ›',
+                              style: theme.textTheme.bodyLarge!.copyWith(
+                                color: theme.colorScheme.primary,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                            Text(subtitle, style: theme.textTheme.bodySmall),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Semantics(
+            label: "Use everyone's \"$title\" lists in this room",
+            child: Switch(
+              value: value,
+              onChanged: _isLoading ? null : onChanged,
+            ),
+          ),
+        ],
+      ),
+    );
+    // The lobby card paints its own background; the rows need a Material of
+    // their own for their ripple to show on it.
+    return Material(
+      type: MaterialType.transparency,
+      child: Column(
+        children: [
+          row(
+            icon: const FavoriteIcon(size: 34),
+            title: favoritesList,
+            subtitle: 'Up to one per person, at most half the deck',
+            value: _deckLists.favorites,
+            onChanged:
+                (on) => setState(
+                  () => _deckLists = _deckLists.copyWith(favorites: on),
+                ),
+          ),
+          row(
+            icon: const NeverIcon(size: 34),
+            title: neverList,
+            subtitle: "Everyone's exclusion list combined, kept private",
+            value: _deckLists.never,
+            onChanged:
+                (on) =>
+                    setState(() => _deckLists = _deckLists.copyWith(never: on)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _whoIsHere(RoomState? room, int memberCount) {
+    final people = room?.people ?? const <RoomPerson>[];
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        RoomRoster(
+          people: people,
+          memberCount: memberCount,
+          capacity: roomCapacity,
+        ),
+        if (people.any((person) => person.you && person.guest) &&
+            canHaveNickname(context))
+          const NicknameNudge(),
+      ],
+    );
+  }
+
+  Widget _listPanel(ThemeData theme) {
+    final spots = widget.ownSpots!;
+    return Column(
+      children: [
+        Text('From your list', style: theme.textTheme.titleLarge),
+        const SizedBox(height: 4),
+        Text(
+          '${spots.length} spots',
+          style: theme.textTheme.bodyLarge!.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        Text(
+          spots.map((spot) => spot.name).join(', '),
+          textAlign: TextAlign.center,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          "Doesn't use a live search.",
+          style: theme.textTheme.bodySmall!.copyWith(color: Colors.grey[800]),
+        ),
+      ],
+    );
   }
 
   @override
@@ -239,7 +401,7 @@ class _RoomScreenState extends State<RoomScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.10),
+      backgroundColor: screenBackground,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -293,7 +455,7 @@ class _RoomScreenState extends State<RoomScreen> {
                                         IconButton(
                                           icon: const Icon(
                                             Icons.arrow_back,
-                                            color: Colors.black54,
+                                            color: inkSoft,
                                             size: 28,
                                           ),
                                           tooltip: 'Back',
@@ -307,7 +469,7 @@ class _RoomScreenState extends State<RoomScreen> {
                                         'Room Code',
                                         style: theme.textTheme.titleLarge,
                                       ),
-                                      const SizedBox(height: 6),
+                                      const SizedBox(height: 8),
                                       SelectableText(
                                         shownCode,
                                         style: const TextStyle(
@@ -330,7 +492,7 @@ class _RoomScreenState extends State<RoomScreen> {
                                         alignment: Alignment.center,
                                         child: Padding(
                                           padding: const EdgeInsets.symmetric(
-                                            horizontal: 10.0,
+                                            horizontal: 12.0,
                                           ),
                                           child: Text(
                                             "Provide this code to those intending to join in on the fun. Once they are all confirmed to be in your lobby, you can start swiping!"
@@ -340,99 +502,53 @@ class _RoomScreenState extends State<RoomScreen> {
                                               color: Colors.grey[800],
                                               fontWeight: FontWeight.w500,
                                             ),
-                                            textAlign: TextAlign.center,
+                                            textAlign: TextAlign.start,
                                           ),
                                         ),
                                       ),
                                     ),
 
                                     // Search Options
-                                    Expanded(
-                                      flex: 2,
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Text(
-                                            'Select Search Radius:',
-                                            style: theme.textTheme.titleLarge,
-                                          ),
-                                          const SizedBox(height: 4),
-                                          SizedBox(
-                                            width: 110,
-                                            child: DropdownButton<double>(
-                                              value: _selectedRadius,
-                                              isExpanded: true,
-                                              items:
-                                                  radiusOptions
-                                                      .map(
-                                                        (r) => DropdownMenuItem(
-                                                          value: r.toDouble(),
-                                                          child: Text(
-                                                            '$r miles',
-                                                          ),
-                                                        ),
-                                                      )
-                                                      .toList(),
-                                              onChanged:
-                                                  (v) => setState(
-                                                    () => _selectedRadius = v!,
-                                                  ),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 18),
-                                          Text(
-                                            'Select Number of Options:',
-                                            style: theme.textTheme.titleLarge,
-                                          ),
-                                          const SizedBox(height: 4),
-                                          SizedBox(
-                                            width: 110,
-                                            child: DropdownButton<int>(
-                                              value: _selectedMaxOptions,
-                                              isExpanded: true,
-                                              items:
-                                                  optionCounts
-                                                      .map(
-                                                        (c) => DropdownMenuItem(
-                                                          value: c,
-                                                          child: Text(
-                                                            '$c options',
-                                                          ),
-                                                        ),
-                                                      )
-                                                      .toList(),
-                                              onChanged:
-                                                  (v) => setState(
-                                                    () =>
-                                                        _selectedMaxOptions =
-                                                            v!,
-                                                  ),
-                                            ),
-                                          ),
-                                        ],
+                                    if (widget.isCreator)
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 8,
+                                        ),
+                                        child:
+                                            _fromList
+                                                ? _listPanel(theme)
+                                                : Column(
+                                                  children: [
+                                                    searchPanel(
+                                                      theme,
+                                                      busy: _isLoading,
+                                                    ),
+                                                    if (RoomBackendScope.of(
+                                                          context,
+                                                        ).myPlaces !=
+                                                        null)
+                                                      _listSwitches(theme),
+                                                  ],
+                                                ),
                                       ),
-                                    ),
 
-                                    // Participant count
                                     Expanded(
                                       flex: 1,
                                       child: Align(
                                         alignment: Alignment.center,
-                                        child: Text(
-                                          participantCount == 1
-                                              ? "Participants in the lobby: 1 (only you)"
-                                              : "Participants in the lobby: $participantCount",
-                                          style: const TextStyle(
-                                            color: Colors.grey,
-                                            fontSize: 16,
-                                            fontStyle: FontStyle.italic,
-                                            fontWeight: FontWeight.w600,
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 8,
                                           ),
-                                          textAlign: TextAlign.center,
+                                          child: _whoIsHere(
+                                            snapshot.data,
+                                            participantCount,
+                                          ),
                                         ),
                                       ),
                                     ),
+                                    if (snapshot.data?.untimed == true)
+                                      const UntimedNotice(),
 
                                     // Bottom - Start Swiping Button
                                     Padding(
@@ -443,27 +559,23 @@ class _RoomScreenState extends State<RoomScreen> {
                                       child:
                                           _isLoading
                                               ? const Center(
-                                                child:
-                                                    CircularProgressIndicator(),
+                                                child: FoodLoader(),
                                               )
                                               : Center(
                                                 child: ElevatedButton(
                                                   onPressed:
-                                                      widget.isCreator
+                                                      widget.isCreator &&
+                                                              (_fromList ||
+                                                                  !cannotSearch)
                                                           ? _startSwiping
                                                           : null,
-                                                  style: ElevatedButton.styleFrom(
-                                                    minimumSize: const Size(
-                                                      170,
-                                                      46,
-                                                    ),
-                                                    shape: RoundedRectangleBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            14,
-                                                          ),
-                                                    ),
-                                                  ),
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                        minimumSize: const Size(
+                                                          170,
+                                                          46,
+                                                        ),
+                                                      ),
                                                   child: const Text(
                                                     'Start Swiping',
                                                     style: TextStyle(
@@ -527,6 +639,7 @@ class _JoinLink extends StatelessWidget {
             label: const Text('Copy join link'),
             onPressed: () async {
               final messenger = ScaffoldMessenger.of(context);
+              countTap(context, UsageEvent.shareRoomCode);
               await Clipboard.setData(ClipboardData(text: link.toString()));
               messenger.showSnackBar(
                 const SnackBar(content: Text('Join link copied')),
@@ -537,4 +650,39 @@ class _JoinLink extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Shown in a waiting room when someone votes without a card timer. It
+/// never says who, or why.
+class UntimedNotice extends StatelessWidget {
+  const UntimedNotice({super.key});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 8),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.timer_off_outlined, size: 18, color: inkSoft),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            'Someone in this room votes without a timer, so it may take a little longer.',
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall!.copyWith(color: inkSoft),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+/// Tells the room, once, that this person votes without a card timer.
+void announceNoTimer(BuildContext context, String roomId) {
+  if (!votesWithoutTimer(context)) return;
+  RoomBackendScope.of(
+    context,
+  ).backend.setNoTimer(roomId, noTimer: true).catchError((_) {});
 }

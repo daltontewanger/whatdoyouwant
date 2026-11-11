@@ -1,0 +1,393 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+
+import 'food_chips.dart';
+import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/link.dart';
+
+import '../models/restaurant.dart';
+import '../services/place_links.dart';
+import '../services/room_backend.dart';
+import '../services/search_defaults.dart';
+import '../services/usage_counts.dart';
+import '../themes/main_theme.dart';
+
+/// A chosen restaurant as the results screens show it: name, address and
+/// distance in the person's own unit, with an optional note after the
+/// distance and anything else (usually [PlaceActions]) underneath.
+class PlaceCard extends StatelessWidget {
+  const PlaceCard({
+    super.key,
+    required this.restaurant,
+    this.note,
+    this.child,
+    this.menu,
+  });
+
+  final Restaurant restaurant;
+  final String? note;
+  final Widget? child;
+
+  /// Sits in the top right corner, usually a [PlaceMenu].
+  final Widget? menu;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final distance = distanceText(
+      restaurant.distance,
+      RoomBackendScope.distanceUnitOf(context),
+    );
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Stack(
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (restaurant.photoUrl case final photo?)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: Image.network(
+                        photo,
+                        fit: BoxFit.cover,
+                        semanticLabel: 'Photo of ${restaurant.name}',
+                        // A photo that will not load leaves the card as it
+                        // would be without one.
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                      ),
+                    ),
+                  ),
+                ),
+              Padding(
+                padding: EdgeInsets.only(right: menu == null ? 0 : 36),
+                child: Text(
+                  restaurant.name,
+                  style: theme.textTheme.headlineSmall!.copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 24,
+                  ),
+                ),
+              ),
+              if (restaurant.foodLabels.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                FoodChips(labels: restaurant.foodLabels, expandable: true),
+              ],
+              if (restaurant.address.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(restaurant.address, style: theme.textTheme.bodyLarge),
+              ],
+              if (restaurant.note case final typed?) ...[
+                const SizedBox(height: 4),
+                Text(
+                  typed,
+                  style: theme.textTheme.bodyMedium!.copyWith(
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+              if (!restaurant.userEntered || note != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  [
+                    if (!restaurant.userEntered) 'Distance: $distance',
+                    if (note case final note?) note,
+                  ].join(' · '),
+                  style: theme.textTheme.bodyMedium!.copyWith(color: inkSoft),
+                ),
+              ],
+              if (DietaryNote.textFor(restaurant.dietary) != null) ...[
+                const SizedBox(height: 8),
+                DietaryNote(dietary: restaurant.dietary),
+              ],
+              if (child case final child?) ...[
+                const SizedBox(height: 16),
+                child,
+              ],
+            ],
+          ),
+          if (menu case final menu?)
+            Positioned(top: -8, right: -8, child: menu),
+        ],
+      ),
+    );
+  }
+}
+
+/// What Copy and Share send: the place, and a HERE WeGo map link when the
+/// listing has a position.
+String placeShareText(Restaurant restaurant) {
+  final where = [
+    restaurant.name,
+    restaurant.address,
+  ].where((part) => part.trim().isNotEmpty).join(', ');
+  final map = placeLinksFor(restaurant).map;
+  return "We're going to $where. Picked with What Do You Want?!"
+      "${map == null ? '' : '\n$map'}";
+}
+
+/// The demo's places are made up, so anything that would leave the app says
+/// so instead.
+bool _inDemo(BuildContext context) =>
+    RoomBackendScope.maybeOf(context)?.demo ?? false;
+
+void showDemoNote(BuildContext context) =>
+    ScaffoldMessenger.maybeOf(context)
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Demo places are made up, so there's nothing to open. In the app "
+            'this opens the real place.',
+          ),
+        ),
+      );
+
+Future<void> copyPlace(BuildContext context, Restaurant restaurant) async {
+  if (_inDemo(context)) return showDemoNote(context);
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  var copied = true;
+  try {
+    await Clipboard.setData(ClipboardData(text: placeShareText(restaurant)));
+  } catch (_) {
+    // Browsers can refuse clipboard access.
+    copied = false;
+  }
+  messenger
+    ?..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(content: Text(copied ? 'Copied' : 'Could not copy. Try again.')),
+    );
+}
+
+/// Opens the phone's share menu. Browsers without one copy instead.
+Future<void> sharePlace(BuildContext context, Restaurant restaurant) async {
+  if (_inDemo(context)) return showDemoNote(context);
+  countTap(context, UsageEvent.resultShare);
+  try {
+    await SharePlus.instance.share(
+      ShareParams(
+        text: placeShareText(restaurant),
+        mailToFallbackEnabled: false,
+      ),
+    );
+  } catch (_) {
+    if (context.mounted) await copyPlace(context, restaurant);
+  }
+}
+
+/// Copy and Share for the place on screen.
+class PlaceShareButtons extends StatelessWidget {
+  const PlaceShareButtons({super.key, required this.restaurant});
+
+  final Restaurant restaurant;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      IconButton(
+        icon: const Icon(Icons.copy_rounded),
+        tooltip: 'Copy',
+        color: inkSoft,
+        onPressed: () => copyPlace(context, restaurant),
+      ),
+      IconButton(
+        icon: const Icon(Icons.share),
+        tooltip: 'Share',
+        color: inkSoft,
+        onPressed: () => sharePlace(context, restaurant),
+      ),
+    ],
+  );
+}
+
+/// Credit for the listings, shown wherever place details are.
+class PlaceCredit extends StatelessWidget {
+  const PlaceCredit({super.key});
+
+  @override
+  Widget build(BuildContext context) => Text(
+    _inDemo(context)
+        ? 'Made-up places for the demo'
+        : 'Place details from HERE',
+    textAlign: TextAlign.center,
+    style: Theme.of(context).textTheme.bodySmall!.copyWith(color: inkSoft),
+  );
+}
+
+/// Map, directions, website and phone, where the listing has them.
+///
+/// Each link is a real link, so on the web the browser opens it from the
+/// tap itself: pages are not caught by pop-up blockers, and a phone number
+/// opens in place, which is what makes a phone browser offer to call. The
+/// apps hand everything to the phone instead.
+class PlaceActions extends StatelessWidget {
+  const PlaceActions({
+    super.key,
+    required this.links,
+    this.alignment = WrapAlignment.center,
+  });
+
+  final PlaceLinks links;
+  final WrapAlignment alignment;
+
+  @override
+  Widget build(BuildContext context) {
+    if (links.isEmpty) {
+      return const Text('This listing has no map or contact details.');
+    }
+    final directions = links.directions;
+    if (_inDemo(context)) {
+      void note() => showDemoNote(context);
+      return Wrap(
+        alignment: alignment,
+        spacing: 10,
+        runSpacing: 10,
+        children: [
+          if (links.map != null) _button(Icons.map_outlined, 'Map', note),
+          if (directions != null) _button(Icons.directions, 'Directions', note),
+          if (links.website != null) _button(Icons.language, 'Website', note),
+          if (links.phone != null) _button(Icons.call, 'Call', note),
+        ],
+      );
+    }
+    // Counted as anonymous totals before the link opens; never which place.
+    VoidCallback? counted(UsageEvent event, VoidCallback? follow) =>
+        follow == null
+            ? null
+            : () {
+              countTap(context, event);
+              follow();
+            };
+    final typed = links.typed;
+    return Wrap(
+      alignment: alignment,
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        if (links.map case final map?)
+          _link(
+            map,
+            (follow) => _button(
+              Icons.map_outlined,
+              'Map',
+              counted(
+                typed ? UsageEvent.ownResultMap : UsageEvent.resultMap,
+                follow,
+              ),
+            ),
+          ),
+        if (directions != null)
+          _button(Icons.directions, 'Directions', () {
+            countTap(
+              context,
+              typed
+                  ? UsageEvent.ownResultDirections
+                  : UsageEvent.resultDirections,
+            );
+            showModalBottomSheet<void>(
+              context: context,
+              showDragHandle: true,
+              builder: (context) => _DirectionsChoice(links: links),
+            );
+          }),
+        if (links.website case final website?)
+          _link(
+            website,
+            (follow) => _button(
+              Icons.language,
+              'Website',
+              counted(UsageEvent.resultWebsite, follow),
+            ),
+          ),
+        if (links.phone case final phone?)
+          _link(
+            phone,
+            (follow) => _button(
+              Icons.call,
+              'Call',
+              counted(UsageEvent.resultPhone, follow),
+            ),
+          ),
+      ],
+    );
+  }
+
+  static Widget _button(IconData icon, String label, VoidCallback? onPressed) =>
+      OutlinedButton.icon(
+        icon: Icon(icon),
+        label: Text(label),
+        onPressed: onPressed,
+      );
+}
+
+Widget _link(Uri url, Widget Function(VoidCallback? follow) builder) => Link(
+  uri: url,
+  target: kIsWeb && url.isScheme('tel') ? LinkTarget.self : LinkTarget.blank,
+  builder: (context, followLink) => builder(followLink),
+);
+
+/// HERE WeGo first, then the maps apps the device is likely to have.
+class _DirectionsChoice extends StatelessWidget {
+  const _DirectionsChoice({required this.links});
+
+  final PlaceLinks links;
+
+  @override
+  Widget build(BuildContext context) {
+    final platform = defaultTargetPlatform;
+    final apple =
+        platform == TargetPlatform.iOS || platform == TargetPlatform.macOS;
+    final choices = [
+      (links.directions, links.mapsName, 'Default'),
+      (links.googleDirections, 'Google Maps', null),
+      if (apple) (links.appleDirections, 'Apple Maps', null),
+      if (platform == TargetPlatform.android)
+        (links.deviceMaps, "Your phone's maps app", null),
+    ];
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+            child: Text(
+              'Get directions with',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+          for (final (url, label, note) in choices)
+            if (url != null)
+              _link(
+                url,
+                (follow) => ListTile(
+                  leading: const Icon(Icons.directions),
+                  title: Text(label),
+                  subtitle: note == null ? null : Text(note),
+                  onTap:
+                      follow == null
+                          ? null
+                          : () {
+                            follow();
+                            Navigator.pop(context);
+                          },
+                ),
+              ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+}

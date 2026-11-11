@@ -112,6 +112,6 @@ if (mode === 'unit') {
   const args = [cli, mode === 'policy' ? 'emulators:exec' : 'emulators:start',
     '--config', configFile, '--project', 'demo-whatdoyouwant',
     '--only', 'auth,firestore,functions'];
-  if (mode === 'policy') args.push('node --test --test-concurrency=1 local-testing/phase1/permissions.test.cjs local-testing/phase1/accounts.test.cjs local-testing/phase1/endpoints.test.cjs local-testing/phase1/quota.test.cjs');
+  if (mode === 'policy') args.push('node --test --test-concurrency=1 local-testing/phase1/permissions.test.cjs local-testing/phase1/accounts.test.cjs local-testing/phase1/endpoints.test.cjs local-testing/phase1/quota.test.cjs local-testing/phase1/metrics.test.cjs');
   run(args);
 }

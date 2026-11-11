@@ -59,15 +59,29 @@ test('the site policy blocks framing and inline scripts', () => {
 test("the web app's files revalidate, so a new release never mixes with cached ones", () => {
   // Flutter keeps the same names across releases (the icon font is trimmed to
   // the icons in use), so a cached copy can be missing a new release's glyphs.
+  // Browsers check every visit; the CDN may keep a copy because each deploy
+  // clears it. Only folders named after a version may be kept for good.
+  const revalidate = 'public, max-age=0, must-revalidate, s-maxage=31536000';
+  const versioned = ['/app/canvaskit-*/**', '/app/fonts/**'];
   for (const file of ['firebase.production.json', 'firebase.staging.json']) {
     const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'));
     const appRules = config.hosting.headers.filter(rule => rule.source.startsWith('/app'));
     assert.ok(appRules.length > 0, file);
     for (const rule of appRules) {
       const cache = rule.headers.find(header => header.key === 'Cache-Control');
-      if (cache) assert.equal(cache.value, 'no-cache', `${file}: ${rule.source}`);
+      if (!cache) continue;
+      const expected = versioned.includes(rule.source) ? 'public, max-age=31536000, immutable' : revalidate;
+      assert.equal(cache.value, expected, `${file}: ${rule.source}`);
     }
+    const shared = config.hosting.headers.find(rule => rule.source === '**/*.@(html|json|css|js)');
+    assert.equal(shared.headers.find(header => header.key === 'Cache-Control').value, revalidate, file);
   }
+});
+
+test('the hosting build names the engine folder after its version', () => {
+  const script = fs.readFileSync(path.join(__dirname, '../scripts/build-hosting.mjs'), 'utf8');
+  assert.match(script, /`canvaskit-\$\{revision\}`/);
+  assert.match(script, /canvasKitBaseUrl: "\$\{engineFolder\}\/"/);
 });
 
 test('the hero friends are three different people on every load', () => {
@@ -95,4 +109,16 @@ test('the hero friends are three different people on every load', () => {
   } finally {
     delete global.document;
   }
+});
+
+test("the hero phone's screens exist and each has a matching dot", () => {
+  const html = read('index.html');
+  const shots = [...html.matchAll(/<img class="shot[^"]*" src="\/media\/demo\/([a-z-]+)\.png"[^>]* data-shot="([a-z-]+)"/g)];
+  assert.deepEqual(shots.map(([, file]) => file), ['home', 'lobby', 'swipe', 'results']);
+  for (const [, file, shot] of shots) {
+    assert.equal(file, shot);
+    assert.ok(fs.existsSync(path.join(site, 'media/demo', `${file}.png`)), file);
+    assert.match(html, new RegExp(`<button type="button" data-shot="${shot}" aria-pressed="(true|false)" aria-label="[A-Z][a-z]+"></button>`), shot);
+  }
+  assert.match(html, /class="demo-pause"/);
 });

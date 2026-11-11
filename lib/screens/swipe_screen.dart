@@ -1,12 +1,21 @@
 import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 import '../models/restaurant.dart';
+import '../models/saved_place.dart';
 import '../models/user.dart';
 import '../services/result_nudges.dart';
 import '../services/room_backend.dart';
+import '../services/accessibility.dart';
+import '../services/my_places.dart';
+import '../services/search_defaults.dart';
+import 'bubble_icons.dart';
+import 'food_chips.dart';
+import 'place_marks.dart';
 import 'results_screen.dart';
+import '../themes/main_theme.dart';
 
 const Color cardSwipeBackground = Color(0xFFE7F8F3);
 
@@ -59,12 +68,24 @@ class SwipeScreenState extends State<SwipeScreen> {
   StreamSubscription<RoomState>? _roomSub;
   ResultNudges? _nudges;
   late RoomBackend _backend;
+  MyPlacesStore? _places;
 
   @override
   void initState() {
     super.initState();
     swipeOptions = widget.restaurants;
   }
+
+  /// Places to vote on; notice cards in between do not count.
+  late final int _placeCount = swipeOptions.where((r) => r.votable).length;
+
+  /// How many places come before card [index].
+  int _placesBefore(int index) =>
+      swipeOptions.take(index).where((r) => r.votable).length;
+
+  bool get _onNotice =>
+      _currentIndex < swipeOptions.length &&
+      !swipeOptions[_currentIndex].votable;
 
   @override
   void didChangeDependencies() {
@@ -76,10 +97,27 @@ class SwipeScreenState extends State<SwipeScreen> {
         .listen(_onRoomUpdate, onError: (_) {});
 
     _nudges = ResultNudges(() => _backend.nudge(widget.roomCode));
+    _places =
+        RoomBackendScope.of(context).myPlaces?..addListener(_placesChanged);
+    // Favorites in this deck get their details refreshed.
+    _places?.seen(swipeOptions.where((r) => r.votable)).catchError((_) {});
+  }
+
+  void _placesChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// Never counts as No and Favorite as Yes; both also save the place.
+  /// Only the card on top can be marked.
+  void _mark(int index, {required bool never}) {
+    if (index != _currentIndex || _currentIndex >= swipeOptions.length) return;
+    markPlace(context, swipeOptions[_currentIndex], never: never);
+    _swipe(never ? CardSwiperDirection.left : CardSwiperDirection.right);
   }
 
   @override
   void dispose() {
+    _places?.removeListener(_placesChanged);
     _isLeaving = true;
     _nudges?.stop();
     _roomSub?.cancel();
@@ -93,8 +131,8 @@ class SwipeScreenState extends State<SwipeScreen> {
 
     final int restaurantsLen =
         room.restaurants.isNotEmpty
-            ? room.restaurants.length
-            : swipeOptions.length;
+            ? room.restaurants.where((r) => r.votable).length
+            : _placeCount;
     final bool iAmDone =
         restaurantsLen > 0 && room.myVoteCount >= restaurantsLen;
     // Someone has to close the room when time runs out, even if nobody has
@@ -137,7 +175,14 @@ class SwipeScreenState extends State<SwipeScreen> {
     } catch (_) {}
   }
 
-  void _simulateLeftSwipe() => _swipe(CardSwiperDirection.left);
+  // Set while the timer swipes a card away, so that No is marked as the
+  // app's rather than the person's.
+  bool _timedOut = false;
+
+  void _simulateLeftSwipe() {
+    _timedOut = true;
+    _swipe(CardSwiperDirection.left);
+  }
 
   bool _handleSwipe(
     int previousIndex,
@@ -150,6 +195,8 @@ class SwipeScreenState extends State<SwipeScreen> {
     if (_localVotes.length > previousIndex) return true; // de-dupe
 
     final bool liked = (direction == CardSwiperDirection.right);
+    final bool auto = _timedOut && !liked;
+    _timedOut = false;
     final Restaurant restaurant = swipeOptions[previousIndex];
 
     _localVotes.add(liked);
@@ -157,13 +204,21 @@ class SwipeScreenState extends State<SwipeScreen> {
 
     final bool finishedDeck = _currentIndex >= swipeOptions.length;
 
+    // A notice card is only passed: no ballot, either way it goes.
+    if (!restaurant.votable) {
+      if (finishedDeck) _goToResults();
+      if (mounted && !_isLeaving) setState(() {});
+      return true;
+    }
+
     _backend
         .vote(
           widget.roomCode,
           restaurant,
           liked: liked,
-          index: previousIndex,
-          total: swipeOptions.length,
+          index: _placesBefore(previousIndex),
+          total: _placeCount,
+          auto: auto,
         )
         .then((_) async {
           if (finishedDeck && !_navigated) {
@@ -187,46 +242,127 @@ class SwipeScreenState extends State<SwipeScreen> {
     return true;
   }
 
+  // Every card has the same height, taller with bigger text so the name
+  // and address still fit; the page scrolls if it gets too tall.
+  double _cardHeight(BuildContext context) {
+    final scaler = MediaQuery.textScalerOf(context);
+    final growth = scaler.scale(10) / 10 - 1;
+    // Up to two rows of food chips above the name, when the deck has any.
+    final chips =
+        swipeOptions.any((r) => r.foodLabels.isNotEmpty)
+            ? 2 * scaler.scale(18) + 26
+            : 0.0;
+    return 380 + chips + 150 * growth.clamp(0.0, 2.0);
+  }
+
   List<Widget> get _cardWidgets {
-    return swipeOptions.map((restaurant) {
+    return swipeOptions.indexed.map((entry) {
+      final (index, restaurant) = entry;
+      if (!restaurant.votable) return _NoticeCard(notice: restaurant);
+      final favorite = _places?.isFavorite(restaurant.id) ?? false;
+      final never = _places?.isNever(restaurant.id) ?? false;
+      // Typed spots from the host's own list are already the host's, and a
+      // place already on a list shows that instead. Only the card on top
+      // offers them; the one beneath peeks out below it.
+      final offersLists =
+          _places != null &&
+          SavedPlace.canSave(restaurant) &&
+          !favorite &&
+          !never;
+      final canMark = offersLists && index == _currentIndex;
       return Card(
         color: cardSwipeBackground,
         shape: Theme.of(context).cardTheme.shape,
         elevation: Theme.of(context).cardTheme.elevation ?? 6,
         margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        child: Padding(
-          padding: const EdgeInsets.all(28.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                restaurant.name,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.headlineMedium!.copyWith(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 26,
-                  color: Theme.of(context).colorScheme.primary,
+        child: Stack(
+          // Expanded so the text stays centred in the card around the badge.
+          fit: StackFit.expand,
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(28, 28, 28, offersLists ? 56 : 28),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // What it serves, for places nobody has heard of.
+                  if (restaurant.foodLabels.isNotEmpty) ...[
+                    FoodChips(
+                      labels: restaurant.foodLabels,
+                      max: 4,
+                      maxRows: 2,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  Text(
+                    restaurant.name,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.headlineMedium!.copyWith(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 26,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    restaurant.address,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  const SizedBox(height: 16),
+                  // Spots from the host's own list were never looked up, so they
+                  // have the host's note in place of a distance.
+                  if (restaurant.userEntered)
+                    Text(
+                      restaurant.note ?? '',
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                        fontStyle: FontStyle.italic,
+                      ),
+                    )
+                  else
+                    Text(
+                      'Distance: ${distanceText(restaurant.distance, RoomBackendScope.distanceUnitOf(context))}',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium!.copyWith(color: inkSoft),
+                    ),
+                ],
+              ),
+            ),
+            if (favorite || never)
+              Positioned(top: 8, right: 8, child: ListBadge(never: never)),
+            if (canMark) ...[
+              Positioned(
+                left: 10,
+                bottom: 10,
+                child: _CardAction(
+                  label: 'Never',
+                  tooltip: 'Never what I want: vote no and save it',
+                  icon: const NeverIcon(),
+                  color: neverColor,
+                  onTap: () => _mark(index, never: true),
                 ),
               ),
-              const SizedBox(height: 14),
-              Text(
-                restaurant.address,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-              const SizedBox(height: 14),
-              Text(
-                'Distance: ${restaurant.distance.toStringAsFixed(2)} miles',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium!.copyWith(color: Colors.black54),
+              Positioned(
+                right: 10,
+                bottom: 10,
+                child: _CardAction(
+                  label: 'Favorite',
+                  tooltip: 'I know what I want: vote yes and save it',
+                  icon: const FavoriteIcon(),
+                  iconAfter: true,
+                  color: favoriteColor,
+                  onTap: () => _mark(index, never: false),
+                ),
               ),
             ],
-          ),
+          ],
         ),
       );
     }).toList();
@@ -238,7 +374,7 @@ class SwipeScreenState extends State<SwipeScreen> {
 
     if (swipeOptions.isEmpty) {
       return Scaffold(
-        backgroundColor: theme.scaffoldBackgroundColor.withValues(alpha: 0.10),
+        backgroundColor: screenBackground,
         body: const Center(
           child: Text('No restaurants available within the selected radius.'),
         ),
@@ -246,260 +382,325 @@ class SwipeScreenState extends State<SwipeScreen> {
     }
 
     final bool finishedDeck = _currentIndex >= swipeOptions.length;
+    // No countdown for anyone who votes without a timer.
+    final bool untimed = votesWithoutTimer(context);
 
-    return Scaffold(
-      backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.10),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            const maxCardWidth = 420.0;
-            return Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: maxCardWidth,
-                  minHeight: constraints.maxHeight,
-                ),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 30,
-                    horizontal: 20,
+    return _withArrowKeys(
+      Scaffold(
+        backgroundColor: screenBackground,
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              const maxCardWidth = 420.0;
+              return Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: maxCardWidth,
+                    minHeight: constraints.maxHeight,
                   ),
-                  decoration: BoxDecoration(
-                    color: theme.cardColor,
-                    borderRadius: BorderRadius.circular(28),
-                    boxShadow: [
-                      BoxShadow(
-                        color: theme.colorScheme.primary.withValues(
-                          alpha: 0.10,
-                        ),
-                        blurRadius: 18,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: LayoutBuilder(
-                    builder: (context, innerConstraints) {
-                      return SingleChildScrollView(
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            minHeight: innerConstraints.maxHeight,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 30,
+                      horizontal: 20,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.cardColor,
+                      borderRadius: BorderRadius.circular(28),
+                      boxShadow: [
+                        BoxShadow(
+                          color: theme.colorScheme.primary.withValues(
+                            alpha: 0.10,
                           ),
-                          child: IntrinsicHeight(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Text(
-                                  "Swipe to Choose!",
-                                  textAlign: TextAlign.center,
-                                  style: theme.textTheme.headlineMedium!
-                                      .copyWith(
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 34,
-                                        letterSpacing: 1.2,
-                                        shadows: const [
-                                          Shadow(
-                                            color: Colors.black12,
-                                            blurRadius: 4,
-                                            offset: Offset(1, 2),
+                          blurRadius: 18,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: LayoutBuilder(
+                      builder: (context, innerConstraints) {
+                        return SingleChildScrollView(
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: innerConstraints.maxHeight,
+                            ),
+                            child: IntrinsicHeight(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    'Swipe to Choose',
+                                    textAlign: TextAlign.center,
+                                    style: theme.textTheme.headlineMedium!
+                                        .copyWith(
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 34,
+                                          shadows: const [
+                                            Shadow(
+                                              color: Colors.black12,
+                                              blurRadius: 4,
+                                              offset: Offset(1, 2),
+                                            ),
+                                          ],
+                                        ),
+                                  ),
+
+                                  // Only as tall as its text: a stretchy
+                                  // block here grows with the text and pushes
+                                  // the vote buttons off short screens.
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      8,
+                                      12,
+                                      8,
+                                      4,
+                                    ),
+                                    child: Text(
+                                      'Swipe right, tap the thumbs up or Favorite for a place you want\n'
+                                      'Swipe left, tap the thumbs down or Never for a place you '
+                                      "don't want\n"
+                                      '${untimed ? "No timer for you, so take your time. If you don't vote for 3 minutes, the rest count as places you don't want" : "After $swipeTimeoutSeconds seconds it will auto vote that you don't want this place"}',
+                                      textAlign: TextAlign.center,
+                                      style: theme.textTheme.bodyMedium!
+                                          .copyWith(
+                                            fontSize: 14,
+                                            color: Colors.black.withValues(
+                                              alpha: 0.7,
+                                            ),
                                           ),
+                                    ),
+                                  ),
+
+                                  Expanded(
+                                    flex: 3,
+                                    child: Center(
+                                      // The swiper sizes cards from these constraints; with
+                                      // a loose width every card shrinks to its own text
+                                      // and sits at the left edge.
+                                      child: SizedBox(
+                                        width: double.infinity,
+                                        height: _cardHeight(context),
+                                        child: CardSwiper(
+                                          controller: _cardSwiperController,
+                                          cardsCount: _cardWidgets.length,
+                                          // The swiper shows two stacked cards by
+                                          // default and rejects a one-card deck.
+                                          numberOfCardsDisplayed:
+                                              _cardWidgets.length < 2 ? 1 : 2,
+                                          cardBuilder: (context, index, h, v) {
+                                            if (index >= _cardWidgets.length) {
+                                              return null;
+                                            }
+                                            return _cardWidgets[index];
+                                          },
+                                          isLoop: false,
+                                          onSwipe: _handleSwipe,
+                                          onEnd: () async {
+                                            // Finished locally — navigate now (waiting screen if others not done)
+                                            if (!_navigated) _goToResults();
+                                            // Also nudge watchdog
+                                            await _backend
+                                                .nudge(widget.roomCode)
+                                                .catchError((_) {});
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+
+                                  if (!finishedDeck && _onNotice)
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        top: 20,
+                                        bottom: 8,
+                                      ),
+                                      child: ElevatedButton(
+                                        onPressed:
+                                            () => _swipe(
+                                              CardSwiperDirection.left,
+                                            ),
+                                        child: const Text('Continue'),
+                                      ),
+                                    )
+                                  else if (!finishedDeck)
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        top: 20,
+                                        bottom: 8,
+                                      ),
+                                      // Small thumbs either side of the countdown are
+                                      // a tap alternative to swiping, for anyone who
+                                      // cannot or would rather not drag a card.
+                                      child: Row(
+                                        children: [
+                                          if (!_isLeaving)
+                                            _VoteButton(
+                                              glyph: BubbleGlyph.no,
+                                              label: 'No',
+                                              onTap:
+                                                  () => _swipe(
+                                                    CardSwiperDirection.left,
+                                                  ),
+                                            ),
+                                          Expanded(
+                                            child:
+                                                untimed
+                                                    ? Text(
+                                                      'No timer',
+                                                      textAlign:
+                                                          TextAlign.center,
+                                                      style: theme
+                                                          .textTheme
+                                                          .titleMedium!
+                                                          .copyWith(
+                                                            color: inkSoft,
+                                                          ),
+                                                    )
+                                                    : TweenAnimationBuilder<
+                                                      double
+                                                    >(
+                                                      key: ValueKey(
+                                                        _currentIndex,
+                                                      ),
+                                                      duration: const Duration(
+                                                        seconds:
+                                                            swipeTimeoutSeconds,
+                                                      ),
+                                                      tween: Tween(
+                                                        begin: 1.0,
+                                                        end: 0.0,
+                                                      ),
+                                                      builder: (
+                                                        context,
+                                                        value,
+                                                        child,
+                                                      ) {
+                                                        if (_isLeaving) {
+                                                          return const SizedBox.shrink();
+                                                        }
+                                                        final secondsLeft =
+                                                            (swipeTimeoutSeconds *
+                                                                    value)
+                                                                .ceil();
+                                                        return Column(
+                                                          children: [
+                                                            Text(
+                                                              secondsLeft > 0
+                                                                  ? '$secondsLeft'
+                                                                  : '',
+                                                              style: theme
+                                                                  .textTheme
+                                                                  .headlineMedium!
+                                                                  .copyWith(
+                                                                    color:
+                                                                        Colors
+                                                                            .orange,
+                                                                    fontSize:
+                                                                        38,
+                                                                  ),
+                                                            ),
+                                                            const SizedBox(
+                                                              height: 8,
+                                                            ),
+                                                            LinearProgressIndicator(
+                                                              value: value,
+                                                              color:
+                                                                  Colors.orange,
+                                                              backgroundColor: theme
+                                                                  .colorScheme
+                                                                  .primary
+                                                                  .withValues(
+                                                                    alpha: 0.13,
+                                                                  ),
+                                                              minHeight: 8,
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                    7,
+                                                                  ),
+                                                            ),
+                                                          ],
+                                                        );
+                                                      },
+                                                      onEnd: () {
+                                                        if (_isLeaving ||
+                                                            finishedDeck) {
+                                                          return;
+                                                        }
+                                                        WidgetsBinding.instance
+                                                            .addPostFrameCallback((
+                                                              _,
+                                                            ) {
+                                                              if (mounted &&
+                                                                  !_isLeaving &&
+                                                                  !finishedDeck) {
+                                                                _simulateLeftSwipe();
+                                                              }
+                                                            });
+                                                      },
+                                                    ),
+                                          ),
+                                          if (!_isLeaving)
+                                            _VoteButton(
+                                              glyph: BubbleGlyph.yes,
+                                              label: 'Yes',
+                                              onTap:
+                                                  () => _swipe(
+                                                    CardSwiperDirection.right,
+                                                  ),
+                                            ),
                                         ],
                                       ),
-                                ),
-
-                                Expanded(
-                                  child: Align(
-                                    alignment: Alignment.center,
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 6,
-                                      ),
-                                      child: Text(
-                                        "Swipe right or tap Yes to vote YES; swipe left or tap No to vote NO.\nAuto NO after $swipeTimeoutSeconds seconds.",
-                                        textAlign: TextAlign.center,
-                                        style: theme.textTheme.bodyLarge!
-                                            .copyWith(
-                                              fontSize: 16,
-                                              color: Colors.black.withValues(
-                                                alpha: 0.7,
-                                              ),
-                                            ),
-                                      ),
                                     ),
-                                  ),
-                                ),
 
-                                Expanded(
-                                  flex: 3,
-                                  child: Center(
-                                    // The swiper sizes cards from these constraints; with
-                                    // a loose width every card shrinks to its own text
-                                    // and sits at the left edge.
-                                    child: SizedBox(
-                                      width: double.infinity,
-                                      height: 380,
-                                      child: CardSwiper(
-                                        controller: _cardSwiperController,
-                                        cardsCount: _cardWidgets.length,
-                                        // The swiper shows two stacked cards by
-                                        // default and rejects a one-card deck.
-                                        numberOfCardsDisplayed:
-                                            _cardWidgets.length < 2 ? 1 : 2,
-                                        cardBuilder: (context, index, h, v) {
-                                          if (index >= _cardWidgets.length) {
-                                            return null;
-                                          }
-                                          return _cardWidgets[index];
-                                        },
-                                        isLoop: false,
-                                        onSwipe: _handleSwipe,
-                                        onEnd: () async {
-                                          // Finished locally — navigate now (waiting screen if others not done)
-                                          if (!_navigated) _goToResults();
-                                          // Also nudge watchdog
-                                          await _backend
-                                              .nudge(widget.roomCode)
-                                              .catchError((_) {});
-                                        },
-                                      ),
-                                    ),
-                                  ),
-                                ),
-
-                                if (!finishedDeck)
                                   Padding(
                                     padding: const EdgeInsets.only(
-                                      top: 20,
-                                      bottom: 6,
+                                      bottom: 8,
+                                      top: 4,
                                     ),
-                                    // Small thumbs either side of the countdown are
-                                    // a tap alternative to swiping, for anyone who
-                                    // cannot or would rather not drag a card.
-                                    child: Row(
-                                      children: [
-                                        if (!_isLeaving)
-                                          _VoteButton(
-                                            image: 'assets/images/vote-no.png',
-                                            label: 'No',
-                                            onTap:
-                                                () => _swipe(
-                                                  CardSwiperDirection.left,
-                                                ),
-                                          ),
-                                        Expanded(
-                                          child: TweenAnimationBuilder<double>(
-                                            key: ValueKey(_currentIndex),
-                                            duration: const Duration(
-                                              seconds: swipeTimeoutSeconds,
-                                            ),
-                                            tween: Tween(begin: 1.0, end: 0.0),
-                                            builder: (context, value, child) {
-                                              if (_isLeaving) {
-                                                return const SizedBox.shrink();
-                                              }
-                                              final secondsLeft =
-                                                  (swipeTimeoutSeconds * value)
-                                                      .ceil();
-                                              return Column(
-                                                children: [
-                                                  Text(
-                                                    secondsLeft > 0
-                                                        ? '$secondsLeft'
-                                                        : '',
-                                                    style: theme
-                                                        .textTheme
-                                                        .headlineMedium!
-                                                        .copyWith(
-                                                          color: Colors.orange,
-                                                          fontSize: 38,
-                                                        ),
-                                                  ),
-                                                  const SizedBox(height: 6),
-                                                  LinearProgressIndicator(
-                                                    value: value,
-                                                    color: Colors.orange,
-                                                    backgroundColor: theme
-                                                        .colorScheme
-                                                        .primary
-                                                        .withValues(
-                                                          alpha: 0.13,
-                                                        ),
-                                                    minHeight: 8,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          7,
-                                                        ),
-                                                  ),
-                                                ],
-                                              );
-                                            },
-                                            onEnd: () {
-                                              if (_isLeaving || finishedDeck) {
-                                                return;
-                                              }
-                                              WidgetsBinding.instance
-                                                  .addPostFrameCallback((_) {
-                                                    if (mounted &&
-                                                        !_isLeaving &&
-                                                        !finishedDeck) {
-                                                      _simulateLeftSwipe();
-                                                    }
-                                                  });
-                                            },
-                                          ),
-                                        ),
-                                        if (!_isLeaving)
-                                          _VoteButton(
-                                            image: 'assets/images/vote-yes.png',
-                                            label: 'Yes',
-                                            onTap:
-                                                () => _swipe(
-                                                  CardSwiperDirection.right,
-                                                ),
-                                          ),
-                                      ],
+                                    child: Text(
+                                      'Option ${(_placesBefore(_currentIndex) + 1).clamp(1, _placeCount)} of $_placeCount',
+                                      style: theme.textTheme.bodyMedium!
+                                          .copyWith(color: inkSoft),
                                     ),
                                   ),
-
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                    bottom: 8,
-                                    top: 4,
-                                  ),
-                                  child: Text(
-                                    'Option ${(_currentIndex + 1).clamp(1, swipeOptions.length)} of ${swipeOptions.length}',
-                                    style: theme.textTheme.bodyMedium!.copyWith(
-                                      color: Colors.black54,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
   }
+
+  // Arrow keys vote too, for anyone using a keyboard.
+  Widget _withArrowKeys(Widget child) => CallbackShortcuts(
+    bindings: {
+      const SingleActivator(LogicalKeyboardKey.arrowLeft):
+          () => _swipe(CardSwiperDirection.left),
+      const SingleActivator(LogicalKeyboardKey.arrowRight):
+          () => _swipe(CardSwiperDirection.right),
+    },
+    child: Focus(autofocus: true, child: child),
+  );
 }
 
-/// A small thumbs-up or thumbs-down bubble. Its name is in the tooltip and
-/// what screen readers announce.
+/// The "meh" or "yum" bubble either side of the countdown. Its tail points
+/// at the timer. Its name is in the tooltip and what screen readers announce.
 class _VoteButton extends StatelessWidget {
   const _VoteButton({
-    required this.image,
+    required this.glyph,
     required this.label,
     required this.onTap,
   });
 
-  final String image;
+  final BubbleGlyph glyph;
   final String label;
   final VoidCallback onTap;
 
@@ -512,12 +713,117 @@ class _VoteButton extends StatelessWidget {
       message: 'Vote $label',
       child: InkResponse(
         onTap: onTap,
-        radius: 30,
+        radius: 32,
         child: Padding(
           padding: const EdgeInsets.all(4),
-          child: Image.asset(image, width: 48, height: 48),
+          child: BubbleIcon(
+            glyph,
+            size: 56,
+            tailRight: glyph == BubbleGlyph.no,
+          ),
         ),
       ),
     ),
   );
+}
+
+/// Never or Favorite on the card: a vote that also saves the place to a
+/// list. Buttons only, so a list is never changed by a stray swipe.
+class _CardAction extends StatelessWidget {
+  const _CardAction({
+    required this.label,
+    required this.tooltip,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+    this.iconAfter = false,
+  });
+
+  final String label;
+  final String tooltip;
+  final Widget icon;
+  final Color color;
+  final VoidCallback onTap;
+  final bool iconAfter;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Text(
+      label,
+      style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 14),
+    );
+    return Semantics(
+      button: true,
+      label: tooltip,
+      excludeSemantics: true,
+      child: Tooltip(
+        message: tooltip,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (!iconAfter) ...[icon, const SizedBox(width: 8)],
+                text,
+                if (iconAfter) ...[const SizedBox(width: 8), icon],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A card between places that nobody votes on, passed with Continue or a
+/// swipe either way.
+class _NoticeCard extends StatelessWidget {
+  const _NoticeCard({required this.notice});
+
+  final Restaurant notice;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      color: Colors.white,
+      shape: theme.cardTheme.shape,
+      elevation: theme.cardTheme.elevation ?? 6,
+      margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'Not a place to vote on',
+              style: theme.textTheme.bodySmall!.copyWith(color: inkSoft),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              notice.name,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.headlineSmall!.copyWith(
+                fontWeight: FontWeight.w800,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              notice.address,
+              textAlign: TextAlign.center,
+              maxLines: 5,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyLarge,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

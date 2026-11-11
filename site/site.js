@@ -142,13 +142,13 @@ function menuItems(user) {
     return {
       title: 'Playing as a guest',
       note: 'Create an account to host rooms and save your lists.',
-      items: [['Create an account or sign in', '/app/account'], ['Open the app', '/app']],
+      items: [['Create an account or sign in', '/app/account'], ['Open the app', '/app?from=site']],
     };
   }
   return {
     title: `Signed in as ${user.displayName || user.email || 'you'}`,
     note: user.emailVerified ? 'Verified host' : 'Verify your email to host rooms.',
-    items: [['Your account', '/app/account'], ['Open the app', '/app']],
+    items: [['Your account', '/app/account'], ['Open the app', '/app?from=site']],
     signOut: true,
   };
 }
@@ -203,7 +203,88 @@ async function startAccountMenu() {
   });
 }
 
+// ---- App warm-up: once the page has settled, the browser fetches the web
+// app's code and rendering engine in the background, so "Open the app" and
+// signing in start sooner. Skipped when the visitor asked to save data.
+function warmUpApp() {
+  const files = window.wdywAppFiles;
+  if (!files || navigator.connection?.saveData) return;
+  // The same test the app's loader uses to pick the smaller Chrome engine.
+  const chromium = typeof Intl.v8BreakIterator !== 'undefined' && typeof Intl.Segmenter !== 'undefined'
+    && typeof ImageDecoder !== 'undefined';
+  const engine = chromium ? files.chromiumEngine : files.engine;
+  const fetchLater = () => {
+    for (const href of [files.code, `${engine}canvaskit.js`, `${engine}canvaskit.wasm`]) {
+      document.head.append(Object.assign(document.createElement('link'), { rel: 'prefetch', href }));
+    }
+  };
+  const idle = () => ('requestIdleCallback' in window ? requestIdleCallback(fetchLater, { timeout: 4000 })
+    : setTimeout(fetchLater, 2000));
+  if (document.readyState === 'complete') idle();
+  else addEventListener('load', idle, { once: true });
+}
+
+// ---- Hero: the phone steps through real app screens. The dots jump to a
+// screen, a sideways swipe or drag on the phone steps back and forward, and
+// the button pauses; with reduced motion it only moves when asked.
+function playScreens() {
+  const shots = [...document.querySelectorAll('#hero-phone .shot')];
+  const dots = [...document.querySelectorAll('.demo-dots button')];
+  const pause = document.querySelector('.demo-pause');
+  if (!shots.length || !dots.length || !pause) return;
+  let current = 0;
+  let timer = null;
+  const show = index => {
+    current = (index + shots.length) % shots.length;
+    shots.forEach((shot, i) => shot.classList.toggle('on', i === current));
+    dots.forEach((dot, i) => dot.setAttribute('aria-pressed', String(i === current)));
+  };
+  const stop = () => {
+    clearInterval(timer);
+    timer = null;
+  };
+  const play = () => {
+    stop();
+    timer = setInterval(() => show(current + 1), 3500);
+  };
+  const setPaused = paused => {
+    pause.setAttribute('aria-pressed', String(paused));
+    pause.querySelector('.visually-hidden').textContent = paused ? 'Play the screens' : 'Pause the screens';
+    if (paused) stop(); else play();
+  };
+  dots.forEach((dot, i) => dot.addEventListener('click', () => {
+    show(i);
+    // Picking a screen means the visitor wants to look at it.
+    setPaused(true);
+  }));
+  pause.addEventListener('click', () => setPaused(pause.getAttribute('aria-pressed') !== 'true'));
+  // Swiping the phone like the app: left for the next screen, right for the
+  // one before. Mostly-vertical drags are left alone so the page still scrolls.
+  const screen = document.querySelector('#hero-phone .screen');
+  let from = null;
+  screen.addEventListener('pointerdown', event => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    from = { x: event.clientX, y: event.clientY, id: event.pointerId };
+  });
+  const release = event => {
+    if (!from || event.pointerId !== from.id) return;
+    const dx = event.clientX - from.x;
+    const dy = event.clientY - from.y;
+    from = null;
+    if (Math.abs(dx) < 30 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    show(current + (dx < 0 ? 1 : -1));
+    setPaused(true);
+  };
+  screen.addEventListener('pointerup', release);
+  // A touch that turns into a page scroll is cancelled by the browser.
+  screen.addEventListener('pointercancel', () => { from = null; });
+  screen.addEventListener('dragstart', event => event.preventDefault());
+  setPaused(reduceMotion);
+}
+
 leanPhone();
+playScreens();
 followStory();
 openTiles();
+warmUpApp();
 startAccountMenu().catch(() => {});
