@@ -5,6 +5,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, r
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const ENTRIES = { production: 'lib/main.dart', staging: 'lib/main_staging.dart' };
@@ -125,6 +126,25 @@ const appFiles = { code: '/app/main.dart.js', engine: `/app/${engineFolder}/`,
   chromiumEngine: `/app/${engineFolder}/chromium/` };
 writeFileSync(join(output, 'firebase-config.js'), `window.wdywFirebaseConfig = ${JSON.stringify(webConfig())};\n`
   + `window.wdywAppFiles = ${JSON.stringify(appFiles)};\n`);
+// Browsers keep /media for a week, so a redrawn picture would otherwise stay
+// stale. Each reference from the site's pages and styles gets a short hash of
+// the file's contents, giving a changed picture a new address.
+const fingerprints = new Map();
+function fingerprint(file) {
+  if (!fingerprints.has(file)) {
+    fingerprints.set(file, createHash('sha256').update(readFileSync(file)).digest('hex').slice(0, 10));
+  }
+  return fingerprints.get(file);
+}
+for (const name of readdirSync(output).filter(name => /\.(html|css)$/.test(name))) {
+  const path = join(output, name);
+  const text = readFileSync(path, 'utf8').replace(/(\/?)(media\/[A-Za-z0-9_./-]+\.(?:png|webp|svg|jpg))(?!\?)/g,
+    (match, slash, file) => {
+      const source = join(output, file);
+      return existsSync(source) ? `${slash}${file}?v=${fingerprint(source)}` : match;
+    });
+  writeFileSync(path, text);
+}
 // Link previews need absolute image addresses.
 for (const page of [...readdirSync(output).filter(name => name.endsWith('.html')), 'app/index.html']) {
   const path = join(output, page);
