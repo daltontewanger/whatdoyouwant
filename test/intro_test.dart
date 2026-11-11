@@ -8,7 +8,7 @@ import 'package:whatdoyouwant/services/intro_store.dart';
 import 'package:whatdoyouwant/services/own_list.dart';
 import 'package:whatdoyouwant/services/room_backend.dart';
 
-import 'room_screens_test.dart' show FakeRoomBackend, ShellAuth;
+import 'support/fakes.dart';
 
 class MemoryIntroStore implements IntroStore {
   MemoryIntroStore({this.wasSeen = false});

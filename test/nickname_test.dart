@@ -11,8 +11,7 @@ import 'package:whatdoyouwant/services/callable_room_backend.dart';
 import 'package:whatdoyouwant/services/nickname.dart';
 import 'package:whatdoyouwant/services/room_backend.dart';
 
-import 'account_service_test.dart' show FakeAuth, FakeUser;
-import 'room_screens_test.dart' show FakeRoomBackend;
+import 'support/fakes.dart';
 
 FakeUser verifiedAccount() =>
     FakeUser()

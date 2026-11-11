@@ -6,7 +6,7 @@ import 'package:whatdoyouwant/services/callable_room_backend.dart';
 import 'package:whatdoyouwant/services/live_search.dart';
 import 'package:whatdoyouwant/services/search_defaults.dart';
 
-import 'room_screens_test.dart' show FakeRoomBackend, app, deck;
+import 'support/fakes.dart';
 
 void main() {
   Future<void> openQuickPick(

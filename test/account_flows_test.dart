@@ -6,7 +6,7 @@ import 'package:whatdoyouwant/screens/forgot_password_screen.dart';
 import 'package:whatdoyouwant/services/account_service.dart';
 import 'package:whatdoyouwant/services/email_address.dart';
 
-import 'account_service_test.dart' show FakeAuth, FakeUser;
+import 'support/fakes.dart';
 
 final returnTo = Uri.parse('https://getwhatdoyouwant.app/app/account');
 

@@ -19,7 +19,7 @@ import 'package:whatdoyouwant/services/own_list.dart';
 import 'package:whatdoyouwant/services/place_links.dart';
 import 'package:whatdoyouwant/services/room_backend.dart';
 
-import 'room_screens_test.dart' show FakeRoomBackend, ShellAuth, app, state;
+import 'support/fakes.dart';
 
 OwnSpot spot(String id, String name, {String address = '', String note = ''}) =>
     OwnSpot(id: id, name: name, address: address, note: note);

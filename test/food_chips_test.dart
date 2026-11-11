@@ -5,7 +5,7 @@ import 'package:whatdoyouwant/screens/food_chips.dart';
 import 'package:whatdoyouwant/screens/place_card.dart';
 import 'package:whatdoyouwant/services/callable_room_backend.dart';
 
-import 'room_screens_test.dart' show FakeRoomBackend, app;
+import 'support/fakes.dart';
 
 void main() {
   test('icons match the specific word before the broad one', () {

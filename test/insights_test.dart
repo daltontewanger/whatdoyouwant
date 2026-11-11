@@ -14,8 +14,7 @@ import 'package:whatdoyouwant/services/room_backend.dart';
 import 'package:whatdoyouwant/services/site_links.dart';
 import 'package:whatdoyouwant/services/usage_counts.dart';
 
-import 'account_service_test.dart' show FakeAuth, FakeUser;
-import 'room_screens_test.dart' show FakeRoomBackend;
+import 'support/fakes.dart';
 
 final today = DateTime.utc(2026, 11, 20);
 
