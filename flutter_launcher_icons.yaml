@@ -21,8 +21,8 @@ flutter_launcher_icons:
   web:
     generate: true
     image_path: "assets/icon/wdywicon.png"
-    background_color: "#hexcode"
-    theme_color: "#hexcode"
+    background_color: "#0D1B3E"
+    theme_color: "#2F7A5C"
 
   macos:
     generate: true
