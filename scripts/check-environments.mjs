@@ -51,7 +51,7 @@ check(readFileSync(resolve(root, 'web/index.html'), 'utf8').includes('<base href
 const rollback = readFileSync(resolve(root, 'staging/firestore.rules'), 'utf8');
 check((rollback.match(/allow /g) || []).length === 1 && rollback.includes('allow read, write: if false;'),
   'staging rollback rules deny everything');
-check(json('firebase.phase1.emulators.json').firestore.rules === 'rooms/firestore.rules', 'local emulators use the room rules');
+check(json('firebase.emulators.json').firestore.rules === 'rooms/firestore.rules', 'local emulators use the room rules');
 const local = json('android/app/src/local/google-services.json');
 check(local.project_info.project_id === 'demo-whatdoyouwant', 'local native project');
 const localClient = local.client.find(c => c.client_info.android_client_info.package_name === 'com.daltontewanger.whatdoyouwant.local');
