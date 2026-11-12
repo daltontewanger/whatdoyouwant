@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:whatdoyouwant/screens/food_loader.dart';
 import 'package:whatdoyouwant/screens/host_waiting.dart';
 import 'package:whatdoyouwant/screens/results_screen.dart';
 import 'package:whatdoyouwant/services/room_backend.dart';
@@ -9,14 +10,11 @@ import 'support/fakes.dart';
 VoterProgress person({
   String? name,
   bool host = false,
-  int votes = 3,
   bool done = false,
   int idleSeconds = 0,
 }) => VoterProgress(
   name: name,
   host: host,
-  votes: done ? 10 : votes,
-  total: 10,
   done: done,
   inactive: Duration(seconds: idleSeconds),
 );
@@ -75,12 +73,20 @@ void main() {
 
   Future<FakeRoomBackend> waitAsHost(
     WidgetTester tester,
-    List<VoterProgress> progress,
-  ) async {
+    List<VoterProgress> people, {
+    int votesIn = 0,
+    int votesTotal = 0,
+  }) async {
     tester.view.physicalSize = const Size(800, 1600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    final backend = FakeRoomBackend()..progress = progress;
+    final backend =
+        FakeRoomBackend()
+          ..progress = HostProgress(
+            people: people,
+            votesIn: votesIn,
+            votesTotal: votesTotal,
+          );
     await tester.pumpWidget(
       app(backend, ResultsScreen(roomCode: 'ROOM-ID', restaurants: deck)),
     );
@@ -93,15 +99,29 @@ void main() {
   testWidgets(
     'the host sees who is still voting; people done fold into one line',
     (tester) async {
-      await waitAsHost(tester, [
-        person(name: 'Sam', votes: 6, idleSeconds: 5),
-        person(idleSeconds: 75),
-        person(name: 'Ari', done: true),
-        person(host: true, done: true),
-      ]);
+      await waitAsHost(
+        tester,
+        [
+          person(name: 'Sam', idleSeconds: 5),
+          person(idleSeconds: 75),
+          person(name: 'Ari', done: true),
+          person(host: true, done: true),
+        ],
+        votesIn: 23,
+        votesTotal: 40,
+      );
       expect(find.text("You're done voting"), findsOneWidget);
-      expect(find.text('Waiting on 2 people to finish.'), findsOneWidget);
-      expect(find.text('Voting · 6 of 10'), findsOneWidget);
+      expect(find.byType(FoodLoader), findsOneWidget);
+      expect(find.text('23 of 40 votes in'), findsOneWidget);
+      // Only that someone is still going, never how far they've got.
+      expect(find.text('Still voting'), findsOneWidget);
+      expect(find.textContaining(' of 10'), findsNothing);
+      expect(
+        find.text(
+          'If everyone still voting goes 3 minutes without a vote, voting stops automatically.',
+        ),
+        findsOneWidget,
+      );
       expect(find.text('Inactive 1 min'), findsOneWidget);
       expect(find.text('You and 1 other'), findsOneWidget);
       // Sam is still swiping, so there is nothing to finish early yet.

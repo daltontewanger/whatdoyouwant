@@ -295,15 +295,17 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
   const unseated = membership => (membership.seat ? { [`roster.${membership.seat}`]: FieldValue.delete() } : {});
 
   // Who is still voting, for the host's waiting screen: roster names (already
-  // shown to everyone in the room), never account IDs. People who are done
-  // come last.
+  // shown to everyone in the room), never account IDs, and whether each person
+  // is done or has gone quiet, but not how far anyone has got; the room's
+  // votes are given only as a total. People who are done come last.
   function progressView(state, outcome) {
     const people = outcome.progress.map(person => {
       const listed = person.seat ? state.roster?.[person.seat] : null;
-      return { name: listed?.name ?? null, host: person.uid === state.creator, votes: person.votes,
-        total: outcome.total, done: person.done, inactiveSeconds: Math.floor(person.inactiveMs / 1000) };
-    });
-    return people.sort((a, b) => Number(a.done) - Number(b.done) || Number(b.host) - Number(a.host));
+      return { name: listed?.name ?? null, host: person.uid === state.creator, done: person.done,
+        inactiveSeconds: Math.floor(person.inactiveMs / 1000) };
+    }).sort((a, b) => Number(a.done) - Number(b.done) || Number(b.host) - Number(a.host));
+    return { people, votesIn: outcome.progress.reduce((sum, person) => sum + person.votes, 0),
+      votesTotal: outcome.total * outcome.progress.length };
   }
 
   async function tally(tx, room, state, { awayAfter = AWAY_MS } = {}) {

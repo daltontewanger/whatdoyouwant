@@ -100,23 +100,34 @@ class RoomPerson {
 }
 
 /// One person on the host's waiting screen: their room name (none for a
-/// guest), how far they are and how long since they last voted by hand.
+/// guest), whether they are done, and how long since they last voted by hand.
+/// How far each person has got is not shared.
 class VoterProgress {
   const VoterProgress({
     this.name,
     this.host = false,
-    required this.votes,
-    required this.total,
     required this.done,
     required this.inactive,
   });
 
   final String? name;
   final bool host;
-  final int votes;
-  final int total;
   final bool done;
   final Duration inactive;
+}
+
+/// What the host sees while waiting: who is still voting, and the room's
+/// votes as a total.
+class HostProgress {
+  const HostProgress({
+    required this.people,
+    required this.votesIn,
+    required this.votesTotal,
+  });
+
+  final List<VoterProgress> people;
+  final int votesIn;
+  final int votesTotal;
 }
 
 class RoomResults {
@@ -244,7 +255,7 @@ abstract class RoomBackend {
 
   /// Lets the backend settle stragglers or close a finished room. For the
   /// host of a room still voting, returns who is still voting.
-  Future<List<VoterProgress>?> nudge(String roomId);
+  Future<HostProgress?> nudge(String roomId);
 
   /// Whether voting in this room has ended, asked of the server directly for
   /// when the live connection may be behind.

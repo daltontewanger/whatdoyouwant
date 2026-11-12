@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/room_backend.dart';
 import '../themes/main_theme.dart';
+import 'food_loader.dart';
 
 /// No vote by hand for this long marks someone inactive on the host's list.
 /// The server holds the same line before it lets the host finish without them.
@@ -51,9 +52,11 @@ List<String> voterLabels(List<VoterProgress> people) {
   ];
 }
 
-/// The host's screen after they finish voting: who is still voting, who has
-/// stopped, and, once only people who stopped are left, a way to finish
-/// without them. Long rooms stay short: people who are done fold into one line.
+/// The host's screen after they finish voting: the food bubbles to show the
+/// room is still going, the room's votes as a running total, who is still
+/// voting or has gone quiet (never how far anyone has got), and, once only
+/// quiet people are left, a way to finish without them. People who are done
+/// fold into one line, so a full room stays short.
 class HostWaiting extends StatelessWidget {
   const HostWaiting({
     super.key,
@@ -63,7 +66,7 @@ class HostWaiting extends StatelessWidget {
     required this.onFinish,
   });
 
-  final List<VoterProgress>? progress;
+  final HostProgress? progress;
   final DateTime? checkedAt;
   final bool finishing;
   final VoidCallback onFinish;
@@ -71,7 +74,7 @@ class HostWaiting extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final people = progress;
+    final people = progress?.people;
     final left = people == null ? const <VoterProgress>[] : stillVoting(people);
     final labels = people == null ? const <String>[] : voterLabels(people);
     String label(VoterProgress person) => labels[people!.indexOf(person)];
@@ -82,6 +85,8 @@ class HostWaiting extends StatelessWidget {
         people == null || checkedAt == null
             ? null
             : finishesWithoutThemAt(people, checkedAt!);
+    final votesIn = progress?.votesIn ?? 0;
+    final votesTotal = progress?.votesTotal ?? 0;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -96,24 +101,48 @@ class HostWaiting extends StatelessWidget {
             fontWeight: FontWeight.w800,
           ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          people == null
-              ? 'Checking who is still voting...'
-              : left.isEmpty
-              ? 'Everyone is done. Getting your result...'
-              : 'Waiting on ${left.length} ${left.length == 1 ? 'person' : 'people'} to finish.',
-          textAlign: TextAlign.center,
-          style: theme.textTheme.bodyLarge!.copyWith(color: inkSoft),
-        ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
+        const Center(child: FoodLoader()),
+        const SizedBox(height: 12),
+        if (progress == null)
+          Text(
+            'Checking who is still voting...',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyLarge!.copyWith(color: inkSoft),
+          )
+        else ...[
+          Text(
+            '$votesIn of $votesTotal votes in',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyLarge!.copyWith(color: inkSoft),
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: TweenAnimationBuilder<double>(
+              // The bar slides to each new total instead of jumping.
+              tween: Tween(end: votesTotal == 0 ? 0 : votesIn / votesTotal),
+              duration: const Duration(milliseconds: 600),
+              curve: Curves.easeOut,
+              builder:
+                  (context, value, _) => LinearProgressIndicator(
+                    value: value,
+                    minHeight: 8,
+                    color: primaryGreen,
+                    backgroundColor: primaryGreen.withValues(alpha: 0.12),
+                    semanticsLabel: 'Votes in',
+                  ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
         for (final person in left)
           _Row(
             label: label(person),
             status:
                 person.inactive >= inactiveAfter
                     ? 'Inactive ${person.inactive.inMinutes} min'
-                    : 'Voting · ${person.votes} of ${person.total}',
+                    : 'Still voting',
             inactive: person.inactive >= inactiveAfter,
           ),
         if (done > 0)

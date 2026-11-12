@@ -173,23 +173,25 @@ RoomResults? callableResults(Object? raw, int members) {
   );
 }
 
-/// The host's list of who is still voting, from a results check.
-List<VoterProgress>? voterProgress(Object? raw) {
-  if (raw is! List) return null;
-  return [
-    for (final person in raw)
-      if (person is Map)
-        VoterProgress(
-          name: person['name'] as String?,
-          host: person['host'] == true,
-          votes: (person['votes'] as num).toInt(),
-          total: (person['total'] as num).toInt(),
-          done: person['done'] == true,
-          inactive: Duration(
-            seconds: (person['inactiveSeconds'] as num).toInt(),
+/// The host's view of who is still voting, from a results check.
+HostProgress? hostProgress(Object? raw) {
+  if (raw is! Map || raw['people'] is! List) return null;
+  return HostProgress(
+    people: [
+      for (final person in raw['people'] as List)
+        if (person is Map)
+          VoterProgress(
+            name: person['name'] as String?,
+            host: person['host'] == true,
+            done: person['done'] == true,
+            inactive: Duration(
+              seconds: (person['inactiveSeconds'] as num).toInt(),
+            ),
           ),
-        ),
-  ];
+    ],
+    votesIn: (raw['votesIn'] as num?)?.toInt() ?? 0,
+    votesTotal: (raw['votesTotal'] as num?)?.toInt() ?? 0,
+  );
 }
 
 /// Rooms managed by the server-side room callables. The server owns
@@ -539,10 +541,10 @@ class CallableRoomBackend implements RoomBackend {
       _call('setNoTimer', {'roomId': roomId, 'noTimer': noTimer});
 
   @override
-  Future<List<VoterProgress>?> nudge(String roomId) async {
+  Future<HostProgress?> nudge(String roomId) async {
     // Closes the room on the server once everyone has voted or time is up.
     final result = await _call('roomResults', {'roomId': roomId});
-    return voterProgress(result['progress']);
+    return hostProgress(result['progress']);
   }
 
   @override

@@ -49,13 +49,13 @@ class FakeRoomBackend implements RoomBackend {
   }
 
   @override
-  Future<List<VoterProgress>?> nudge(String roomId) async {
+  Future<HostProgress?> nudge(String roomId) async {
     nudges++;
     return progress;
   }
 
   /// What the host's waiting screen hears back from a nudge.
-  List<VoterProgress>? progress;
+  HostProgress? progress;
   int finishes = 0;
 
   @override

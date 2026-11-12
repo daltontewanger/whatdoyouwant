@@ -300,7 +300,7 @@ class DemoRoomBackend implements RoomBackend {
   }
 
   @override
-  Future<List<VoterProgress>?> nudge(String roomId) async {
+  Future<HostProgress?> nudge(String roomId) async {
     _settle(roomId);
     return null;
   }

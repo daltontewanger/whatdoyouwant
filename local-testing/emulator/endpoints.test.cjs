@@ -735,11 +735,14 @@ test('host waiting: the host sees who is still voting by roster name, never acco
   assert.equal((await vote(roomId, guest, D[1], false)).status, 200);
   const waiting = await later(1.5)('roomResults', host, { roomId });
   assert.equal(waiting.status, 'voting');
-  assert.deepEqual(waiting.progress.map(({ name, host: isHost, votes, total, done }) => ({ name, isHost, votes, total, done })), [
-    { name: null, isHost: false, votes: 2, total: D.length, done: false },
-    { name: null, isHost: true, votes: D.length, total: D.length, done: true },
+  assert.deepEqual(waiting.progress.people.map(({ name, host: isHost, done }) => ({ name, isHost, done })), [
+    { name: null, isHost: false, done: false },
+    { name: null, isHost: true, done: true },
   ], 'still voting first; a guest has no name');
-  assert.ok(waiting.progress[0].inactiveSeconds >= 89 && waiting.progress[0].inactiveSeconds < 120);
+  assert.deepEqual([waiting.progress.votesIn, waiting.progress.votesTotal], [D.length + 2, D.length * 2],
+    'votes only as a total');
+  assert.ok(!('votes' in waiting.progress.people[0]), 'not how far each person has got');
+  assert.ok(waiting.progress.people[0].inactiveSeconds >= 89 && waiting.progress.people[0].inactiveSeconds < 120);
   const shown = JSON.stringify(waiting.progress);
   assert.ok(!shown.includes(guest.uid) && !shown.includes(host.uid) && !shown.includes('uid'));
   assert.equal((await later(1.5)('roomResults', guest, { roomId })).progress, undefined, 'only the host gets the list');

@@ -44,7 +44,7 @@ class ResultsScreenState extends State<ResultsScreen> {
   Stream<RoomState>? _roomStream;
   late RoomBackend _backend;
   ResultNudges? _nudges;
-  List<VoterProgress>? _progress;
+  HostProgress? _progress;
   DateTime? _progressAt;
   bool _finishing = false;
 
