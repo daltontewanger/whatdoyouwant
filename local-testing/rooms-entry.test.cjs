@@ -37,7 +37,9 @@ test('production runs as its own scoped identity, without local origins', () => 
   for (const [name, endpoint] of Object.entries(endpoints)) {
     assert.equal(endpoint.account, 'rooms-runtime@what-do-you-want-8a404.iam.gserviceaccount.com', name);
   }
-  assert.equal(endpoints.joinRoom.max, 10);
+  assert.equal(endpoints.joinRoom.max, 5);
+  assert.equal(endpoints.setNickname.max, 2);
+  assert.equal(endpoints.countEvent.max, 3);
   assert.ok(endpoints.cleanUpIdleGuests, 'production keeps the weekly guest cleanup');
   assert.deepEqual(endpoints.startRoom.secrets, ['HERE_API_KEY']);
   assert.deepEqual(endpoints.joinRoom.secrets, []);
@@ -73,7 +75,9 @@ test('every staging callable runs as the scoped identity and requires App Check'
     assert.equal(endpoint.serviceAccountEmail, 'rooms-runtime@whatdoyouwant-staging.iam.gserviceaccount.com', name);
     assert.deepEqual(endpoint.region, ['us-central1'], name);
     assert.ok(endpoint.callableTrigger, name);
-    const limited = { reportClientError: 2, checkEmailDomain: 2, countEvent: 3, insightsReport: 1 };
+    const limited = { reportClientError: 2, checkEmailDomain: 2, countEvent: 3, insightsReport: 1,
+      revokeMember: 2, rotateJoinCode: 2, deleteAccount: 2, setNoTimer: 2, setNickname: 2, reportPlace: 2,
+      saveOwnList: 2, saveMyPlaces: 2 };
     assert.equal(endpoint.maxInstances, limited[name] ?? 5, name);
     // Only the two callables that search may read the HERE key.
     const secrets = (endpoint.secretEnvironmentVariables ?? []).map(secret => secret.key);

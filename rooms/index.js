@@ -34,7 +34,8 @@ const PROJECTS = {
     // www and the .com redirect to the main address, so only it calls the backend.
     origins: ['https://getwhatdoyouwant.app', 'https://what-do-you-want-8a404.web.app',
       'https://what-do-you-want-8a404.firebaseapp.com'],
-    maxInstances: 10,
+    // Each copy handles 80 calls at once; raise this as real use grows.
+    maxInstances: 5,
     guestCleanup: true,
     // Off until staging confirms which address the limits see.
     networkLimits: 'off',
@@ -90,9 +91,12 @@ const options = {
   timeoutSeconds: 30,
 };
 
-// Error reports and email-domain checks are cheap and rate limited per
-// caller, so two instances bound what a burst of them can cost.
-const LIMITED = { reportClientError: 2, checkEmailDomain: 2, countEvent: 3, insightsReport: 1 };
+// The instance cap is also the ceiling on what a flood of calls can cost. Cheap
+// per-caller calls and rarely used actions get a few copies; each handles 80
+// calls at once.
+const LIMITED = { reportClientError: 2, checkEmailDomain: 2, countEvent: 3, insightsReport: 1,
+  revokeMember: 2, rotateJoinCode: 2, deleteAccount: 2, setNoTimer: 2, setNickname: 2, reportPlace: 2,
+  saveOwnList: 2, saveMyPlaces: 2 };
 for (const name of CALLABLES) {
   const settingsFor = { ...options, ...(LIMITED[name] ? { maxInstances: LIMITED[name] } : {}) };
   exports[name] = onCall(SEARCHING.includes(name) ? { ...settingsFor, ...SEARCH_OPTIONS } : settingsFor, handlers[name]);
