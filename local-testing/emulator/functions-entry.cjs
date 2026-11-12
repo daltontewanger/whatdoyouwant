@@ -24,6 +24,7 @@ const handlers = createRoomHandlers({
   // The Auth emulator's fake Google sign-in with this address opens the
   // insights page locally.
   insightsOwners: [createHash('sha256').update('owner@example.test').digest('hex')],
+  accountCreatedAt: async uid => Date.parse((await auth.getUser(uid)).metadata.creationTime),
 });
 // Live search fails closed without its config; the emulators start with a
 // generous one so the app can be tried straight away.

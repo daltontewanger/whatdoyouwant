@@ -206,9 +206,20 @@ class CallableRoomBackend implements RoomBackend {
     String name,
     Map<String, Object?> data,
   ) async {
-    final result = await _functions.httpsCallable(name).call(data);
+    final result = await _functions
+        .httpsCallable(
+          name,
+          // The searching callables accept each App Check token only once.
+          options:
+              _searching.contains(name)
+                  ? HttpsCallableOptions(limitedUseAppCheckToken: true)
+                  : null,
+        )
+        .call(data);
     return Map<String, dynamic>.from(result.data as Map);
   }
+
+  static const _searching = {'startRoom', 'createQuickPick'};
 
   @override
   Future<CreatedRoom> createRoom() async {

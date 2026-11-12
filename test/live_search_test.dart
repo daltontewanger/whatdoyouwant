@@ -33,7 +33,38 @@ void main() {
     );
     expect(allowance.resetsAt, DateTime.utc(2026, 10, 12));
     expect(allowance.paused, isFalse);
+    expect(allowance.newAccount, isFalse);
     expect(LiveSearchAllowance.fromCallable({'eligible': false}), isNull);
+    final fresh =
+        LiveSearchAllowance.fromCallable({
+          'eligible': true,
+          'weeklyCap': 3,
+          'used': 1,
+          'remaining': 2,
+          'resetsAt': '2026-11-13T12:00:00.000Z',
+          'paused': false,
+          'newAccount': true,
+        })!;
+    expect((fresh.weeklyCap, fresh.remaining, fresh.newAccount), (3, 2, true));
+  });
+
+  test('a new account hearing it has used its first searches', () {
+    expect(
+      startRoomErrorMessage(
+        limited('resource-exhausted', {
+          'reason': 'new-account-cap',
+          'resetsAt': '2026-11-13T12:00:00.000Z',
+        }),
+      ),
+      'New accounts start with a few live searches. More arrive '
+      '${resetTimeText(DateTime.utc(2026, 11, 13, 12))}.',
+    );
+    expect(
+      startRoomErrorMessage(
+        limited('resource-exhausted', {'reason': 'new-account-cap'}),
+      ),
+      'New accounts start with a few live searches. More arrive soon.',
+    );
   });
 
   test('reset times read in the local zone', () {

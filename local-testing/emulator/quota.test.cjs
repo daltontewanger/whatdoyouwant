@@ -19,9 +19,9 @@ const db = new Firestore({ projectId: PROJECT, host: '127.0.0.1:8080', ssl: fals
 const SEARCH = Object.freeze({ origin: { lat: 38.5, lng: -98.5 }, radius: { value: 5, unit: 'mi' }, deckSize: 5 });
 
 let clock;
-function handlersWith(provider = createFakeProvider(), log = () => {}) {
+function handlersWith(provider = createFakeProvider(), log = () => {}, extra = {}) {
   return createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, provider, now: () => clock,
-    deleteAuthUser: async () => {}, log });
+    deleteAuthUser: async () => {}, log, ...extra });
 }
 const caller = (uid, provider = 'password', verified = true) => ({ auth: { uid, token: {
   firebase: { sign_in_provider: provider }, email_verified: verified, auth_time: Math.floor(clock / 1000) } } });
@@ -83,7 +83,7 @@ test('the weekly cap is per account and resets Monday 00:00 UTC', async () => {
   await assert.rejects(start(handlers, 'host2', third), error => error.code === 'resource-exhausted' &&
     error.details.reason === 'weekly-cap' && error.details.resetsAt === '2026-10-12T00:00:00.000Z');
   assert.deepEqual(await handlers.liveSearchStatus({ ...caller('host2'), data: {} }), { eligible: true,
-    weeklyCap: 2, used: 2, remaining: 0, resetsAt: '2026-10-12T00:00:00.000Z', paused: false });
+    weeklyCap: 2, used: 2, remaining: 0, resetsAt: '2026-10-12T00:00:00.000Z', newAccount: false, paused: false });
   await start(handlers, 'other2', await lobby(handlers, 'other2'));
 
   clock = Date.parse('2026-10-12T00:00:01Z'); // Monday
@@ -335,4 +335,93 @@ test('a budget notification at the pause point switches live search off until so
   assert.deepEqual(await guard(notice(20)), { paused: true });
   assert.equal(require('../../rooms/quota.js').liveSearchConfig(
     (await db.doc('config/liveSearch').get()).data()).enabled, false, 'still paused with no other settings');
+});
+
+test('a new account gets 3 searches in its first 48 hours, then the weekly cap', async () => {
+  await configure({ weeklyCaps: { free: 10 } });
+  const created = clock - 3600000;
+  const handlers = handlersWith(createFakeProvider(), () => {}, { accountCreatedAt: async () => created });
+  const status = await handlers.liveSearchStatus({ ...caller('new1'), data: {} });
+  assert.deepEqual([status.weeklyCap, status.remaining, status.newAccount], [3, 3, true]);
+  assert.equal(status.resetsAt, new Date(created + 48 * 3600000).toISOString());
+  await quickPick(handlers, 'new1');
+  await start(handlers, 'new1', await lobby(handlers, 'new1'));
+  await quickPick(handlers, 'new1');
+  await assert.rejects(quickPick(handlers, 'new1'), error => error.code === 'resource-exhausted' &&
+    error.details?.reason === 'new-account-cap' && error.details.resetsAt === new Date(created + 48 * 3600000).toISOString());
+  // The same week, once the account is two days old: the rest of the weekly 10.
+  clock = created + 48 * 3600000 + 1;
+  const later = await handlers.liveSearchStatus({ ...caller('new1'), data: {} });
+  assert.deepEqual([later.weeklyCap, later.used, later.remaining, later.newAccount], [10, 3, 7, false]);
+  await quickPick(handlers, 'new1');
+  // Config can switch the rule off.
+  await configure({ weeklyCaps: { free: 10 }, newAccounts: { enabled: false } });
+  assert.equal((await handlersWith(createFakeProvider(), () => {}, { accountCreatedAt: async () => clock })
+    .liveSearchStatus({ ...caller('new2'), data: {} })).weeklyCap, 10);
+});
+
+test('when Auth cannot say how old an account is, it gets the normal allowance', async () => {
+  await configure({ weeklyCaps: { free: 10 } });
+  const logs = [];
+  const handlers = handlersWith(createFakeProvider(), entry => logs.push(entry),
+    { accountCreatedAt: async () => { throw new Error('auth unavailable'); } });
+  for (let i = 0; i < 4; i++) await quickPick(handlers, 'unknown1');
+  assert.ok(logs.some(entry => entry.event === 'account_age_unknown'));
+});
+
+const from = (network, request = {}) => ({ ...request, rawRequest: { headers: { 'x-forwarded-for': `9.9.9.9, ${network}` } } });
+
+test('network limits: a flood from one network is turned away before any work, whatever the account', async () => {
+  const handlers = handlersWith(createFakeProvider(), () => {}, { networkLimits: 'enforce' });
+  // No sign-in: each call fails in the handler, but still counts for its network.
+  for (let i = 0; i < 120; i++) {
+    await assert.rejects(handlers.joinRoom(from('203.0.113.5', { data: {} })), error => error.code === 'unauthenticated');
+  }
+  await fails(handlers.joinRoom(from('203.0.113.5', { data: {} })), 'resource-exhausted');
+  await fails(handlers.joinRoom(from('203.0.113.6', { data: {} })), 'unauthenticated');
+  clock += 60000;
+  await fails(handlers.joinRoom(from('203.0.113.5', { data: {} })), 'unauthenticated');
+});
+
+test('network limits: join attempts are counted per network across fresh guest accounts', async () => {
+  const handlers = handlersWith(createFakeProvider(), () => {}, { networkLimits: 'enforce' });
+  for (let i = 0; i < 100; i++) {
+    await fails(handlers.joinRoom(from('198.51.100.20', { ...caller(`g${i}`, 'anonymous', false),
+      data: { joinCode: 'ZZZZZZ' } })), 'permission-denied');
+    if (i % 50 === 49) clock += 60000; // stay under the in-memory per-minute window
+  }
+  await fails(handlers.joinRoom(from('198.51.100.20', { ...caller('g100', 'anonymous', false),
+    data: { joinCode: 'ZZZZZZ' } })), 'resource-exhausted');
+  // Another network is unaffected, and the count is a hashed record, not the address.
+  await fails(handlers.joinRoom(from('198.51.100.21', { ...caller('g101', 'anonymous', false),
+    data: { joinCode: 'ZZZZZZ' } })), 'permission-denied');
+  const limits = await db.collection('_limits').get();
+  assert.ok(limits.docs.every(doc => !doc.id.includes('198.51') && !JSON.stringify(doc.data()).includes('198.51')));
+});
+
+test('network limits in log mode never refuse; they log a short hash and what would be refused', async () => {
+  const logs = [];
+  const handlers = handlersWith(createFakeProvider(), entry => logs.push(entry), { networkLimits: 'log' });
+  for (let i = 0; i < 125; i++) {
+    await assert.rejects(handlers.joinRoom(from('203.0.113.7', { data: {} })), error => error.code === 'unauthenticated');
+  }
+  const seen = logs.filter(entry => entry.event === 'network_seen');
+  assert.equal(seen.length, 1, 'once a minute per action');
+  assert.equal(seen[0].forwardedEntries, 2);
+  assert.match(seen[0].networkHash, /^[0-9a-f]{12}$/);
+  assert.ok(!JSON.stringify(logs).includes('203.0.113'), 'the address itself is never logged');
+  assert.deepEqual(logs.filter(entry => entry.event === 'network_limit_reached'),
+    [{ event: 'network_limit_reached', action: 'joinRoom', scope: 'minute', mode: 'log' }]);
+});
+
+test('network limits are off by default and ignore calls with no address', async () => {
+  const handlers = handlersWith();
+  for (let i = 0; i < 130; i++) {
+    await assert.rejects(handlers.joinRoom(from('203.0.113.8', { data: {} })), error => error.code === 'unauthenticated');
+  }
+  const enforcing = handlersWith(createFakeProvider(), () => {}, { networkLimits: 'enforce' });
+  for (let i = 0; i < 130; i++) {
+    await assert.rejects(enforcing.joinRoom({ data: {} }), error => error.code === 'unauthenticated');
+  }
+  assert.throws(() => handlersWith(createFakeProvider(), () => {}, { networkLimits: 'sometimes' }), /Unknown network limit mode/);
 });

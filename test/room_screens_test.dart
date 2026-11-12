@@ -568,6 +568,17 @@ void main() {
           ),
           'Live restaurant search is paused for now.',
         ),
+        (
+          LiveSearchAllowance(
+            weeklyCap: 3,
+            used: 3,
+            remaining: 0,
+            resetsAt: DateTime.utc(2026, 11, 13, 12),
+            paused: false,
+            newAccount: true,
+          ),
+          'New accounts start with 3 live searches. More arrive',
+        ),
       ]) {
         backend.allowance = allowance;
         await tester.pumpWidget(const SizedBox());

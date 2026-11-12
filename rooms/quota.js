@@ -60,4 +60,30 @@ function weeklyCapFor(config, entitlement) {
   return config.weeklyCaps[entitlement] ?? config.weeklyCaps.free ?? 0;
 }
 
-module.exports = { weekOf, monthOf, liveSearchConfig, deckFeatures, weeklyCapFor, DAY_MS, WEEK_MS };
+// Fresh accounts get a smaller allowance at first, so a batch of new sign-ups
+// can't spend much of the month's searches. Set in config/liveSearch as
+// newAccounts: { searches, hours }; missing fields fall back to 3 searches in
+// the first 48 hours, and { enabled: false } turns it off.
+const NEW_ACCOUNTS = Object.freeze({ searches: 3, hours: 48 });
+function newAccountRule(data) {
+  const rule = data?.newAccounts;
+  if (rule?.enabled === false) return null;
+  const searches = count(rule?.searches) ?? NEW_ACCOUNTS.searches;
+  const hours = Number.isInteger(rule?.hours) && rule.hours > 0 && rule.hours <= 336 ? rule.hours : NEW_ACCOUNTS.hours;
+  return { searches, windowMs: hours * 3600000 };
+}
+
+// The allowance that applies right now: the new-account one while it is the
+// smaller, otherwise the weekly cap. `resetsAt` is when more searches arrive.
+function allowanceFor({ config, data, entitlement, createdAt, at, week }) {
+  const weekly = weeklyCapFor(config, entitlement);
+  const rule = newAccountRule(data);
+  const newUntil = rule && Number.isFinite(createdAt) ? createdAt + rule.windowMs : null;
+  if (newUntil !== null && at < newUntil && rule.searches < weekly) {
+    return { cap: rule.searches, reason: 'new-account-cap', resetsAt: Math.min(newUntil, week.resetsAt), newAccount: true };
+  }
+  return { cap: weekly, reason: 'weekly-cap', resetsAt: week.resetsAt, newAccount: false };
+}
+
+module.exports = { weekOf, monthOf, liveSearchConfig, deckFeatures, weeklyCapFor, newAccountRule, allowanceFor,
+  NEW_ACCOUNTS, DAY_MS, WEEK_MS };

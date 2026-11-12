@@ -123,8 +123,15 @@ mixin SearchStarter<T extends StatefulWidget> on State<T> {
     if (allowance.paused) {
       return 'Live restaurant search is paused for now. Try again later.';
     }
+    final more = resetTimeText(allowance.resetsAt);
+    if (allowance.newAccount) {
+      return allowance.remaining <= 0
+          ? 'New accounts start with ${allowance.weeklyCap} live searches. More arrive $more.'
+          : '${allowance.remaining} of ${allowance.weeklyCap} live searches left while your account is new. '
+              'More arrive $more. $searchCostNote';
+    }
     if (allowance.remaining <= 0) {
-      return "You've used this week's live searches. More arrive ${resetTimeText(allowance.resetsAt)}.";
+      return "You've used this week's live searches. More arrive $more.";
     }
     return '${allowance.remaining} of ${allowance.weeklyCap} live searches left this week. $searchCostNote';
   }

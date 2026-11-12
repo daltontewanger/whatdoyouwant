@@ -24,6 +24,9 @@ const PROJECTS = {
     // The billing account's free tier covers three scheduled jobs. Staging's
     // test guests can pile up, so it gives up the weekly cleanup.
     guestCleanup: false,
+    // Per-network limits only log here until the address they use is checked
+    // against Cloud Run's own request logs.
+    networkLimits: 'log',
     // The owner's Google address, hashed; only it can read the insights.
     insightsOwners: ['cbd5778632ef765f45bc112979901a494c1ccdd31f270a1f5b09fe48103455cc'],
   },
@@ -33,6 +36,8 @@ const PROJECTS = {
       'https://what-do-you-want-8a404.firebaseapp.com'],
     maxInstances: 10,
     guestCleanup: true,
+    // Off until staging confirms which address the limits see.
+    networkLimits: 'off',
     insightsOwners: ['cbd5778632ef765f45bc112979901a494c1ccdd31f270a1f5b09fe48103455cc'],
   },
 };
@@ -55,8 +60,11 @@ let hereTransport;
 const provider = createHereProvider({
   transport: call => (hereTransport ??= createHereTransport({ apiKey: hereKey.value() }))(call),
 });
-// Only these callables can search, so only they can read the key.
+// Only these callables can search, so only they can read the key. They also
+// take each App Check token only once, so a token lifted from a real browser
+// can't be replayed by a script to spend searches.
 const SEARCHING = ['startRoom', 'createQuickPick'];
+const SEARCH_OPTIONS = { secrets: [hereKey], consumeAppCheckToken: true };
 const handlers = createRoomHandlers({
   db, FieldValue, Timestamp, HttpsError, provider,
   deleteAuthUser: async uid => {
@@ -68,6 +76,8 @@ const handlers = createRoomHandlers({
   logError: entry => logger.write({ ...entry, severity: 'ERROR' }),
   canReceiveMail: createMailDomainCheck(),
   insightsOwners: settings.insightsOwners,
+  accountCreatedAt: async uid => Date.parse((await auth.getUser(uid)).metadata.creationTime),
+  networkLimits: settings.networkLimits,
 });
 
 const options = {
@@ -85,7 +95,7 @@ const options = {
 const LIMITED = { reportClientError: 2, checkEmailDomain: 2, countEvent: 3, insightsReport: 1 };
 for (const name of CALLABLES) {
   const settingsFor = { ...options, ...(LIMITED[name] ? { maxInstances: LIMITED[name] } : {}) };
-  exports[name] = onCall(SEARCHING.includes(name) ? { ...settingsFor, secrets: [hereKey] } : settingsFor, handlers[name]);
+  exports[name] = onCall(SEARCHING.includes(name) ? { ...settingsFor, ...SEARCH_OPTIONS } : settingsFor, handlers[name]);
 }
 
 // Weekly removal of idle guest accounts; at this size weekly is plenty. No App Check or CORS: it runs as the scoped identity, which can manage

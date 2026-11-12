@@ -8,15 +8,24 @@ class LiveSearchAllowance {
     required this.remaining,
     required this.resetsAt,
     required this.paused,
+    this.newAccount = false,
   });
 
+  /// The allowance that applies now: the weekly cap, or the smaller one an
+  /// account gets in its first days.
   final int weeklyCap;
   final int used;
   final int remaining;
+
+  /// When more searches arrive: the weekly reset, or the end of the
+  /// new-account period if that comes first.
   final DateTime resetsAt;
 
   /// Live search is switched off for everyone (kill switch or budget).
   final bool paused;
+
+  /// The account is still in its first days, with the smaller allowance.
+  final bool newAccount;
 
   /// Null for guests and unverified accounts, who cannot search at all.
   static LiveSearchAllowance? fromCallable(Map<String, dynamic> raw) {
@@ -27,6 +36,7 @@ class LiveSearchAllowance {
       remaining: (raw['remaining'] as num).toInt(),
       resetsAt: DateTime.parse(raw['resetsAt'] as String),
       paused: raw['paused'] == true,
+      newAccount: raw['newAccount'] == true,
     );
   }
 }
@@ -79,6 +89,12 @@ String? liveSearchErrorMessage(Object error) {
       return resetsAt == null
           ? "You've used this week's live searches. More arrive next week."
           : "You've used this week's live searches. More arrive ${resetTimeText(resetsAt)}.";
+    case 'new-account-cap':
+      final details = (error as FirebaseFunctionsException).details as Map;
+      final resetsAt = DateTime.tryParse('${details['resetsAt']}');
+      return resetsAt == null
+          ? 'New accounts start with a few live searches. More arrive soon.'
+          : 'New accounts start with a few live searches. More arrive ${resetTimeText(resetsAt)}.';
     case 'live-search-paused':
       return 'Live restaurant search is paused for now. Try again later.';
     case 'in-progress':

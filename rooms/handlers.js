@@ -11,12 +11,15 @@ const { createClientErrorReporter } = require('./client-errors');
 const { parseOwnList, InvalidList } = require('./own-list');
 const { parsePlaces, parseRoomLists, detailsExpireAt, withoutStaleDetails, InvalidPlaces } = require('./place-lists');
 const { createGeneration } = require('./generation');
+const { clientNetwork, createNetworkWindow, MODES } = require('./ip-limits');
 const { parseReport, reportable, InvalidReport, KINDS, REPORT_WINDOW_MS, HIDDEN_MS, FLAG_DETAILS_MS,
   REPORTS_TO_HIDE } = require('./place-reports');
 const { parseNickname, InvalidNickname, BlockedNickname } = require('./nickname');
 
 const ROOM_TTL_MS = 24 * 3600000;
 const VOTING_WINDOW_MS = 30 * 60000;
+// Calls per network per minute on one server instance, across every callable.
+const NETWORK_CALLS_PER_MINUTE = 120;
 // Provider decks are kept only as long as a vote needs them: until 30 minutes
 // after voting ends, or 15 minutes after the room closes, whichever is sooner.
 // The winner and backup are copied onto the room's results first.
@@ -55,8 +58,13 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
   // work offline; the deployed entry supplies the real DNS check.
   canReceiveMail = async () => true,
   // SHA-256 of the lowercased Google addresses that may read the insights.
-  insightsOwners = [] }) {
+  insightsOwners = [],
+  // When an account was created (ms), for the smaller allowance new accounts get.
+  accountCreatedAt = async () => null,
+  // Per-network limits: 'off', 'log' (count and log what would be refused) or 'enforce'.
+  networkLimits = 'off' }) {
   assertProvider(provider);
+  if (!MODES.includes(networkLimits)) throw new Error(`Unknown network limit mode: ${networkLimits}`);
   const deny = () => { throw new HttpsError('permission-denied', 'Room action unavailable.'); };
   const invalid = () => { throw new HttpsError('invalid-argument', 'Invalid request.'); };
   const expiry = ms => Timestamp.fromMillis(now() + ms);
@@ -116,7 +124,48 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
   }
 
   const generation = createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now, newSeed, log,
-    retryTransient, metrics });
+    retryTransient, metrics, accountCreatedAt });
+
+  // Every call counts against its network in memory first: free, and it stops
+  // a flood before any database work. Generous enough for a busy shared network.
+  const networkWindow = createNetworkWindow({ now, perMinute: NETWORK_CALLS_PER_MINUTE });
+  const logged = new Map();
+  // At most one log line per event and action per minute, so a flood can't flood the logs.
+  function logOnce(entry) {
+    const key = `${entry.event}:${entry.action}`;
+    const minute = Math.floor(now() / 60000);
+    if (logged.get(key) === minute) return;
+    if (logged.size > 200) logged.clear();
+    logged.set(key, minute);
+    log(entry);
+  }
+  function refuseNetwork(action, scope) {
+    if (networkLimits === 'enforce') throw new HttpsError('resource-exhausted', 'Please wait before trying again.');
+    logOnce({ event: 'network_limit_reached', action, scope, mode: networkLimits });
+  }
+  function checkNetwork(request, action) {
+    if (networkLimits === 'off') return null;
+    const { network, entries } = clientNetwork(request.rawRequest);
+    if (!network) return null;
+    // While limits only log, a short hash shows which address was used, to be
+    // compared with the platform's request logs; never the address itself.
+    if (networkLimits === 'log') {
+      logOnce({ event: 'network_seen', action, forwardedEntries: entries, networkHash: digest(network).slice(0, 12) });
+    }
+    if (!networkWindow(network)) refuseNetwork(action, 'minute');
+    return network;
+  }
+  // Stored counts for the actions worth limiting across all server instances.
+  async function limitNetwork(request, action, maximum, period) {
+    const network = request.network;
+    if (!network) return;
+    try {
+      await limit(`network:${network}`, action, maximum, period);
+    } catch (error) {
+      if (!(error instanceof HttpsError) || error.code !== 'resource-exhausted') throw error;
+      refuseNetwork(action, 'stored');
+    }
+  }
 
   // Only the owner's own Google sign-in reads the insights.
   const ownsInsights = actor => actor.provider === 'google.com' && actor.emailVerified && actor.email !== null &&
@@ -305,12 +354,13 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
     if (closed.win) await metrics.recordWin(closed.win);
   }
 
-  return {
+  const callables = {
     async createRoom(request) {
       const actor = identity(request);
       if (!authorize('create', actor)) deny();
       const { requestId } = input(request, { requestId: REQUEST_ID });
       await limit(actor.uid, 'create', 10, 3600000);
+      await limitNetwork(request, 'create', 30, 3600000);
       const receipt = db.doc(`_requests/${digest(`${actor.uid}:${requestId}`)}`);
       const roomId = randomBytes(12).toString('hex').toUpperCase();
       for (let attempt = 0; attempt < 3; attempt++) {
@@ -346,6 +396,7 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       const actor = identity(request);
       // Failed attempts also count; missing, closed and revoked rooms share one response.
       await limit(actor.uid, 'join', 10, 60000);
+      await limitNetwork(request, 'join', 100, 600000);
       const { joinCode, roomId: knownRoom } = input(request, { joinCode: CODE }, { roomId: ROOM_ID });
       const joined = await db.runTransaction(async tx => {
         let roomId = knownRoom;
@@ -932,6 +983,7 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
         throw error;
       }
       await limit(actor.uid, 'reportPlace', 10, 24 * 3600000);
+      await limitNetwork(request, 'reportPlace', 30, 24 * 3600000);
       const { cardId, kind } = report;
       const entry = db.doc(`placeReports/${cardId}/byAccount/${digest(`${actor.uid}:${kind}`)}`);
       const flagRef = db.doc(`placeFlags/${cardId}`);
@@ -1050,6 +1102,17 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
       return { deleted: true };
     },
   };
+
+  // Each callable first passes the network check; the network rides along on
+  // the request for the stored limits above.
+  const guarded = {};
+  for (const [name, handler] of Object.entries(callables)) {
+    guarded[name] = async request => {
+      const network = checkNetwork(request, name);
+      return handler(network ? { ...request, network } : request);
+    };
+  }
+  return guarded;
 }
 
 const CALLABLES = ['createRoom', 'joinRoom', 'startRoom', 'closeRoom', 'roomResults',

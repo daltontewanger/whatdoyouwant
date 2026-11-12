@@ -82,7 +82,9 @@ const deckOf = async roomId => {
 beforeEach(async () => {
   const response = await fetch(`http://127.0.0.1:8080/emulator/v1/projects/${PROJECT}/databases/(default)/documents`, { method: 'DELETE' });
   assert.equal(response.status, 200);
-  await db.doc('config/liveSearch').set({ enabled: true, weeklyCaps: { free: 20 }, monthlyCallStop: 3500 });
+  // Test accounts are minutes old; the new-account allowance has its own tests here and in quota.test.cjs.
+  await db.doc('config/liveSearch').set({ enabled: true, weeklyCaps: { free: 20 }, monthlyCallStop: 3500,
+    newAccounts: { enabled: false } });
 });
 after(() => db.terminate());
 
@@ -967,4 +969,18 @@ test('usage counts, activity records and place wins are server-only', async () =
   }
   assert.equal((await request(`${documents}/metrics`, undefined, someone.token, 'GET')).status, 403);
   assert.equal((await call('insightsReport', { from: '2026-11-01', to: '2026-11-06' }, someone)).status, 403);
+});
+
+test('live search: a just-created account gets the new-account allowance, read from Auth', async () => {
+  await db.doc('config/liveSearch').set({ enabled: true, weeklyCaps: { free: 10 }, monthlyCallStop: 3500 });
+  const host = await user(true, true);
+  const status = (await call('liveSearchStatus', {}, host)).data.result;
+  assert.deepEqual([status.weeklyCap, status.remaining, status.newAccount], [3, 3, true]);
+  for (let i = 0; i < 3; i++) {
+    assert.equal((await call('createQuickPick', { requestId: randomUUID(), search: SEARCH }, host)).status, 200);
+  }
+  const refused = await call('createQuickPick', { requestId: randomUUID(), search: SEARCH }, host);
+  assert.equal(refused.status, 429);
+  assert.equal(refused.data.error.details.reason, 'new-account-cap');
+  assert.ok(Date.parse(refused.data.error.details.resetsAt) > Date.now() + 47 * 3600000);
 });

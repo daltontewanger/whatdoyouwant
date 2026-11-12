@@ -43,7 +43,15 @@ test('production runs as its own scoped identity, without local origins', () => 
   assert.deepEqual(endpoints.joinRoom.secrets, []);
   const source = require('node:fs').readFileSync(entry, 'utf8');
   const production = source.slice(source.indexOf("'what-do-you-want-8a404': {"));
-  assert.ok(!production.slice(0, production.indexOf('},')).includes('localhost'), 'no local origins in production');
+  const productionSettings = production.slice(0, production.indexOf('},'));
+  assert.ok(!productionSettings.includes('localhost'), 'no local origins in production');
+  // Replay protection is a runtime option, so it doesn't show in the endpoint manifest.
+  assert.match(source, /const SEARCH_OPTIONS = \{ secrets: \[hereKey\], consumeAppCheckToken: true \};/);
+  assert.match(source, /SEARCHING\.includes\(name\) \? \{ \.\.\.settingsFor, \.\.\.SEARCH_OPTIONS \}/);
+  // Network limits stay off in production until staging has checked the address they use.
+  assert.match(productionSettings, /networkLimits: 'off'/);
+  const staging = source.slice(source.indexOf("'whatdoyouwant-staging': {"));
+  assert.match(staging.slice(0, staging.indexOf('},')), /networkLimits: 'log'/);
 });
 
 test('every staging callable runs as the scoped identity and requires App Check', async () => {

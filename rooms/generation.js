@@ -6,7 +6,7 @@ const { randomBytes, createHash } = require('node:crypto');
 const { buildDeck, candidateId } = require('./search/deck');
 const { activeFlags } = require('./place-reports');
 const { deckDocument, noticeCards } = require('./decks');
-const { weekOf, monthOf, liveSearchConfig, deckFeatures, weeklyCapFor, DAY_MS, WEEK_MS } = require('./quota');
+const { weekOf, monthOf, liveSearchConfig, deckFeatures, allowanceFor, DAY_MS, WEEK_MS } = require('./quota');
 const { searchCounts, tooFewCounts } = require('./metrics');
 
 // Longer than the callable timeout, so a lease only expires once its call is gone.
@@ -26,7 +26,7 @@ const digest = value => createHash('sha256').update(value).digest('hex');
  *              { view, expiresAt } (the deck's expiry).
  */
 function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now, newSeed, log,
-  retryTransient, metrics }) {
+  retryTransient, metrics, accountCreatedAt = async () => null }) {
   const configRef = db.doc('config/liveSearch');
   const leaseRef = (mode, targetId) => db.doc(`deckGenerations/${mode}_${targetId}`);
   const weekRef = (uid, week) => db.doc(`usageWeeks/${uid}_${week.key}`);
@@ -36,9 +36,22 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
   const owns = (snapshot, reservation) => snapshot.exists && snapshot.data().status === 'executing' &&
     snapshot.data().token === reservation.token;
 
+  // When the account was created, or null when Auth can't say; an unknown age
+  // gets the normal allowance rather than blocking the search.
+  async function createdAtOf(uid) {
+    try {
+      const at = await accountCreatedAt(uid);
+      return Number.isFinite(at) ? at : null;
+    } catch {
+      log({ event: 'account_age_unknown' });
+      return null;
+    }
+  }
+
   async function reserve({ uid, mode, targetId, target }) {
     const lease = leaseRef(mode, targetId);
     const token = randomBytes(8).toString('hex');
+    const createdAt = await createdAtOf(uid);
     return db.runTransaction(async tx => {
       const at = now();
       const week = weekOf(at);
@@ -56,12 +69,13 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
         log({ event: 'live_search_paused', reason: settings.pausedReason });
         throw paused();
       }
-      const cap = weeklyCapFor(settings, entitlement.data()?.entitlement ?? 'free');
+      const { cap, reason, resetsAt } = allowanceFor({ config: settings, data: config.data(),
+        entitlement: entitlement.data()?.entitlement ?? 'free', createdAt, at, week });
       const taken = (usage.data()?.used ?? 0) + (usage.data()?.reserved ?? 0);
       if (taken >= cap) {
-        log({ event: 'weekly_cap_reached', cap });
-        throw new HttpsError('resource-exhausted', 'No live searches left this week.',
-          { reason: 'weekly-cap', resetsAt: new Date(week.resetsAt).toISOString() });
+        log({ event: reason === 'weekly-cap' ? 'weekly_cap_reached' : 'new_account_cap_reached', cap });
+        throw new HttpsError('resource-exhausted', 'No live searches left for now.',
+          { reason, resetsAt: new Date(resetsAt).toISOString() });
       }
       const calls = provider.maxCallsPerSearch;
       const spent = (ledger.data()?.callsReserved ?? 0) + (ledger.data()?.callsCompleted ?? 0);
@@ -132,6 +146,7 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
     } catch (error) {
       const reason = error?.details?.reason;
       if (reason === 'weekly-cap') await metrics.add({ weeklyCapHits: 1 });
+      if (reason === 'new-account-cap') await metrics.add({ newAccountCapHits: 1 });
       if (reason === 'live-search-paused') await metrics.add({ livePausedHits: 1 });
       throw error;
     }
@@ -253,17 +268,19 @@ function createGeneration({ db, FieldValue, Timestamp, HttpsError, provider, now
   async function allowance(uid) {
     const at = now();
     const week = weekOf(at);
-    const [config, usage, entitlement, ledger] = await Promise.all([configRef.get(), weekRef(uid, week).get(),
-      db.doc(`entitlements/${uid}`).get(), monthRef(monthOf(at)).get()]);
+    const [config, usage, entitlement, ledger, createdAt] = await Promise.all([configRef.get(), weekRef(uid, week).get(),
+      db.doc(`entitlements/${uid}`).get(), monthRef(monthOf(at)).get(), createdAtOf(uid)]);
     const settings = liveSearchConfig(config.exists ? config.data() : null);
-    const cap = weeklyCapFor(settings, entitlement.data()?.entitlement ?? 'free');
+    const { cap, resetsAt, newAccount } = allowanceFor({ config: settings, data: config.data(),
+      entitlement: entitlement.data()?.entitlement ?? 'free', createdAt, at, week });
     const used = (usage.data()?.used ?? 0) + (usage.data()?.reserved ?? 0);
     const spent = (ledger.data()?.callsReserved ?? 0) + (ledger.data()?.callsCompleted ?? 0);
     return {
       weeklyCap: cap,
       used: Math.min(used, cap),
       remaining: Math.max(0, cap - used),
-      resetsAt: new Date(week.resetsAt).toISOString(),
+      resetsAt: new Date(resetsAt).toISOString(),
+      newAccount,
       paused: !settings.enabled || spent + provider.maxCallsPerSearch > settings.monthlyCallStop,
     };
   }
