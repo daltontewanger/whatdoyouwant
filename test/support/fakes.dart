@@ -271,6 +271,8 @@ class ShellAuth extends Fake implements FirebaseAuth {
 }
 
 class FakeUser extends Fake implements User {
+  @override
+  String get uid => 'fake-uid';
   bool anonymous = true;
   bool verified = false;
   bool failLink = false;
