@@ -1104,11 +1104,13 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
   };
 
   // Each callable first passes the network check; the network rides along on
-  // the request for the stored limits above.
-  const guarded = {};
-  for (const [name, handler] of Object.entries(callables)) {
+  // the request for the stored limits above. Scheduled work such as the sweep
+  // has no caller and is left as it is.
+  const guarded = { ...callables };
+  for (const name of CALLABLES) {
+    const handler = callables[name];
     guarded[name] = async request => {
-      const network = checkNetwork(request, name);
+      const network = request ? checkNetwork(request, name) : null;
       return handler(network ? { ...request, network } : request);
     };
   }

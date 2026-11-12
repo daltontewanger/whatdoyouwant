@@ -425,3 +425,10 @@ test('network limits are off by default and ignore calls with no address', async
   }
   assert.throws(() => handlersWith(createFakeProvider(), () => {}, { networkLimits: 'sometimes' }), /Unknown network limit mode/);
 });
+
+test('network limits leave scheduled work alone: the sweep runs with no caller', async () => {
+  for (const networkLimits of ['enforce', 'log']) {
+    const handlers = handlersWith(createFakeProvider(), () => {}, { networkLimits });
+    await handlers.sweep();
+  }
+});
