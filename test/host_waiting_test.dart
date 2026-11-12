@@ -97,7 +97,7 @@ void main() {
   }
 
   testWidgets(
-    'the host sees who is still voting; people done fold into one line',
+    'the host sees who is still deciding and who has decided, never how far anyone is',
     (tester) async {
       await waitAsHost(
         tester,
@@ -113,9 +113,14 @@ void main() {
       expect(find.text("You're done voting"), findsOneWidget);
       expect(find.byType(FoodLoader), findsOneWidget);
       expect(find.text('23 of 40 votes in'), findsOneWidget);
-      // Only that someone is still going, never how far they've got.
-      expect(find.text('Still voting'), findsOneWidget);
-      expect(find.textContaining(' of 10'), findsNothing);
+      expect(find.text('Deciding what they want'), findsOneWidget);
+      expect(find.text('Already decided'), findsOneWidget);
+      // The panel titles say it: no "Still voting" or "Done" per person.
+      expect(find.text('Still voting'), findsNothing);
+      expect(find.text('Done'), findsNothing);
+      expect(find.text('Sam'), findsOneWidget);
+      expect(find.text('Guest'), findsOneWidget);
+      expect(find.text('Ari'), findsOneWidget);
       expect(
         find.text(
           'If everyone still voting goes 3 minutes without a vote, voting stops automatically.',
@@ -123,7 +128,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Inactive 1 min'), findsOneWidget);
-      expect(find.text('You and 1 other'), findsOneWidget);
+      expect(find.text('You'), findsWidgets);
       // Sam is still swiping, so there is nothing to finish early yet.
       expect(find.text('Finish without inactive people'), findsNothing);
     },

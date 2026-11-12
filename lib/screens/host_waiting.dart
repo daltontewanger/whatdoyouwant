@@ -53,10 +53,11 @@ List<String> voterLabels(List<VoterProgress> people) {
 }
 
 /// The host's screen after they finish voting: the food bubbles to show the
-/// room is still going, the room's votes as a running total, who is still
-/// voting or has gone quiet (never how far anyone has got), and, once only
-/// quiet people are left, a way to finish without them. People who are done
-/// fold into one line, so a full room stays short.
+/// room is still going, the room's votes as a running total, and two panels,
+/// people still deciding (with a note when someone has gone quiet, never how
+/// far anyone has got) and people who have decided, as chips that wrap so a
+/// full room stays short. Once only quiet people are left, the host can finish
+/// without them.
 class HostWaiting extends StatelessWidget {
   const HostWaiting({
     super.key,
@@ -78,9 +79,27 @@ class HostWaiting extends StatelessWidget {
     final left = people == null ? const <VoterProgress>[] : stillVoting(people);
     final labels = people == null ? const <String>[] : voterLabels(people);
     String label(VoterProgress person) => labels[people!.indexOf(person)];
-    final done = people == null ? 0 : people.length - left.length;
-    final others =
-        people == null ? 0 : people.where((p) => p.done && !p.host).length;
+    final decided =
+        people == null
+            ? const <VoterProgress>[]
+            : [
+              for (final person in people)
+                if (person.done) person,
+            ];
+    // Each guest keeps the same food bubble while the screen is open.
+    final guests =
+        people == null
+            ? const <VoterProgress>[]
+            : [
+              for (final person in people)
+                if (person.name == null && !person.host) person,
+            ];
+    Widget avatar(VoterProgress person, {double size = 32}) => _Avatar(
+      label: label(person),
+      host: person.host,
+      guest: guests.indexOf(person),
+      size: size,
+    );
     final finishAt =
         people == null || checkedAt == null
             ? null
@@ -136,23 +155,59 @@ class HostWaiting extends StatelessWidget {
           ),
           const SizedBox(height: 12),
         ],
-        for (final person in left)
-          _Row(
-            label: label(person),
-            status:
-                person.inactive >= inactiveAfter
-                    ? 'Inactive ${person.inactive.inMinutes} min'
-                    : 'Still voting',
-            inactive: person.inactive >= inactiveAfter,
+        if (left.isNotEmpty)
+          _Panel(
+            title: 'Deciding what they want',
+            count: left.length,
+            colour: _deciding,
+            ink: const Color(0xFF222222),
+            child: Column(
+              children: [
+                for (final person in left)
+                  _Arrive(
+                    key: ValueKey('deciding-${label(person)}'),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 5),
+                      child: Row(
+                        children: [
+                          avatar(person),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              label(person),
+                              style: theme.textTheme.bodyLarge,
+                            ),
+                          ),
+                          if (person.inactive >= inactiveAfter)
+                            _InactiveChip(minutes: person.inactive.inMinutes),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
-        if (done > 0)
-          _Row(
-            label:
-                others == 0
-                    ? 'You'
-                    : 'You and $others other${others == 1 ? '' : 's'}',
-            status: 'Done',
-            done: true,
+        if (left.isNotEmpty && decided.isNotEmpty) const SizedBox(height: 10),
+        if (decided.isNotEmpty)
+          _Panel(
+            title: 'Already decided',
+            count: decided.length,
+            colour: _mint,
+            ink: _mintInk,
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final person in decided)
+                  _Arrive(
+                    key: ValueKey('decided-${label(person)}'),
+                    child: _DecidedChip(
+                      label: label(person),
+                      avatar: avatar(person, size: 22),
+                    ),
+                  ),
+              ],
+            ),
           ),
         if (finishAt != null) ...[
           const SizedBox(height: 16),
@@ -204,54 +259,239 @@ class HostWaiting extends StatelessWidget {
   }
 }
 
-class _Row extends StatelessWidget {
-  const _Row({
-    required this.label,
-    required this.status,
-    this.inactive = false,
-    this.done = false,
+const _deciding = Color(0xFFF4F2EC);
+const _mint = Color(0xFFE1F5EE);
+const _mintInk = Color(0xFF085041);
+
+/// A soft panel with a title and how many people are in it.
+class _Panel extends StatelessWidget {
+  const _Panel({
+    required this.title,
+    required this.count,
+    required this.colour,
+    required this.ink,
+    required this.child,
   });
 
-  final String label;
-  final String status;
-  final bool inactive;
-  final bool done;
+  final String title;
+  final int count;
+  final Color colour;
+  final Color ink;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color =
-        done
-            ? primaryGreen
-            : inactive
-            ? _amberInk
-            : inkSoft;
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: theme.dividerColor)),
-      ),
-      child: Row(
-        children: [
-          Expanded(child: Text(label, style: theme.textTheme.bodyLarge)),
-          if (done || inactive)
-            Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: Icon(
-                done ? Icons.check : Icons.schedule,
-                size: 18,
-                color: color,
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+      alignment: Alignment.topCenter,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+        decoration: BoxDecoration(
+          color: colour,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Semantics(
+              header: true,
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      title,
+                      style: theme.textTheme.bodyMedium!.copyWith(
+                        color: ink,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '$count',
+                      style: theme.textTheme.bodySmall!.copyWith(color: ink),
+                    ),
+                  ),
+                ],
               ),
             ),
+            const SizedBox(height: 6),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+const _foods = [
+  (Icons.local_pizza, Color(0xFFFAEEDA), Color(0xFF854F0B)),
+  (Icons.lunch_dining, Color(0xFFFAECE7), Color(0xFF993C1D)),
+  (Icons.set_meal, Color(0xFFE1F5EE), Color(0xFF0F6E56)),
+  (Icons.ramen_dining, Color(0xFFEEEDFE), Color(0xFF3C3489)),
+  (Icons.icecream, Color(0xFFFBEAF0), Color(0xFF72243E)),
+  (Icons.bakery_dining, Color(0xFFF1EFE8), Color(0xFF444441)),
+];
+
+const _initials = [
+  (Color(0xFFEEEDFE), Color(0xFF3C3489)),
+  (Color(0xFFE6F1FB), Color(0xFF0C447C)),
+  (Color(0xFFFBEAF0), Color(0xFF72243E)),
+  (Color(0xFFFAEEDA), Color(0xFF633806)),
+];
+
+/// A person's circle: "You" for the host, an initial for a nickname, and a
+/// food bubble for each guest.
+class _Avatar extends StatelessWidget {
+  const _Avatar({
+    required this.label,
+    required this.host,
+    required this.guest,
+    required this.size,
+  });
+
+  final String label;
+  final bool host;
+
+  /// This guest's place among the room's guests, or -1 for anyone else.
+  final int guest;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color background;
+    final Widget inside;
+    if (host) {
+      background = primaryGreen;
+      inside = Text(
+        'You',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: size * 0.34,
+          fontWeight: FontWeight.w700,
+        ),
+      );
+    } else if (guest >= 0) {
+      final (icon, fill, ink) = _foods[guest % _foods.length];
+      background = fill;
+      inside = Icon(icon, size: size * 0.55, color: ink);
+    } else {
+      final (fill, ink) = _initials[label.codeUnitAt(0) % _initials.length];
+      background = fill;
+      inside = Text(
+        label.characters.first.toUpperCase(),
+        style: TextStyle(
+          color: ink,
+          fontSize: size * 0.42,
+          fontWeight: FontWeight.w700,
+        ),
+      );
+    }
+    return ExcludeSemantics(
+      child: Container(
+        width: size,
+        height: size,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(color: background, shape: BoxShape.circle),
+        child: inside,
+      ),
+    );
+  }
+}
+
+class _InactiveChip extends StatelessWidget {
+  const _InactiveChip({required this.minutes});
+
+  final int minutes;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+      decoration: BoxDecoration(
+        color: _butter,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.schedule, size: 14, color: _amberInk),
+          const SizedBox(width: 4),
           Text(
-            status,
-            style: theme.textTheme.bodyMedium!.copyWith(
-              color: color,
+            'Inactive $minutes min',
+            style: Theme.of(context).textTheme.bodySmall!.copyWith(
+              color: _amberInk,
               fontWeight: FontWeight.w600,
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Someone who has decided: their circle and name in a small white chip.
+class _DecidedChip extends StatelessWidget {
+  const _DecidedChip({required this.label, required this.avatar});
+
+  final String label;
+  final Widget avatar;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(3, 3, 10, 3),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          avatar,
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall!.copyWith(color: _mintInk),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Fades and slides in a person the first time they appear in a panel, so
+/// moving from deciding to decided reads as movement.
+class _Arrive extends StatelessWidget {
+  const _Arrive({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOut,
+      builder:
+          (context, value, child) => Opacity(
+            opacity: value,
+            child: Transform.translate(
+              offset: Offset(0, (1 - value) * 8),
+              child: child,
+            ),
+          ),
+      child: child,
     );
   }
 }
