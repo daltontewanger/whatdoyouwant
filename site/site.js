@@ -203,9 +203,11 @@ async function startAccountMenu() {
   });
 }
 
-// ---- App warm-up: once the page has settled, the browser fetches the web
-// app's code and rendering engine in the background, so "Open the app" and
-// signing in start sooner. Skipped when the visitor asked to save data.
+// ---- App warm-up: when a visitor shows they're about to open the app
+// (pointer over, focus on or touch of a link into it), the browser starts
+// fetching the web app's code and rendering engine, so it opens sooner. Not
+// on every page view: most visits never open the app, and that download is
+// most of what the site serves. Skipped when the visitor asked to save data.
 function warmUpApp() {
   const files = window.wdywAppFiles;
   if (!files || navigator.connection?.saveData) return;
@@ -213,15 +215,15 @@ function warmUpApp() {
   const chromium = typeof Intl.v8BreakIterator !== 'undefined' && typeof Intl.Segmenter !== 'undefined'
     && typeof ImageDecoder !== 'undefined';
   const engine = chromium ? files.chromiumEngine : files.engine;
-  const fetchLater = () => {
+  const events = ['pointerover', 'focusin', 'touchstart'];
+  const intent = event => {
+    if (!event.target.closest?.('a[href^="/app"]')) return;
+    for (const type of events) removeEventListener(type, intent, true);
     for (const href of [files.code, `${engine}canvaskit.js`, `${engine}canvaskit.wasm`]) {
       document.head.append(Object.assign(document.createElement('link'), { rel: 'prefetch', href }));
     }
   };
-  const idle = () => ('requestIdleCallback' in window ? requestIdleCallback(fetchLater, { timeout: 4000 })
-    : setTimeout(fetchLater, 2000));
-  if (document.readyState === 'complete') idle();
-  else addEventListener('load', idle, { once: true });
+  for (const type of events) addEventListener(type, intent, { capture: true, passive: true });
 }
 
 // ---- Hero: the phone steps through real app screens. The dots jump to a
