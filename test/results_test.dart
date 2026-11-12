@@ -7,7 +7,7 @@ import 'package:whatdoyouwant/screens/place_card.dart';
 import 'package:whatdoyouwant/screens/results_screen.dart';
 import 'package:whatdoyouwant/services/room_backend.dart';
 
-import 'room_screens_test.dart' show FakeRoomBackend, app, state;
+import 'support/fakes.dart';
 
 /// Hands out the given numbers in order, so a test decides the pick and
 /// whether the tease shows.

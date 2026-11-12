@@ -57,7 +57,7 @@ function run(args) {
 if (mode === 'unit') {
   run(['--test', 'local-testing/unit.test.cjs']);
 } else {
-  const configFile = 'firebase.phase1.emulators.json';
+  const configFile = 'firebase.emulators.json';
   const config = JSON.parse(readFileSync(join(root, configFile), 'utf8'));
   for (const [service, port] of Object.entries({ auth: 9099, firestore: 8080, functions: 5001 })) {
     if (config.emulators[service]?.host !== '127.0.0.1' || config.emulators[service]?.port !== port) {
@@ -94,7 +94,7 @@ if (mode === 'unit') {
   }, null, 2));
   // CLI discovery may inject its own ADC file path. The local entry never needs it.
   writeFileSync(join(generated, 'index.js'),
-    "delete process.env.GOOGLE_APPLICATION_CREDENTIALS;\nmodule.exports = require('../../local-testing/phase1/functions-entry.cjs');\n");
+    "delete process.env.GOOGLE_APPLICATION_CREDENTIALS;\nmodule.exports = require('../../local-testing/emulator/functions-entry.cjs');\n");
   const modules = join(generated, 'node_modules');
   const sourceModules = join(root, 'rooms/node_modules');
   // Older checkouts linked the retired functions/ packages here; relink to the rooms ones.
@@ -112,6 +112,6 @@ if (mode === 'unit') {
   const args = [cli, mode === 'policy' ? 'emulators:exec' : 'emulators:start',
     '--config', configFile, '--project', 'demo-whatdoyouwant',
     '--only', 'auth,firestore,functions'];
-  if (mode === 'policy') args.push('node --test --test-concurrency=1 local-testing/phase1/permissions.test.cjs local-testing/phase1/accounts.test.cjs local-testing/phase1/endpoints.test.cjs local-testing/phase1/quota.test.cjs local-testing/phase1/metrics.test.cjs');
+  if (mode === 'policy') args.push('node --test --test-concurrency=1 "local-testing/emulator/*.test.cjs"');
   run(args);
 }

@@ -13,8 +13,7 @@ import 'package:whatdoyouwant/services/room_backend.dart';
 import 'package:whatdoyouwant/services/room_lists.dart';
 import 'package:whatdoyouwant/services/search_defaults.dart';
 
-import 'my_places_test.dart' show place, placeId, scoped;
-import 'room_screens_test.dart' show FakeRoomBackend, state;
+import 'support/fakes.dart';
 
 /// A pick whose cards came from a search, so they can be reported.
 class _PickBackend extends FakeRoomBackend {
@@ -57,7 +56,7 @@ void main() {
     addTearDown(tester.view.reset);
     final cards = [taco, place(2, 'Demo Fish')];
     await tester.pumpWidget(
-      scoped(
+      app(
         backend,
         ResultsScreen(roomCode: 'ROOM-ID', restaurants: cards),
         places: store,
@@ -153,7 +152,7 @@ void main() {
     final backend = _PickBackend(taco);
     final store = MemoryMyPlaces()..synced = true;
     await tester.pumpWidget(
-      scoped(
+      app(
         backend,
         const QuickPickScreen(),
         places: store,
@@ -180,7 +179,7 @@ void main() {
       userEntered: true,
     );
     await tester.pumpWidget(
-      scoped(
+      app(
         backend,
         ResultsScreen(roomCode: 'ROOM-ID', restaurants: [typed]),
         places: MemoryMyPlaces(),
@@ -207,7 +206,7 @@ void main() {
       MyPlaces(closed: [SavedPlace(id: placeId(1), name: 'Demo Taco')]),
     );
     await tester.pumpWidget(
-      scoped(FakeRoomBackend(), const MyPlacesScreen(), places: store),
+      app(FakeRoomBackend(), const MyPlacesScreen(), places: store),
     );
     expect(find.text('Reported closed'), findsOneWidget);
     await tester.tap(find.byTooltip('Remove Demo Taco'));

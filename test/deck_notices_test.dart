@@ -8,8 +8,7 @@ import 'package:whatdoyouwant/screens/results_screen.dart';
 import 'package:whatdoyouwant/screens/swipe_screen.dart';
 import 'package:whatdoyouwant/services/callable_room_backend.dart';
 
-import 'my_places_test.dart' show place, scoped, settle;
-import 'room_screens_test.dart' show FakeRoomBackend;
+import 'support/fakes.dart';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -72,7 +71,7 @@ void main() {
       place(2, 'Demo Fish'),
     ];
     await tester.pumpWidget(
-      scoped(
+      app(
         backend,
         SwipeScreen(
           roomCode: 'ROOM-ID',
@@ -103,7 +102,7 @@ void main() {
   testWidgets('results leave notice cards out', (tester) async {
     final backend = FakeRoomBackend();
     await tester.pumpWidget(
-      scoped(
+      app(
         backend,
         ResultsScreen(
           roomCode: 'ROOM-ID',

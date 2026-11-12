@@ -9,7 +9,7 @@ import 'package:whatdoyouwant/services/demo_room_backend.dart';
 import 'package:whatdoyouwant/services/room_backend.dart';
 import 'package:whatdoyouwant/services/search_defaults.dart';
 
-import 'room_screens_test.dart' show FakeRoomBackend;
+import 'support/fakes.dart';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));

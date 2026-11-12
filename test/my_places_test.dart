@@ -21,16 +21,7 @@ import 'package:whatdoyouwant/services/room_backend.dart';
 import 'package:whatdoyouwant/services/room_lists.dart';
 import 'package:whatdoyouwant/services/search_defaults.dart';
 
-import 'room_screens_test.dart' show FakeRoomBackend, state;
-
-String placeId(int n) => 'c${n.toRadixString(16).padLeft(20, '0')}';
-
-Restaurant place(int n, String name) => Restaurant(
-  id: placeId(n),
-  name: name,
-  address: '$n Example Street',
-  distance: 0.5,
-);
+import 'support/fakes.dart';
 
 final now = DateTime.utc(2026, 10, 30, 12);
 
@@ -60,31 +51,10 @@ class FakeMyPlacesAccount implements MyPlacesAccount {
   }
 }
 
-/// Lets a card fly off and a snack bar slide in.
-Future<void> settle(WidgetTester tester) async {
-  for (var i = 0; i < 10; i++) {
-    await tester.pump(const Duration(milliseconds: 100));
-  }
-}
-
 String sharedText(FakeRoomBackend backend) => [
   for (final (room, favorites, never) in backend.shared)
     '$room $favorites $never',
 ].join(' | ');
-
-Widget scoped(
-  FakeRoomBackend backend,
-  Widget home, {
-  MyPlacesStore? places,
-  OwnListStore? ownList,
-  SearchDefaultsStore? defaults,
-}) => RoomBackendScope(
-  backend: backend,
-  myPlaces: places,
-  ownList: ownList,
-  searchDefaults: defaults,
-  child: MaterialApp(home: home),
-);
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -296,7 +266,7 @@ void main() {
     FakeRoomBackend backend,
     MyPlacesStore store,
     List<Restaurant> cards,
-  ) => scoped(
+  ) => app(
     backend,
     SwipeScreen(
       roomCode: 'ROOM-ID',
@@ -425,7 +395,7 @@ void main() {
     final ownList = MemoryOwnList();
     final cards = [place(1, 'Demo Taco'), place(2, 'Demo Fish')];
     await tester.pumpWidget(
-      scoped(
+      app(
         backend,
         ResultsScreen(roomCode: 'ROOM-ID', restaurants: cards),
         places: store,
@@ -498,7 +468,7 @@ void main() {
           );
     final store = MemoryMyPlaces(MyPlaces(never: [SavedPlace(id: placeId(7))]));
     await tester.pumpWidget(
-      scoped(
+      app(
         backend,
         RoomScreen(
           currentUser: AppUser(id: 'host', name: 'Host'),
@@ -562,7 +532,7 @@ void main() {
       ),
     );
     await tester.pumpWidget(
-      scoped(FakeRoomBackend(), const MyPlacesScreen(), places: store),
+      app(FakeRoomBackend(), const MyPlacesScreen(), places: store),
     );
     expect(find.text('A saved favorite'), findsOneWidget);
     expect(find.text('Demo Noodle'), findsOneWidget);

@@ -3,12 +3,12 @@
   "private": true,
   "scripts": {
     "local:preview": "node scripts/local.mjs preview",
-    "test:unit": "node --test local-testing/unit.test.cjs local-testing/rooms-entry.test.cjs local-testing/search.test.cjs local-testing/benchmark.test.cjs local-testing/quota-config.test.cjs local-testing/site.test.cjs local-testing/own-list.test.cjs local-testing/place-lists.test.cjs local-testing/place-reports.test.cjs local-testing/nickname.test.cjs local-testing/metrics.test.cjs",
+    "test:unit": "node --test \"local-testing/*.test.cjs\"",
     "benchmark:search": "node local-testing/search/benchmark/run.cjs",
     "build:hosting": "node scripts/build-hosting.mjs",
     "site:screenshots": "node scripts/site-screenshots.mjs",
     "deploy:production": "node scripts/deploy-production.mjs",
-    "test:tooling": "node --test local-testing/tooling.test.cjs",
+    "test:tooling": "node --test \"local-testing/tooling/*.test.cjs\"",
     "test:policy": "node scripts/local.mjs policy",
     "deploy:staging": "node scripts/deploy-staging.mjs"
   },
@@ -16,7 +16,7 @@
     "node": "22.x || 24.x"
   },
   "devDependencies": {
-    "firebase-tools": "15.32.1"
+    "firebase-tools": "15.35.0"
   },
   "overrides": {
     "@google-cloud/pubsub": {

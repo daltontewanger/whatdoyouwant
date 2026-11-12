@@ -21,7 +21,7 @@ import 'package:whatdoyouwant/services/my_places.dart';
 import 'package:whatdoyouwant/services/room_backend.dart';
 import 'package:whatdoyouwant/themes/main_theme.dart';
 
-import '../test/room_screens_test.dart' show ShellAuth;
+import '../test/support/fakes.dart' show ShellAuth;
 
 /// A phone's screen in logical pixels, drawn at [_pixelRatio] for the site.
 const _screen = Size(375, 812);

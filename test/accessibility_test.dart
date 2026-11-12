@@ -10,8 +10,7 @@ import 'package:whatdoyouwant/services/accessibility.dart';
 import 'package:whatdoyouwant/services/account_service.dart';
 import 'package:whatdoyouwant/services/room_backend.dart';
 
-import 'account_service_test.dart' show FakeAuth, FakeUser;
-import 'room_screens_test.dart' show FakeRoomBackend, deck, state;
+import 'support/fakes.dart';
 
 Widget scoped(
   FakeRoomBackend backend,

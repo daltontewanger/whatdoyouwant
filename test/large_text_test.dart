@@ -15,8 +15,7 @@ import 'package:whatdoyouwant/services/account_service.dart';
 import 'package:whatdoyouwant/services/search_defaults.dart';
 import 'package:whatdoyouwant/services/room_backend.dart';
 
-import 'room_screens_test.dart'
-    show FakeRoomBackend, ShellAuth, app, deck, hostLobby, state;
+import 'support/fakes.dart';
 
 /// Every main screen still fits a phone with big text: any overflow fails
 /// the test.
