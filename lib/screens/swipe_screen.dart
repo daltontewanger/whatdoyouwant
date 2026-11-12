@@ -231,8 +231,19 @@ class SwipeScreenState extends State<SwipeScreen> {
             await _backend.nudge(widget.roomCode).catchError((_) => null);
           }
         })
-        .catchError((e) {
+        .catchError((Object e) async {
           if (!mounted || _isLeaving) return;
+          // A refused vote often means the room has closed (the host
+          // finished, or time ran out) and this phone has not heard yet. If
+          // so, go straight to the result instead of voting on.
+          final closed = await _backend
+              .votingClosed(widget.roomCode)
+              .catchError((_) => false);
+          if (!mounted || _isLeaving) return;
+          if (closed) {
+            _goToResults();
+            return;
+          }
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text(voteErrorMessage(e))));

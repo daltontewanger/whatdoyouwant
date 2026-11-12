@@ -546,6 +546,14 @@ class CallableRoomBackend implements RoomBackend {
   }
 
   @override
+  Future<bool> votingClosed(String roomId) async =>
+      (await _call('roomResults', {
+        'roomId': roomId,
+        'view': 'room',
+      }))['status'] ==
+      'closed';
+
+  @override
   Future<void> finishWithoutInactive(String roomId) =>
       _call('roomResults', {'roomId': roomId, 'finish': 'inactive'});
 

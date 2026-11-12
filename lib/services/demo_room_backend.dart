@@ -309,6 +309,10 @@ class DemoRoomBackend implements RoomBackend {
   Future<void> finishWithoutInactive(String roomId) async => _settle(roomId);
 
   @override
+  Future<bool> votingClosed(String roomId) async =>
+      _rooms[roomId]?.status == 'closed';
+
+  @override
   Future<void> shareLists(
     String roomId, {
     required List<String> favorites,

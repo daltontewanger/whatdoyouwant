@@ -729,6 +729,43 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets(
+    'a vote refused because the room just closed goes straight to the result',
+    (tester) async {
+      final backend =
+          FakeRoomBackend()
+            ..closed = true
+            ..voteError = FirebaseException(
+              plugin: 'cloud_firestore',
+              code: 'permission-denied',
+            );
+      await tester.pumpWidget(
+        app(
+          backend,
+          SwipeScreen(
+            roomCode: 'ROOM-ID',
+            currentUser: AppUser(id: 'guest', name: 'Guest'),
+            radius: 1,
+            maxOptions: 2,
+            restaurants: deck,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.timedDrag(
+        find.byType(Card).last,
+        const Offset(500, 0),
+        const Duration(milliseconds: 300),
+      );
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(find.textContaining('not counted'), findsNothing);
+      expect(find.byType(ResultsScreen), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   test('room, start and vote failures map to plain messages', () {
     FirebaseFunctionsException callable(String code) =>
         FirebaseFunctionsException(code: code, message: 'raw');

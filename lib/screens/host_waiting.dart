@@ -164,7 +164,8 @@ class HostWaiting extends StatelessWidget {
         ] else if (left.isNotEmpty) ...[
           const SizedBox(height: 12),
           Text(
-            'Anyone who stops voting for 3 minutes is finished without.',
+            'If everyone still voting goes 3 minutes without a vote, voting '
+            'stops automatically.',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodySmall!.copyWith(color: inkSoft),
           ),

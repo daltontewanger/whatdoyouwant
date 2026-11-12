@@ -60,6 +60,12 @@ class FakeRoomBackend implements RoomBackend {
 
   @override
   Future<void> finishWithoutInactive(String roomId) async => finishes++;
+
+  /// What the server says when the screen asks whether voting has ended.
+  bool closed = false;
+
+  @override
+  Future<bool> votingClosed(String roomId) async => closed;
   LiveSearchAllowance? allowance;
   @override
   Future<LiveSearchAllowance?> liveSearchAllowance() async => allowance;

@@ -246,6 +246,10 @@ abstract class RoomBackend {
   /// host of a room still voting, returns who is still voting.
   Future<List<VoterProgress>?> nudge(String roomId);
 
+  /// Whether voting in this room has ended, asked of the server directly for
+  /// when the live connection may be behind.
+  Future<bool> votingClosed(String roomId);
+
   /// Host only: finishes the vote without people who have stopped voting,
   /// once they are the only ones left. The server decides who that is.
   Future<void> finishWithoutInactive(String roomId);
