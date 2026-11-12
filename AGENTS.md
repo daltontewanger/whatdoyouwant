@@ -21,7 +21,7 @@ Repository files and verified console evidence describe actual state. The playbo
 
 ## Repository map
 
-- `lib/main.dart`: production entry (accounts with a guest session, App Check, `CallableRoomBackend`; live at getwhatdoyouwant.app/app).
+- `lib/main.dart`: production entry (App Check, `CallableRoomBackend`; live at getwhatdoyouwant.app/app). On web, `services/backend_session.dart` connects only on first use (App Check, then a guest account); someone already signed in, and the installed app, connect at startup.
 - `lib/main_staging.dart`: staging entry (app on the deployed room backend; `STAGING_CONNECTION_CHECK=true` for the connection check).
 - `lib/main_local.dart`: emulator-only entry (app on the room emulators; Google sign-in uses the Auth emulator's fake provider).
 - `lib/environment_guard.dart`, `lib/firebase_options.dart`, `lib/firebase_options_staging.dart`, `lib/firebase_options_local.dart`: per-environment config and guards.
