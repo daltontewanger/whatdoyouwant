@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 import '../models/insights.dart';
 import '../models/own_spot.dart';
 import '../models/restaurant.dart';
+import 'deck_loader.dart';
 import 'device_location.dart';
 import 'live_search.dart';
 import 'room_backstop.dart';
@@ -246,7 +247,6 @@ class CallableRoomBackend implements RoomBackend {
     String? mySeat;
     var deck = <Restaurant>[];
     var myVotes = <String>{};
-    var deckRequested = false;
 
     void emit() {
       final data = roomData;
@@ -275,23 +275,17 @@ class CallableRoomBackend implements RoomBackend {
     // Re-runs [apply] on the room as last known; set once [apply] exists.
     late final void Function() refresh;
 
-    // Decks never change once stored, so one read is enough.
+    final deckLoader = DeckLoader<Map<String, dynamic>>(
+      (deckId) async => (await _db.doc('restaurantDecks/$deckId').get()).data(),
+    );
     void loadDeck(String deckId) {
-      if (deckRequested) return;
-      deckRequested = true;
-      _db
-          .doc('restaurantDecks/$deckId')
-          .get()
-          .then((snapshot) {
-            final stored = snapshot.data();
-            // The deck may already have come with a catch-up answer.
-            if (stored != null && deck.isEmpty) deck = deckRestaurants(stored);
-            // With the cards known, a finished voter starts waiting for results.
-            refresh();
-          })
-          .catchError((Object error) {
-            if (!controller.isClosed) controller.addError(error);
-          });
+      deckLoader.load(deckId, (stored) {
+        if (controller.isClosed) return;
+        // The deck may already have come with a catch-up answer.
+        if (deck.isEmpty) deck = deckRestaurants(stored);
+        // With the cards known, a finished voter starts waiting for results.
+        refresh();
+      });
     }
 
     late final RoomBackstop backstop;
@@ -364,7 +358,7 @@ class CallableRoomBackend implements RoomBackend {
         final cards = view['deck'];
         if (cards is Map && deck.isEmpty) {
           deck = deckRestaurants(Map<String, dynamic>.from(cards));
-          deckRequested = true;
+          deckLoader.markLoaded();
         }
         // Before any snapshot, the server's view is all there is.
         apply(roomData ?? ahead);
