@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:whatdoyouwant/services/search_defaults.dart';
@@ -5,6 +7,11 @@ import 'package:whatdoyouwant/services/search_defaults.dart';
 class FakeAccountSettings implements AccountSettings {
   @override
   String? verifiedUid;
+  @override
+  bool isGuest = true;
+  final signIns = StreamController<void>.broadcast();
+  @override
+  Stream<void> get changes => signIns.stream;
   final stored = <String, Map<String, dynamic>>{};
   final writes = <(String, Map<String, Object>)>[];
   bool offline = false;
@@ -71,10 +78,12 @@ void main() {
       (defaults.account as FakeAccountSettings).writes.toString(),
       isNot(contains('67202')),
     );
-    expect(
-      (await DeviceSearchDefaults().load(), DeviceSearchDefaults().zip),
-      (thaiKm, null),
+    final restarted = AccountSearchDefaults(
+      device: DeviceSearchDefaults(),
+      account: FakeAccountSettings()..verifiedUid = 'uid-1',
     );
+    expect(await restarted.load(), thaiKm);
+    expect(restarted.zip, isNull);
   });
 
   test('distances read in the person\'s unit', () {
@@ -142,12 +151,91 @@ void main() {
       expect(account.writes, isEmpty);
     });
 
-    test('offline, the device copy is used', () async {
+    test("offline, the account's device copy is used", () async {
+      account.verifiedUid = 'host';
       await store().save(thaiKm);
-      account
-        ..verifiedUid = 'host'
-        ..offline = true;
+      account.offline = true;
       expect(await store().load(), thaiKm);
     });
+
+    test(
+      "one account's setup never shows for the next account on this device",
+      () async {
+        account
+          ..verifiedUid = 'gmail'
+          ..isGuest = false;
+        await store().save(thaiKm);
+        await pumpEventQueue();
+        // Signed out: a guest gets the defaults, not the account's setup.
+        account
+          ..verifiedUid = null
+          ..isGuest = true;
+        expect(await store().load(), const SearchPreferences());
+        // A brand-new account starts from the defaults too, and nothing of the
+        // first account's is copied into it.
+        account
+          ..verifiedUid = 'new-email'
+          ..isGuest = false;
+        expect(await store().load(), const SearchPreferences());
+        await pumpEventQueue();
+        expect(account.writes.map((w) => w.$1), ['gmail']);
+        // Back on the first account, its own setup returns.
+        account.verifiedUid = 'gmail';
+        expect(await store().load(), thaiKm);
+      },
+    );
+
+    test('signing in or out reloads on its own', () async {
+      account.stored['host'] = thaiKm.toJson();
+      final defaults = store();
+      await defaults.load();
+      expect(defaults.current, const SearchPreferences());
+      account
+        ..verifiedUid = 'host'
+        ..isGuest = false;
+      account.signIns.add(null);
+      await pumpEventQueue();
+      expect(defaults.current, thaiKm);
+      account
+        ..verifiedUid = null
+        ..isGuest = true;
+      account.signIns.add(null);
+      await pumpEventQueue();
+      expect(defaults.current, const SearchPreferences());
+      defaults.dispose();
+    });
+
+    test(
+      'the old shared copy goes to whoever is signed in when the update arrives',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          'searchDefaults':
+              '{"unit":"km","radius":10,"deckSize":25,"includedCuisineIds":["thai"],"excludedCuisineIds":[],"openNowPreferred":true}',
+        });
+        account
+          ..verifiedUid = 'host'
+          ..isGuest = false;
+        expect(await store().load(), thaiKm);
+        account
+          ..verifiedUid = null
+          ..isGuest = true;
+        expect(
+          await store().load(),
+          const SearchPreferences(),
+          reason: "not the guest's",
+        );
+        final prefs = await SharedPreferences.getInstance();
+        expect(prefs.containsKey('searchDefaults'), isFalse);
+
+        SharedPreferences.setMockInitialValues({
+          'searchDefaults': '{"radius":3}',
+        });
+        expect(
+          (await store().load()).radius,
+          3,
+          reason: 'a guest keeps their own',
+        );
+      },
+    );
   });
 }
