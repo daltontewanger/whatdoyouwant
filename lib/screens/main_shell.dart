@@ -12,9 +12,7 @@ import 'step_card.dart';
 /// its middle. Rooms open on top of it, so the bar steps aside while a room
 /// is running.
 class MainShell extends StatefulWidget {
-  const MainShell({super.key, required this.currentUid});
-
-  final String currentUid;
+  const MainShell({super.key});
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -57,7 +55,7 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     final accounts = RoomBackendScope.of(context).accounts;
-    final home = HomeScreen(key: _home, currentUid: widget.currentUid);
+    final home = HomeScreen(key: _home);
     // Builds without accounts have nothing to show on an Account tab.
     if (accounts == null) return home;
     return FloatingBarInset(

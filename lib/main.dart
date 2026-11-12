@@ -18,6 +18,7 @@ import 'services/error_reporter.dart';
 import 'services/site_links.dart';
 import 'services/room_backend.dart';
 import 'services/accessibility.dart';
+import 'services/backend_session.dart';
 import 'services/my_places.dart';
 import 'services/own_list.dart';
 import 'services/search_defaults.dart';
@@ -34,29 +35,38 @@ Future<void> main() async {
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  await FirebaseAppCheck.instance.activate(
-    providerAndroid:
-        kDebugMode ? AndroidDebugProvider() : AndroidPlayIntegrityProvider(),
-    providerWeb: ReCaptchaEnterpriseProvider(
-      '6LfB8dwsAAAAADI3urO26SxS_C_lHi7jiydt1KSv',
-    ),
-  );
-
   FirebaseFirestore.instance.settings = const Settings(
     persistenceEnabled: false,
   );
-  final accounts = AccountService(
+  late final AccountService accounts;
+  final session = BackendSession(
+    protect:
+        () => FirebaseAppCheck.instance.activate(
+          providerAndroid:
+              kDebugMode
+                  ? AndroidDebugProvider()
+                  : AndroidPlayIntegrityProvider(),
+          providerWeb: ReCaptchaEnterpriseProvider(
+            '6LfB8dwsAAAAADI3urO26SxS_C_lHi7jiydt1KSv',
+          ),
+        ),
+    signIn: () => accounts.guest(),
+    signedIn: () => FirebaseAuth.instance.currentUser != null,
+  );
+  accounts = AccountService(
     FirebaseAuth.instance,
+    prepare: session.protect,
     // The web client is set up for the production domain. Installed apps
     // also need their signing fingerprints registered, so there it stays
     // behind a build flag until that is done.
     googleEnabled: kIsWeb || const bool.fromEnvironment('GOOGLE_SIGN_IN'),
-    mailDomainCheck:
-        (domain) async =>
-            (await FirebaseFunctions.instance
-                .httpsCallable('checkEmailDomain')
-                .call({'domain': domain})).data['deliverable'] !=
-            false,
+    mailDomainCheck: (domain) async {
+      await session.ready();
+      return (await FirebaseFunctions.instance
+              .httpsCallable('checkEmailDomain')
+              .call({'domain': domain})).data['deliverable'] !=
+          false;
+    },
     returnTo: accountReturnLink(
       Firebase.app().options.projectId,
       current: kIsWeb ? Uri.base : null,
@@ -64,20 +74,26 @@ Future<void> main() async {
     deleteOnServer:
         () => FirebaseFunctions.instance.httpsCallable('deleteAccount').call(),
   );
-  await accounts.guest();
-  // Release builds report uncaught errors; debug builds show them instead.
+  // Someone already signed in on this device, and the installed app, connect
+  // straight away; a new web visitor connects only once they do something.
+  final restored = await FirebaseAuth.instance.authStateChanges().first;
+  if (!kIsWeb || restored != null) {
+    await session.ready();
+    await accounts.guest();
+  }
+  // Release builds report uncaught errors once connected; debug builds show
+  // them instead.
   if (!kDebugMode) {
-    ErrorReporter(
-      (report) => FirebaseFunctions.instance
+    ErrorReporter((report) async {
+      if (!session.isStarted) return;
+      await FirebaseFunctions.instance
           .httpsCallable('reportClientError')
-          .call(report),
-      build: await appBuildNumber(),
-    ).install();
+          .call(report);
+    }, build: await appBuildNumber()).install();
   }
   runApp(
     MyApp(
-      currentUid: FirebaseAuth.instance.currentUser!.uid,
-      backend: CallableRoomBackend(),
+      backend: CallableRoomBackend(session: session),
       accounts: accounts,
       activeRooms: PreferencesActiveRoomStore(),
       searchDefaults: AccountSearchDefaults(
@@ -95,7 +111,6 @@ Future<void> main() async {
 }
 
 class MyApp extends StatelessWidget {
-  final String currentUid;
   final RoomBackend backend;
   final AccountService? accounts;
   final ActiveRoomStore? activeRooms;
@@ -107,7 +122,6 @@ class MyApp extends StatelessWidget {
   final UsageCounts? usageCounts;
   const MyApp({
     super.key,
-    required this.currentUid,
     required this.backend,
     this.accounts,
     this.activeRooms,
@@ -138,7 +152,7 @@ class MyApp extends StatelessWidget {
         builder:
             (context, child) =>
                 AppTextSize(settings: accessibility, child: child!),
-        home: UpdateGate(child: MainShell(currentUid: currentUid)),
+        home: const UpdateGate(child: MainShell()),
       ),
     );
   }

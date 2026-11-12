@@ -12,6 +12,7 @@ import 'services/account_service.dart';
 import 'services/active_room_store.dart';
 import 'services/callable_room_backend.dart';
 import 'services/accessibility.dart';
+import 'services/backend_session.dart';
 import 'services/my_places.dart';
 import 'services/own_list.dart';
 import 'services/search_defaults.dart';
@@ -51,27 +52,41 @@ Future<void> main() async {
   FirebaseFirestore.instance.useFirestoreEmulator(host, 8080);
   await FirebaseAuth.instance.useAuthEmulator(host, 9099);
   FirebaseFunctions.instance.useFunctionsEmulator(host, 5001);
-  final accounts = AccountService(
+  late final AccountService accounts;
+  // No App Check on the emulators, but the same lazy start as the live app.
+  final session = BackendSession(
+    protect: () async {},
+    signIn: () => accounts.guest(),
+    signedIn: () => FirebaseAuth.instance.currentUser != null,
+  );
+  accounts = AccountService(
     FirebaseAuth.instance,
+    prepare: session.protect,
     usesEmulator: true,
-    mailDomainCheck:
-        (domain) async =>
-            (await FirebaseFunctions.instance
-                .httpsCallable('checkEmailDomain')
-                .call({'domain': domain})).data['deliverable'] !=
-            false,
+    mailDomainCheck: (domain) async {
+      await session.ready();
+      return (await FirebaseFunctions.instance
+              .httpsCallable('checkEmailDomain')
+              .call({'domain': domain})).data['deliverable'] !=
+          false;
+    },
     // Served from the root during local development.
     returnTo: kIsWeb ? Uri.parse('${Uri.base.origin}/account') : null,
     googleEnabled: true,
     deleteOnServer:
         () => FirebaseFunctions.instance.httpsCallable('deleteAccount').call(),
   );
-  await accounts.guest();
+  if (!kIsWeb || await FirebaseAuth.instance.authStateChanges().first != null) {
+    await session.ready();
+    await accounts.guest();
+  }
   // No App Check activation or registered debug token in this local-only path.
   runApp(
     MyApp(
-      currentUid: FirebaseAuth.instance.currentUser!.uid,
-      backend: CallableRoomBackend(usesFictionalRestaurants: true),
+      backend: CallableRoomBackend(
+        session: session,
+        usesFictionalRestaurants: true,
+      ),
       accounts: accounts,
       activeRooms: PreferencesActiveRoomStore(),
       searchDefaults: AccountSearchDefaults(

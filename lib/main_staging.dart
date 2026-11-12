@@ -15,6 +15,7 @@ import 'services/active_room_store.dart';
 import 'services/callable_room_backend.dart';
 import 'services/error_reporter.dart';
 import 'services/accessibility.dart';
+import 'services/backend_session.dart';
 import 'services/my_places.dart';
 import 'services/own_list.dart';
 import 'services/search_defaults.dart';
@@ -49,7 +50,7 @@ Future<void> main() async {
     String.fromEnvironment('STAGING_ANDROID_APPCHECK_DEBUG_TOKEN'),
     String.fromEnvironment('STAGING_WEB_APPCHECK_DEBUG_TOKEN'),
   );
-  await FirebaseAppCheck.instance.activate(
+  Future<void> activateAppCheck() => FirebaseAppCheck.instance.activate(
     providerAndroid:
         kDebugMode && debugTokens.android.isNotEmpty
             ? AndroidDebugProvider(debugToken: debugTokens.android)
@@ -65,18 +66,27 @@ Future<void> main() async {
     persistenceEnabled: false,
   );
   if (const bool.fromEnvironment('STAGING_CONNECTION_CHECK')) {
+    await activateAppCheck();
     runApp(const MaterialApp(home: StagingCheck()));
     return;
   }
-  final accounts = AccountService(
+  late final AccountService accounts;
+  final session = BackendSession(
+    protect: activateAppCheck,
+    signIn: () => accounts.guest(),
+    signedIn: () => FirebaseAuth.instance.currentUser != null,
+  );
+  accounts = AccountService(
     FirebaseAuth.instance,
+    prepare: session.protect,
     usesStaging: true,
-    mailDomainCheck:
-        (domain) async =>
-            (await FirebaseFunctions.instance
-                .httpsCallable('checkEmailDomain')
-                .call({'domain': domain})).data['deliverable'] !=
-            false,
+    mailDomainCheck: (domain) async {
+      await session.ready();
+      return (await FirebaseFunctions.instance
+              .httpsCallable('checkEmailDomain')
+              .call({'domain': domain})).data['deliverable'] !=
+          false;
+    },
     returnTo: accountReturnLink(
       Firebase.app().options.projectId,
       current: kIsWeb ? Uri.base : null,
@@ -85,20 +95,26 @@ Future<void> main() async {
     deleteOnServer:
         () => FirebaseFunctions.instance.httpsCallable('deleteAccount').call(),
   );
-  await accounts.guest();
-  // Release builds report uncaught errors; debug builds show them instead.
+  // Matches production: someone already signed in, and the installed app,
+  // connect straight away; a new web visitor connects once they act.
+  final restored = await FirebaseAuth.instance.authStateChanges().first;
+  if (!kIsWeb || restored != null) {
+    await session.ready();
+    await accounts.guest();
+  }
+  // Release builds report uncaught errors once connected; debug builds show
+  // them instead.
   if (!kDebugMode) {
-    ErrorReporter(
-      (report) => FirebaseFunctions.instance
+    ErrorReporter((report) async {
+      if (!session.isStarted) return;
+      await FirebaseFunctions.instance
           .httpsCallable('reportClientError')
-          .call(report),
-      build: await appBuildNumber(),
-    ).install();
+          .call(report);
+    }, build: await appBuildNumber()).install();
   }
   runApp(
     MyApp(
-      currentUid: FirebaseAuth.instance.currentUser!.uid,
-      backend: CallableRoomBackend(),
+      backend: CallableRoomBackend(session: session),
       accounts: accounts,
       activeRooms: PreferencesActiveRoomStore(),
       searchDefaults: AccountSearchDefaults(

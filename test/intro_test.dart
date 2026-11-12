@@ -26,7 +26,7 @@ Widget shell(IntroStore intro) => RoomBackendScope(
   accounts: AccountService(ShellAuth()),
   ownList: MemoryOwnList(),
   intro: intro,
-  child: const MaterialApp(home: MainShell(currentUid: 'guest')),
+  child: const MaterialApp(home: MainShell()),
 );
 
 void main() {

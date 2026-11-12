@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 import '../models/insights.dart';
 import '../models/own_spot.dart';
 import '../models/restaurant.dart';
+import 'backend_session.dart';
 import 'deck_loader.dart';
 import 'device_location.dart';
 import 'live_search.dart';
@@ -198,12 +199,14 @@ class CallableRoomBackend implements RoomBackend {
     FirebaseFirestore? firestore,
     FirebaseFunctions? functions,
     FirebaseAuth? auth,
+    BackendSession? session,
     Future<SearchOrigin> Function()? locate,
     DeviceLocator? locator,
     this.usesFictionalRestaurants = false,
   }) : _db = firestore ?? FirebaseFirestore.instance,
        _functions = functions ?? FirebaseFunctions.instance,
        _auth = auth ?? FirebaseAuth.instance,
+       _session = session,
        _locator = locator ?? DeviceLocator(),
        _fixedLocate = locate;
 
@@ -216,6 +219,17 @@ class CallableRoomBackend implements RoomBackend {
   Future<SearchOrigin> _locate() => _fixedLocate?.call() ?? _locator.locate();
   final _expiries = <String, Timestamp>{};
 
+  final BackendSession? _session;
+  late final WaitingCounts? _waitingCounts =
+      _session == null
+          ? null
+          : WaitingCounts(
+            _session,
+            (name) => _call('countEvent', {'name': name}),
+          );
+
+  Future<void> _ready() async => _session?.ready();
+
   String get _uid => _auth.currentUser!.uid;
 
   @override
@@ -227,6 +241,7 @@ class CallableRoomBackend implements RoomBackend {
     String name,
     Map<String, Object?> data,
   ) async {
+    await _ready();
     final result = await _functions
         .httpsCallable(
           name,
@@ -391,7 +406,14 @@ class CallableRoomBackend implements RoomBackend {
     );
 
     controller = StreamController<RoomState>(
-      onListen: () {
+      onListen: () async {
+        try {
+          await _ready();
+        } catch (error) {
+          if (!controller.isClosed) controller.addError(error);
+          return;
+        }
+        if (controller.isClosed) return;
         // Until the listener's first snapshot, the backstop is the only way
         // to learn the room if the live connection is slow from the start.
         backstop.start();
@@ -488,6 +510,7 @@ class CallableRoomBackend implements RoomBackend {
   Future<Timestamp> _expiryOf(String roomId) async {
     final known = _expiries[roomId];
     if (known != null) return known;
+    await _ready();
     final room = await _db.doc('rooms/$roomId').get();
     return _expiries[roomId] = room.data()!['expiresAt'] as Timestamp;
   }
@@ -501,6 +524,7 @@ class CallableRoomBackend implements RoomBackend {
     required int total,
     bool auto = false,
   }) async {
+    await _ready();
     // Ballots carry the room's expiry so they are cleaned up with it.
     await _db.doc('rooms/$roomId/votes/$_uid/ballot/${restaurant.id}').set({
       'liked': liked,
@@ -543,12 +567,15 @@ class CallableRoomBackend implements RoomBackend {
   Uri sitePage(String path) => sitePageLink(_siteOrigin, path);
 
   @override
-  Future<bool> updateRequired(int build) async =>
-      (await _call('appStatus', {
-        'build': build,
-        if (_platform case final platform?) 'platform': platform,
-      }))['updateRequired'] ==
-      true;
+  Future<bool> updateRequired(int build) async {
+    // Only people who use the app are checked, once they do.
+    await _session?.whenStarted;
+    return (await _call('appStatus', {
+          'build': build,
+          if (_platform case final platform?) 'platform': platform,
+        }))['updateRequired'] ==
+        true;
+  }
 
   // Sent with the app-open check for the daily count of sessions by platform.
   static String? get _platform {
@@ -562,6 +589,8 @@ class CallableRoomBackend implements RoomBackend {
 
   @override
   Future<void> countEvent(String name) async {
+    final waiting = _waitingCounts;
+    if (waiting != null) return waiting.count(name);
     await _call('countEvent', {'name': name});
   }
 

@@ -154,7 +154,7 @@ void main() {
 
   testWidgets('home', (tester) async {
     await phone(tester);
-    await tester.pumpWidget(app(const MainShell(currentUid: 'guest')));
+    await tester.pumpWidget(app(const MainShell()));
     // The comic springs in on its own; let it land.
     await tester.pump(const Duration(seconds: 2));
     await save(tester, 'home');

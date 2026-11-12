@@ -88,7 +88,7 @@ void main() {
       RoomBackendScope(
         backend: FakeRoomBackend(),
         accounts: AccountService(ShellAuth()),
-        child: const MaterialApp(home: MainShell(currentUid: 'guest')),
+        child: const MaterialApp(home: MainShell()),
       ),
     );
     await tester.pump();

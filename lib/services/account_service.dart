@@ -29,8 +29,13 @@ class AccountService {
 
   /// Asks the backend whether an email domain can receive mail at all.
   final Future<bool> Function(String domain)? mailDomainCheck;
+
+  /// Gets the backend ready before an Auth step (App Check), since the app
+  /// no longer does that when it opens.
+  final Future<void> Function()? prepare;
   AccountService(
     this.auth, {
+    this.prepare,
     this.deleteOnServer,
     this.returnTo,
     this.mailDomainCheck,
@@ -44,6 +49,7 @@ class AccountService {
   /// there is no session. A Google account that already exists is never merged;
   /// the error propagates and the guest session is unchanged.
   Future<void> continueWithGoogle() async {
+    await prepare?.call();
     final user = auth.currentUser;
     if (user != null && !user.isAnonymous) {
       throw StateError('Sign out before using another account.');
@@ -62,6 +68,7 @@ class AccountService {
   /// [credential] is the one Google already handed back when linking failed,
   /// so the person isn't asked to pick their account a second time.
   Future<void> signInWithGoogle({AuthCredential? credential}) async {
+    await prepare?.call();
     if (credential != null) {
       await auth.signInWithCredential(credential);
       return;
@@ -92,6 +99,7 @@ class AccountService {
       user.providerData.any((info) => info.providerId == 'password');
 
   Future<void> register(String email, String password) async {
+    await prepare?.call();
     final user = auth.currentUser;
     if (user != null && !user.isAnonymous) {
       throw StateError('Sign out before creating another account.');
@@ -113,6 +121,7 @@ class AccountService {
   }
 
   Future<void> signIn(String email, String password) async {
+    await prepare?.call();
     await auth.signInWithEmailAndPassword(
       email: email.trim(),
       password: password,
@@ -120,6 +129,7 @@ class AccountService {
   }
 
   Future<void> sendVerification() async {
+    await prepare?.call();
     final user = auth.currentUser;
     if (user == null || user.isAnonymous) {
       throw StateError('Create an account first.');
@@ -139,26 +149,33 @@ class AccountService {
 
   /// The email a reset link is for; throws when the link is invalid,
   /// expired or already used.
-  Future<String> checkResetLink(String code) =>
-      auth.verifyPasswordResetCode(code);
+  Future<String> checkResetLink(String code) async {
+    await prepare?.call();
+    return auth.verifyPasswordResetCode(code);
+  }
 
-  Future<void> finishReset(String code, String newPassword) =>
-      auth.confirmPasswordReset(code: code, newPassword: newPassword);
+  Future<void> finishReset(String code, String newPassword) async {
+    await prepare?.call();
+    await auth.confirmPasswordReset(code: code, newPassword: newPassword);
+  }
 
   /// Applies a verification or email-recovery link, then refreshes the
   /// signed-in account so hosting unlocks straight away.
   Future<void> applyLink(String code) async {
+    await prepare?.call();
     await auth.applyActionCode(code);
     if (auth.currentUser != null) await refreshVerification();
   }
 
   Future<void> refreshVerification() async {
+    await prepare?.call();
     await auth.currentUser?.reload();
     // Refresh the token as well as the displayed user: backend checks use claims.
     await auth.currentUser?.getIdToken(true);
   }
 
   Future<void> resetPassword(String email) async {
+    await prepare?.call();
     try {
       await auth.sendPasswordResetEmail(
         email: email.trim(),
@@ -203,6 +220,7 @@ class AccountService {
   }
 
   Future<void> deleteAccount(String password) async {
+    await prepare?.call();
     final user = auth.currentUser;
     if (user == null) throw StateError('No account to delete.');
     if (!user.isAnonymous && usesPassword(user)) {
@@ -225,18 +243,14 @@ class AccountService {
     if (server == null) {
       await user.delete();
     } else {
-      // The server deletes the Auth user after the data, so only the local
-      // session is left to clear.
+      // The server deletes the Auth user after the data.
       await server();
-      await auth.signOut();
     }
-    await auth.signInAnonymously();
+    // Clears the local session either way; a guest one starts when needed.
+    await auth.signOut();
   }
 
-  /// Leaves a registered account. A fresh guest session follows so joining
-  /// rooms keeps working without a separate step.
-  Future<void> signOut() async {
-    await auth.signOut();
-    await auth.signInAnonymously();
-  }
+  /// Leaves a registered account. A guest session starts again the next time
+  /// the person does something that needs one, such as joining a room.
+  Future<void> signOut() => auth.signOut();
 }

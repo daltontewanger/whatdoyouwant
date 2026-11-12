@@ -150,7 +150,9 @@ void main() {
       );
     }
 
-    testWidgets('signing out leaves a fresh guest session', (tester) async {
+    testWidgets('signing out leaves no account until a guest one is needed', (
+      tester,
+    ) async {
       final auth = FakeAuth(FakeUser()..anonymous = false);
       await tester.pumpWidget(
         MaterialApp(home: AccountScreen(accounts: AccountService(auth))),
@@ -158,8 +160,9 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Sign out'));
       await tester.pumpAndSettle();
-      expect((auth.signOuts, auth.guests), (1, 1));
-      expect(auth.currentUser!.isAnonymous, isTrue);
+      // A guest session starts only when the person next does something.
+      expect((auth.signOuts, auth.guests), (1, 0));
+      expect(auth.currentUser, isNull);
       expect(find.text('Signed out. You are playing as a guest.'), findsOne);
     });
 
@@ -183,7 +186,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(user.calls, ['reauth', 'delete']);
       expect(find.text('Account deleted.'), findsOneWidget);
-      expect(auth.currentUser!.isAnonymous, isTrue);
+      expect(auth.currentUser, isNull);
     });
   });
   test(

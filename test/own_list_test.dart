@@ -290,7 +290,7 @@ void main() {
         backend: FakeRoomBackend(),
         accounts: AccountService(ShellAuth()),
         ownList: MemoryOwnList(),
-        child: const MaterialApp(home: MainShell(currentUid: 'guest')),
+        child: const MaterialApp(home: MainShell()),
       ),
     );
     await tester.pump();
@@ -433,7 +433,7 @@ void main() {
         accounts: AccountService(ShellAuth()),
         activeRooms: rooms,
         ownList: MemoryOwnList(),
-        child: const MaterialApp(home: MainShell(currentUid: 'guest')),
+        child: const MaterialApp(home: MainShell()),
       ),
     );
     await tester.pump();
@@ -461,7 +461,7 @@ void main() {
         backend: FakeRoomBackend(),
         accounts: AccountService(ShellAuth()),
         ownList: MemoryOwnList(),
-        child: const MaterialApp(home: MainShell(currentUid: 'guest')),
+        child: const MaterialApp(home: MainShell()),
       ),
     );
     await tester.pump();

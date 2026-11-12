@@ -25,8 +25,7 @@ import '../services/usage_counts.dart';
 import 'insights_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  final String currentUid;
-  const HomeScreen({super.key, required this.currentUid});
+  const HomeScreen({super.key});
 
   @override
   HomeScreenState createState() => HomeScreenState();
