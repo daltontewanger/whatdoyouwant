@@ -260,6 +260,10 @@ test('rooms: join attempts are bounded; revoked and expired memberships cannot r
   assert.equal((await reconnect(roomId, host)).status, 403);
   assert.equal((await start(roomId, host)).status, 403);
   const attacker = await user();
+  // The join limit counts in one-minute buckets; starting late in a minute would split
+  // the attempts across two buckets and the 11th would never be refused.
+  const leftInMinute = 60000 - (Date.now() % 60000);
+  if (leftInMinute < 20000) await new Promise(resolve => setTimeout(resolve, leftInMinute + 250));
   for (let i = 0; i < 10; i++) assert.equal((await join('ZZZZZZ', attacker)).status, 403);
   assert.equal((await join('ZZZZZZ', attacker)).status, 429);
   assert.equal((await call('joinRoom', { joinCode: 'O0I1L5' }, await user())).status, 400);
