@@ -50,10 +50,10 @@ test('production runs as its own scoped identity, without local origins', () => 
   // Replay protection is a runtime option, so it doesn't show in the endpoint manifest.
   assert.match(source, /const SEARCH_OPTIONS = \{ secrets: \[hereKey\], consumeAppCheckToken: true \};/);
   assert.match(source, /SEARCHING\.includes\(name\) \? \{ \.\.\.settingsFor, \.\.\.SEARCH_OPTIONS \}/);
-  // Network limits stay off in production until staging has checked the address they use.
-  assert.match(productionSettings, /networkLimits: 'off'/);
+  // Network limits refuse in both projects (checked against Cloud Run's request logs).
+  assert.match(productionSettings, /networkLimits: 'enforce'/);
   const staging = source.slice(source.indexOf("'whatdoyouwant-staging': {"));
-  assert.match(staging.slice(0, staging.indexOf('},')), /networkLimits: 'log'/);
+  assert.match(staging.slice(0, staging.indexOf('},')), /networkLimits: 'enforce'/);
 });
 
 test('every staging callable runs as the scoped identity and requires App Check', async () => {

@@ -24,9 +24,8 @@ const PROJECTS = {
     // The billing account's free tier covers three scheduled jobs. Staging's
     // test guests can pile up, so it gives up the weekly cleanup.
     guestCleanup: false,
-    // Per-network limits only log here until the address they use is checked
-    // against Cloud Run's own request logs.
-    networkLimits: 'log',
+    // The address these limits use matched Cloud Run's own request logs here.
+    networkLimits: 'enforce',
     // The owner's Google address, hashed; only it can read the insights.
     insightsOwners: ['cbd5778632ef765f45bc112979901a494c1ccdd31f270a1f5b09fe48103455cc'],
   },
@@ -37,8 +36,7 @@ const PROJECTS = {
     // Each copy handles 80 calls at once; raise this as real use grows.
     maxInstances: 5,
     guestCleanup: true,
-    // Off until staging confirms which address the limits see.
-    networkLimits: 'off',
+    networkLimits: 'enforce',
     insightsOwners: ['cbd5778632ef765f45bc112979901a494c1ccdd31f270a1f5b09fe48103455cc'],
   },
 };
