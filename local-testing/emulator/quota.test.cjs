@@ -337,20 +337,20 @@ test('a budget notification at the pause point switches live search off until so
     (await db.doc('config/liveSearch').get()).data()).enabled, false, 'still paused with no other settings');
 });
 
-test('a new account gets 3 searches in its first 48 hours, then the weekly cap', async () => {
+test('a new account gets 3 searches in its first 24 hours, then the weekly cap', async () => {
   await configure({ weeklyCaps: { free: 10 } });
   const created = clock - 3600000;
   const handlers = handlersWith(createFakeProvider(), () => {}, { accountCreatedAt: async () => created });
   const status = await handlers.liveSearchStatus({ ...caller('new1'), data: {} });
   assert.deepEqual([status.weeklyCap, status.remaining, status.newAccount], [3, 3, true]);
-  assert.equal(status.resetsAt, new Date(created + 48 * 3600000).toISOString());
+  assert.equal(status.resetsAt, new Date(created + 24 * 3600000).toISOString());
   await quickPick(handlers, 'new1');
   await start(handlers, 'new1', await lobby(handlers, 'new1'));
   await quickPick(handlers, 'new1');
   await assert.rejects(quickPick(handlers, 'new1'), error => error.code === 'resource-exhausted' &&
-    error.details?.reason === 'new-account-cap' && error.details.resetsAt === new Date(created + 48 * 3600000).toISOString());
-  // The same week, once the account is two days old: the rest of the weekly 10.
-  clock = created + 48 * 3600000 + 1;
+    error.details?.reason === 'new-account-cap' && error.details.resetsAt === new Date(created + 24 * 3600000).toISOString());
+  // The same week, once the account is a day old: the rest of the weekly 10.
+  clock = created + 24 * 3600000 + 1;
   const later = await handlers.liveSearchStatus({ ...caller('new1'), data: {} });
   assert.deepEqual([later.weeklyCap, later.used, later.remaining, later.newAccount], [10, 3, 7, false]);
   await quickPick(handlers, 'new1');

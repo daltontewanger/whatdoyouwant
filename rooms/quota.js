@@ -63,8 +63,8 @@ function weeklyCapFor(config, entitlement) {
 // Fresh accounts get a smaller allowance at first, so a batch of new sign-ups
 // can't spend much of the month's searches. Set in config/liveSearch as
 // newAccounts: { searches, hours }; missing fields fall back to 3 searches in
-// the first 48 hours, and { enabled: false } turns it off.
-const NEW_ACCOUNTS = Object.freeze({ searches: 3, hours: 48 });
+// the first 24 hours (one per meal on day one), and { enabled: false } turns it off.
+const NEW_ACCOUNTS = Object.freeze({ searches: 3, hours: 24 });
 function newAccountRule(data) {
   const rule = data?.newAccounts;
   if (rule?.enabled === false) return null;

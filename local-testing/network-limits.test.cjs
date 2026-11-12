@@ -39,10 +39,10 @@ test('the in-memory window allows a set number of calls per network each minute'
   assert.equal(take('a'), true, 'a new minute starts over');
 });
 
-test('new accounts get 3 searches in their first 48 hours unless the config says otherwise', () => {
-  assert.deepEqual(newAccountRule(undefined), { searches: 3, windowMs: 48 * 3600000 });
+test('new accounts get 3 searches in their first 24 hours unless the config says otherwise', () => {
+  assert.deepEqual(newAccountRule(undefined), { searches: 3, windowMs: 24 * 3600000 });
   assert.deepEqual(newAccountRule({ newAccounts: { searches: 5, hours: 24 } }), { searches: 5, windowMs: 24 * 3600000 });
-  assert.deepEqual(newAccountRule({ newAccounts: { searches: -1, hours: 9999 } }), { searches: 3, windowMs: 48 * 3600000 });
+  assert.deepEqual(newAccountRule({ newAccounts: { searches: -1, hours: 9999 } }), { searches: 3, windowMs: 24 * 3600000 });
   assert.equal(newAccountRule({ newAccounts: { enabled: false } }), null);
 
   const at = Date.parse('2026-11-11T12:00:00Z'); // a Wednesday
@@ -50,8 +50,8 @@ test('new accounts get 3 searches in their first 48 hours unless the config says
   const config = { weeklyCaps: { free: 10 } };
   const allowance = (createdAt, data = {}) => allowanceFor({ config, data, entitlement: 'free', createdAt, at, week });
   const fresh = allowance(at - 3600000);
-  assert.deepEqual(fresh, { cap: 3, reason: 'new-account-cap', resetsAt: at - 3600000 + 48 * 3600000, newAccount: true });
-  assert.deepEqual(allowance(at - 49 * 3600000), { cap: 10, reason: 'weekly-cap', resetsAt: week.resetsAt, newAccount: false });
+  assert.deepEqual(fresh, { cap: 3, reason: 'new-account-cap', resetsAt: at - 3600000 + 24 * 3600000, newAccount: true });
+  assert.deepEqual(allowance(at - 25 * 3600000), { cap: 10, reason: 'weekly-cap', resetsAt: week.resetsAt, newAccount: false });
   assert.equal(allowance(null).cap, 10, 'an unknown age gets the normal allowance');
   assert.equal(allowance(at - 3600000, { newAccounts: { enabled: false } }).cap, 10);
   // Late in the week, more searches arrive at the weekly reset if that comes first.

@@ -982,5 +982,5 @@ test('live search: a just-created account gets the new-account allowance, read f
   const refused = await call('createQuickPick', { requestId: randomUUID(), search: SEARCH }, host);
   assert.equal(refused.status, 429);
   assert.equal(refused.data.error.details.reason, 'new-account-cap');
-  assert.ok(Date.parse(refused.data.error.details.resetsAt) > Date.now() + 47 * 3600000);
+  assert.ok(Date.parse(refused.data.error.details.resetsAt) > Date.now() + 23 * 3600000);
 });
