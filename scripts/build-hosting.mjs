@@ -6,6 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { addNotice, noticeShowsOn, parseNotice } from './site-notice.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const ENTRIES = { production: 'lib/main.dart', staging: 'lib/main_staging.dart' };
@@ -115,6 +116,16 @@ function configureLoader(appDir, engineFolder) {
 rmSync(output, { recursive: true, force: true });
 mkdirSync(output, { recursive: true });
 cpSync(join(root, 'site'), output, { recursive: true });
+// The notice's settings are build input, not part of the site.
+rmSync(join(output, 'notice.json'));
+const notice = parseNotice(JSON.parse(readFileSync(join(root, 'site/notice.json'), 'utf8')));
+const today = new Date().toISOString().slice(0, 10);
+const showNotice = noticeShowsOn(notice, today);
+if (showNotice) {
+  for (const page of readdirSync(output).filter(name => name.endsWith('.html'))) {
+    writeFileSync(join(output, page), addNotice(readFileSync(join(output, page), 'utf8'), notice));
+  }
+}
 cpSync(appBuild, join(output, 'app'), { recursive: true });
 const mirrored = await mirrorFallbackFonts(join(output, 'app'));
 const engineFolder = versionEngine(join(output, 'app'));
@@ -151,3 +162,5 @@ for (const page of [...readdirSync(output).filter(name => name.endsWith('.html')
   writeFileSync(path, readFileSync(path, 'utf8').replaceAll('%SITE_ORIGIN%', ORIGINS[environment]));
 }
 console.log(`Hosting folder ready for ${environment}: build/hosting (site at /, app at /app; ${mirrored} fallback fonts served locally; engine in /app/${engineFolder}).`);
+console.log(showNotice ? `Site notice shown (until ${notice.showUntil}).`
+  : notice ? `Site notice not shown: ${today} is outside ${notice.showFrom} to ${notice.showUntil}.` : 'No site notice set.');

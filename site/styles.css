@@ -412,6 +412,11 @@ section { position: relative; padding: 4rem 0; }
 .socials span { border: 1px solid var(--line); border-radius: 999px; padding: 0.15rem 0.6rem; font-size: 0.8rem; }
 
 /* Legal and help pages */
+/* Site-wide notice under the top bar, added by the build while one is set. */
+.site-notice { background: var(--butter-soft); border-bottom: 1px solid var(--rule); }
+.site-notice p { margin: 0; padding: 0.65rem 0; line-height: 1.5; }
+.site-notice a { color: var(--green-ink); font-weight: 700; }
+
 .doc { max-width: 46rem; margin: 2.5rem auto; }
 .doc .notice { background: var(--butter-soft); border-radius: var(--radius); padding: 1rem 1.25rem; }
 /* Long legal text: readable spacing, a contents list, and a table that scrolls

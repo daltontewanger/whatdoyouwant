@@ -122,3 +122,32 @@ test("the hero phone's screens exist and each has a matching dot", () => {
   }
   assert.match(html, /class="demo-pause"/);
 });
+
+test('the site notice is checked, shows only between its dates, and links within the site', async () => {
+  const { parseNotice, noticeShowsOn, addNotice } = await import('../scripts/site-notice.mjs');
+  const notice = parseNotice(JSON.parse(fs.readFileSync(path.join(site, 'notice.json'), 'utf8')));
+  if (notice?.link) {
+    const [page, anchor] = notice.link.href.slice(1).split('#');
+    const html = read(`${page || 'index'}.html`);
+    if (anchor) assert.ok(html.includes(`id="${anchor}"`), `${notice.link.href} points at a real section`);
+  }
+  assert.equal(parseNotice({ notice: null }), null);
+  const sample = parseNotice({ notice: { message: 'Terms <changing> soon.', showFrom: '2026-12-01', showUntil: '2026-12-31',
+    link: { text: 'Read them', href: '/terms#changes' } } });
+  assert.equal(noticeShowsOn(sample, '2026-11-30'), false);
+  assert.equal(noticeShowsOn(sample, '2026-12-01'), true);
+  assert.equal(noticeShowsOn(sample, '2026-12-31'), true);
+  assert.equal(noticeShowsOn(sample, '2027-01-01'), false);
+  const page = addNotice(read('terms.html'), sample);
+  const header = page.indexOf('</header>');
+  const added = page.indexOf('<aside class="site-notice"');
+  assert.ok(header > 0 && added > header && added < page.indexOf('<main'), 'between the top bar and the content');
+  assert.ok(page.includes('Terms &lt;changing&gt; soon. <a href="/terms#changes">Read them</a>'), 'text is escaped');
+  const bad = fields => () => parseNotice({ notice: { message: 'Hi', showFrom: '2026-12-01', showUntil: '2026-12-31', ...fields } });
+  assert.throws(bad({ link: { text: 'Elsewhere', href: 'https://example.com' } }), /link/);
+  assert.throws(bad({ link: { text: 'Elsewhere', href: '//example.com' } }), /link/);
+  assert.throws(bad({ link: { text: 'Script', href: '/x" onclick="y' } }), /link/);
+  assert.throws(bad({ showUntil: '2026-11-01' }), /dates/);
+  assert.throws(bad({ message: 'x'.repeat(241) }), /message/);
+  assert.throws(() => parseNotice({}), /notice/);
+});
