@@ -6,6 +6,7 @@ import 'accessibility_screen.dart';
 import 'create_account_screen.dart';
 import 'forgot_password_screen.dart';
 import 'help_links.dart';
+import 'live_searches_row.dart';
 import 'main_shell.dart';
 import 'my_places_screen.dart';
 import 'place_marks.dart';
@@ -449,6 +450,10 @@ class _AccountScreenState extends State<AccountScreen> {
                   ],
                 ),
               ],
+              // Keyed by account, so switching accounts asks afresh.
+              if (user.emailVerified &&
+                  RoomBackendScope.maybeOf(context) != null)
+                LiveSearchesRow(key: ValueKey(user.uid)),
             ],
           ),
         ),
