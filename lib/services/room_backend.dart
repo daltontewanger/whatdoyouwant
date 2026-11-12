@@ -99,6 +99,26 @@ class RoomPerson {
   bool get guest => name == null;
 }
 
+/// One person on the host's waiting screen: their room name (none for a
+/// guest), how far they are and how long since they last voted by hand.
+class VoterProgress {
+  const VoterProgress({
+    this.name,
+    this.host = false,
+    required this.votes,
+    required this.total,
+    required this.done,
+    required this.inactive,
+  });
+
+  final String? name;
+  final bool host;
+  final int votes;
+  final int total;
+  final bool done;
+  final Duration inactive;
+}
+
 class RoomResults {
   const RoomResults({
     required this.winnerId,
@@ -108,6 +128,7 @@ class RoomResults {
     this.winnerVotes,
     this.winnerCard,
     this.backupCard,
+    this.countedOut = 0,
   });
 
   final String? winnerId;
@@ -121,6 +142,9 @@ class RoomResults {
   /// The winner and backup as the room keeps them once its deck is gone.
   final Restaurant? winnerCard;
   final Restaurant? backupCard;
+
+  /// People who stopped voting and were finished without.
+  final int countedOut;
 
   int get winnerLikes => winnerVotes ?? likes[winnerId] ?? 0;
 }
@@ -218,8 +242,13 @@ abstract class RoomBackend {
   /// finding the device location. Never prompts the person.
   Future<void> prepareStart();
 
-  /// Lets the backend settle stragglers or close a finished room.
-  Future<void> nudge(String roomId);
+  /// Lets the backend settle stragglers or close a finished room. For the
+  /// host of a room still voting, returns who is still voting.
+  Future<List<VoterProgress>?> nudge(String roomId);
+
+  /// Host only: finishes the vote without people who have stopped voting,
+  /// once they are the only ones left. The server decides who that is.
+  Future<void> finishWithoutInactive(String roomId);
 
   /// Whether the backend no longer serves this build of the app.
   Future<bool> updateRequired(int build);

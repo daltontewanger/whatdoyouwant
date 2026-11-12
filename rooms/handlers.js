@@ -29,6 +29,9 @@ const DECK_AFTER_CLOSE_MS = 15 * 60000;
 // remaining cards count as No and the room stops waiting for them. Votes the
 // app casts when a card's time runs out do not count as taking part.
 const AWAY_MS = 3 * 60000;
+// The host may finish without people who have not voted by hand for this
+// long, once they are the only ones left; the server checks it, not the app.
+const INACTIVE_MS = 60000;
 const SWEEP_BATCH = 200;
 const RECEIPT_TTL_MS = 24 * 3600000;
 // A Quick Pick and its deck last an hour: long enough to decide, short enough
@@ -291,7 +294,19 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
 
   const unseated = membership => (membership.seat ? { [`roster.${membership.seat}`]: FieldValue.delete() } : {});
 
-  async function tally(tx, room, state) {
+  // Who is still voting, for the host's waiting screen: roster names (already
+  // shown to everyone in the room), never account IDs. People who are done
+  // come last.
+  function progressView(state, outcome) {
+    const people = outcome.progress.map(person => {
+      const listed = person.seat ? state.roster?.[person.seat] : null;
+      return { name: listed?.name ?? null, host: person.uid === state.creator, votes: person.votes,
+        total: outcome.total, done: person.done, inactiveSeconds: Math.floor(person.inactiveMs / 1000) };
+    });
+    return people.sort((a, b) => Number(a.done) - Number(b.done) || Number(b.host) - Number(a.host));
+  }
+
+  async function tally(tx, room, state, { awayAfter = AWAY_MS } = {}) {
     const [members, deck] = await Promise.all([
       tx.get(room.collection('members').where('active', '==', true)),
       state.deckId ? tx.get(deckRef(state.deckId)) : null,
@@ -300,16 +315,23 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
     const deckIds = deckData?.candidateIds ?? [];
     const likes = Object.fromEntries(deckIds.map(id => [id, 0]));
     let voters = 0;
+    let countedOut = 0;
     let complete = true;
     const stats = { ballots: 0, liked: 0, timedOut: 0 };
+    const progress = [];
     const startedAt = state.startedAt?.toMillis?.() ?? null;
+    const total = state.candidateCount ?? deckIds.length;
     for (const member of members.docs) {
       const ballots = await tx.get(room.collection('votes').doc(member.id).collection('ballot'));
       if (!ballots.empty) voters++;
       const lastByHand = Math.max(startedAt ?? 0, ...ballots.docs.filter(ballot => ballot.data().auto !== true)
         .map(ballot => ballot.data().at?.toMillis?.() ?? 0));
-      const away = startedAt !== null && now() - lastByHand >= AWAY_MS;
-      if (ballots.size < (state.candidateCount ?? deckIds.length) && !away) complete = false;
+      const away = startedAt !== null && now() - lastByHand >= awayAfter;
+      const done = ballots.size >= total;
+      if (!done && !away) complete = false;
+      if (!done && away) countedOut++;
+      progress.push({ seat: member.data().seat ?? null, uid: member.id, votes: Math.min(ballots.size, total), done,
+        inactiveMs: startedAt === null ? 0 : Math.max(0, now() - lastByHand) });
       for (const ballot of ballots.docs) {
         if (ballot.data().liked === true && ballot.id in likes) likes[ballot.id]++;
         stats.ballots++;
@@ -322,9 +344,11 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
     const card = id => resultCard(deckData?.candidates?.find(candidate => candidate.id === id));
     const winner = ranking[0] ?? null;
     const backup = ranking[1] ?? null;
-    return { complete, deck: deck?.exists ? deck : null, stats,
+    return { complete, deck: deck?.exists ? deck : null, stats, progress, total,
       winnerCandidate: deckData?.candidates?.find(candidate => candidate.id === winner) ?? null,
-      results: { likes, winner, backup, voters, winnerCard: card(winner), backupCard: card(backup) } };
+      results: { likes, winner, backup, voters, winnerCard: card(winner), backupCard: card(backup),
+        // How many stopped voting and were finished without (a count only).
+        ...(countedOut ? { countedOut } : {}) } };
   }
 
   // Closing keeps the result on the room and lets the deck go shortly after.
@@ -762,7 +786,8 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
     // on every candidate or the voting window has passed, so no scheduler is needed.
     async roomResults(request) {
       const actor = identity(request);
-      const { roomId, view: look } = input(request, { roomId: ROOM_ID }, { roomId: ROOM_ID, view: /^room$/ });
+      const { roomId, view: look, finish } = input(request, { roomId: ROOM_ID }, { roomId: ROOM_ID, view: /^room$/ },
+        { roomId: ROOM_ID, finish: /^inactive$/ });
       await limit(actor.uid, 'results', 60, 60000);
       // A phone's live connection can deliver room changes late. The app then
       // asks for the room as it is now, with the deck once voting has started,
@@ -794,11 +819,15 @@ function createRoomHandlers({ db, FieldValue, Timestamp, HttpsError, deleteAuthU
         const { room, state } = await memberView(tx, roomId, actor.uid);
         if (state.status === 'closed') return { roomId, status: 'closed', results: state.results ?? null };
         if (state.status !== 'voting') return { roomId, status: state.status, results: null };
-        const outcome = await tally(tx, room, state);
+        const host = state.creator === actor.uid;
+        if (finish && !host) deny();
+        const outcome = await tally(tx, room, state, finish ? { awayAfter: INACTIVE_MS } : {});
         const ended = state.votingEndsAt && state.votingEndsAt.toMillis() <= now();
         if (!outcome.complete && !ended) {
-          return { roomId, status: 'voting', results: null, voters: outcome.results.voters };
+          return { roomId, status: 'voting', results: null, voters: outcome.results.voters,
+            ...(host ? { progress: progressView(state, outcome) } : {}) };
         }
+        if (finish) log({ event: 'finished_without_inactive' });
         closed = closeInto(tx, room, state, outcome);
         return { roomId, status: 'closed', results: outcome.results };
       });

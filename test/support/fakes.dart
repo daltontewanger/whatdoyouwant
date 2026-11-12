@@ -49,7 +49,17 @@ class FakeRoomBackend implements RoomBackend {
   }
 
   @override
-  Future<void> nudge(String roomId) async => nudges++;
+  Future<List<VoterProgress>?> nudge(String roomId) async {
+    nudges++;
+    return progress;
+  }
+
+  /// What the host's waiting screen hears back from a nudge.
+  List<VoterProgress>? progress;
+  int finishes = 0;
+
+  @override
+  Future<void> finishWithoutInactive(String roomId) async => finishes++;
   LiveSearchAllowance? allowance;
   @override
   Future<LiveSearchAllowance?> liveSearchAllowance() async => allowance;
@@ -199,6 +209,7 @@ RoomState state({
   List<Restaurant>? restaurants,
   DateTime? votingEndsAt,
   bool untimed = false,
+  List<RoomPerson> people = const [],
 }) => RoomState(
   id: 'ROOM-ID',
   joinCode: null,
@@ -213,6 +224,7 @@ RoomState state({
   results: results,
   votingEndsAt: votingEndsAt,
   untimed: untimed,
+  people: people,
 );
 
 /// The screen under test inside the room backend scope, with any stores it needs.

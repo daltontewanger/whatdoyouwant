@@ -707,6 +707,7 @@ test('away: timer No votes do not count as taking part; 3 minutes without a tap 
   const closed = await later(3.5)('roomResults', host, { roomId });
   assert.equal(closed.status, 'closed', 'no tap for three minutes counts the guest out');
   assert.equal(closed.results.likes[D[0]], 1, 'their missing cards count as No');
+  assert.equal(closed.results.countedOut, 1);
 });
 
 test('away: a slow member still voting by hand is not cut off', async () => {
@@ -721,6 +722,45 @@ test('away: a slow member still voting by hand is not cut off', async () => {
   assert.equal((await vote(roomId, guest, D[0], true)).status, 200);
   assert.equal((await later(2)('roomResults', host, { roomId })).status, 'voting');
   assert.equal((await later(3.5)('roomResults', host, { roomId })).status, 'closed');
+});
+
+test('host waiting: the host sees who is still voting by roster name, never account IDs; others see no list', async () => {
+  const host = await user(true, true); const guest = await user();
+  const { roomId, joinCode } = await room(host);
+  assert.equal((await join(joinCode, guest)).status, 200);
+  assert.equal((await start(roomId, host)).status, 200);
+  const D = (await deckOf(roomId)).candidateIds;
+  for (const id of D) assert.equal((await vote(roomId, host, id)).status, 200);
+  assert.equal((await vote(roomId, guest, D[0], true)).status, 200);
+  assert.equal((await vote(roomId, guest, D[1], false)).status, 200);
+  const waiting = await later(1.5)('roomResults', host, { roomId });
+  assert.equal(waiting.status, 'voting');
+  assert.deepEqual(waiting.progress.map(({ name, host: isHost, votes, total, done }) => ({ name, isHost, votes, total, done })), [
+    { name: null, isHost: false, votes: 2, total: D.length, done: false },
+    { name: null, isHost: true, votes: D.length, total: D.length, done: true },
+  ], 'still voting first; a guest has no name');
+  assert.ok(waiting.progress[0].inactiveSeconds >= 89 && waiting.progress[0].inactiveSeconds < 120);
+  const shown = JSON.stringify(waiting.progress);
+  assert.ok(!shown.includes(guest.uid) && !shown.includes(host.uid) && !shown.includes('uid'));
+  assert.equal((await later(1.5)('roomResults', guest, { roomId })).progress, undefined, 'only the host gets the list');
+});
+
+test('host waiting: finishing without inactive people is host-only, needs a minute without a hand vote, and closes the room', async () => {
+  const host = await user(true, true); const guest = await user();
+  const { roomId, joinCode } = await room(host);
+  assert.equal((await join(joinCode, guest)).status, 200);
+  assert.equal((await start(roomId, host)).status, 200);
+  const D = (await deckOf(roomId)).candidateIds;
+  for (const id of D) assert.equal((await vote(roomId, host, id)).status, 200);
+  assert.equal((await vote(roomId, guest, D[0], true)).status, 200);
+  const finish = { roomId, finish: 'inactive' };
+  assert.equal((await later(0.5)('roomResults', host, finish)).status, 'voting', 'half a minute is not inactive yet');
+  await assert.rejects(later(1.5)('roomResults', guest, finish), error => error.code === 'permission-denied');
+  const closed = await later(1.5)('roomResults', host, finish);
+  assert.equal(closed.status, 'closed');
+  assert.equal(closed.results.likes[D[0]], 2, 'votes already cast still count');
+  assert.equal(closed.results.countedOut, 1, 'the result says one person was finished without');
+  assert.equal((await call('roomResults', { roomId, finish: 'everyone' }, host)).status, 400);
 });
 
 test('no timer: the room learns that someone votes without one, never who', async () => {

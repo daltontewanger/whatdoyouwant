@@ -228,7 +228,7 @@ class SwipeScreenState extends State<SwipeScreen> {
           // stored; earlier ones cannot complete the room.
           if (finishedDeck) {
             // A failed nudge is not a failed vote; the next one retries.
-            await _backend.nudge(widget.roomCode).catchError((_) {});
+            await _backend.nudge(widget.roomCode).catchError((_) => null);
           }
         })
         .catchError((e) {
@@ -500,7 +500,7 @@ class SwipeScreenState extends State<SwipeScreen> {
                                             // Also nudge watchdog
                                             await _backend
                                                 .nudge(widget.roomCode)
-                                                .catchError((_) {});
+                                                .catchError((_) => null);
                                           },
                                         ),
                                       ),

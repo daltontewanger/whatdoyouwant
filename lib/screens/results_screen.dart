@@ -8,6 +8,7 @@ import '../services/place_links.dart';
 import '../services/result_nudges.dart';
 import '../services/room_backend.dart';
 import 'food_loader.dart';
+import 'host_waiting.dart';
 import 'place_card.dart';
 import 'place_marks.dart';
 import 'report_place.dart';
@@ -43,6 +44,9 @@ class ResultsScreenState extends State<ResultsScreen> {
   Stream<RoomState>? _roomStream;
   late RoomBackend _backend;
   ResultNudges? _nudges;
+  List<VoterProgress>? _progress;
+  DateTime? _progressAt;
+  bool _finishing = false;
 
   @override
   void didChangeDependencies() {
@@ -51,7 +55,35 @@ class ResultsScreenState extends State<ResultsScreen> {
     _backend = RoomBackendScope.of(context).backend;
     _roomStream = _backend.watch(widget.roomCode);
 
-    _nudges = ResultNudges(() => _backend.nudge(widget.roomCode))..start();
+    _nudges = ResultNudges(_checkProgress)..start();
+  }
+
+  // Each check can close the room; for the host it also says who is still
+  // voting.
+  Future<void> _checkProgress() async {
+    final progress = await _backend.nudge(widget.roomCode);
+    if (!mounted || progress == null) return;
+    setState(() {
+      _progress = progress;
+      _progressAt = DateTime.now();
+    });
+  }
+
+  Future<void> _finishWithoutInactive() async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _finishing = true);
+    try {
+      await _backend.finishWithoutInactive(widget.roomCode);
+      await _checkProgress();
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text("Couldn't finish yet. Try again in a moment."),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _finishing = false);
+    }
   }
 
   @override
@@ -122,6 +154,17 @@ class ResultsScreenState extends State<ResultsScreen> {
 
                           if (!room.resultsReady) {
                             _nudges?.votingEndsAt(room.votingEndsAt);
+                            if (room.people.any((p) => p.you && p.host)) {
+                              // The host's list stays fresh with a check every
+                              // 20 seconds instead of every minute.
+                              _nudges?.every(const Duration(seconds: 20));
+                              return HostWaiting(
+                                progress: _progress,
+                                checkedAt: _progressAt,
+                                finishing: _finishing,
+                                onFinish: _finishWithoutInactive,
+                              );
+                            }
                             return Center(
                               child: _ResultsLoader(
                                 remaining: room.remainingVoters,
@@ -172,6 +215,7 @@ class ResultsScreenState extends State<ResultsScreen> {
                             ],
                             random: widget.random,
                             onHome: _returnToHome,
+                            countedOut: results.countedOut,
                           );
                         },
                       ),
@@ -199,6 +243,7 @@ class _ResultView extends StatefulWidget {
     required this.others,
     required this.random,
     required this.onHome,
+    this.countedOut = 0,
   });
 
   final String roomId;
@@ -213,6 +258,9 @@ class _ResultView extends StatefulWidget {
   final List<Restaurant> others;
   final Random? random;
   final VoidCallback onHome;
+
+  /// People who stopped voting and were finished without.
+  final int countedOut;
 
   @override
   State<_ResultView> createState() => _ResultViewState();
@@ -368,6 +416,18 @@ class _ResultViewState extends State<_ResultView> {
           shrug: widget.winnerLikes <= 0,
         ),
       ),
+      if (widget.countedOut > 0) ...[
+        const SizedBox(height: 6),
+        Text(
+          widget.countedOut == 1
+              ? 'One person stopped voting, so we finished without them.'
+              : '${widget.countedOut} people stopped voting, so we finished without them.',
+          textAlign: TextAlign.center,
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium!.copyWith(color: inkSoft),
+        ),
+      ],
       const SizedBox(height: 16),
       PlaceCard(
         restaurant: widget.winner,

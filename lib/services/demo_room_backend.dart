@@ -300,7 +300,13 @@ class DemoRoomBackend implements RoomBackend {
   }
 
   @override
-  Future<void> nudge(String roomId) async => _settle(roomId);
+  Future<List<VoterProgress>?> nudge(String roomId) async {
+    _settle(roomId);
+    return null;
+  }
+
+  @override
+  Future<void> finishWithoutInactive(String roomId) async => _settle(roomId);
 
   @override
   Future<void> shareLists(

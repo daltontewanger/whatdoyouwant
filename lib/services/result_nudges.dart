@@ -12,7 +12,8 @@ class ResultNudges {
     this._nudge, {
     this.fallback = const Duration(minutes: 1),
     DateTime Function()? clock,
-  }) : _clock = clock ?? DateTime.now;
+  }) : _clock = clock ?? DateTime.now,
+       _interval = fallback;
 
   final Future<void> Function() _nudge;
   final Duration fallback;
@@ -22,6 +23,7 @@ class ResultNudges {
   // so wait a little longer to allow for this device running ahead.
   static const Duration _grace = Duration(seconds: 1);
 
+  Duration _interval;
   Timer? _fallbackTimer;
   Timer? _endTimer;
   DateTime? _scheduledEnd;
@@ -31,7 +33,17 @@ class ResultNudges {
   void start() {
     if (_stopped) return;
     _send();
-    _fallbackTimer ??= Timer.periodic(fallback, (_) => _send());
+    _fallbackTimer ??= Timer.periodic(_interval, (_) => _send());
+  }
+
+  /// Asks this often from now on. The host's waiting screen asks more often,
+  /// since each answer also refreshes its list of who is still voting.
+  void every(Duration interval) {
+    if (_stopped || interval == _interval) return;
+    _interval = interval;
+    if (_fallbackTimer == null) return;
+    _fallbackTimer!.cancel();
+    _fallbackTimer = Timer.periodic(interval, (_) => _send());
   }
 
   /// Nudges once just after [endsAt]. Safe to call on every room update.

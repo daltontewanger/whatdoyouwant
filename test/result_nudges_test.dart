@@ -50,4 +50,22 @@ void main() {
     expect(attempts, 2);
     nudges.stop();
   });
+
+  testWidgets('the host can ask more often, and asking again changes nothing', (
+    tester,
+  ) async {
+    var sent = 0;
+    final nudges = ResultNudges(() async => sent++)..start();
+    expect(sent, 1);
+    nudges.every(const Duration(seconds: 20));
+    nudges.every(const Duration(seconds: 20));
+    await tester.pump(const Duration(seconds: 20));
+    expect(sent, 2);
+    await tester.pump(const Duration(seconds: 40));
+    expect(sent, 4);
+    nudges.stop();
+    nudges.every(const Duration(seconds: 5));
+    await tester.pump(const Duration(minutes: 1));
+    expect(sent, 4, reason: 'nothing after stop');
+  });
 }

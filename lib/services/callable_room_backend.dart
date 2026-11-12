@@ -168,7 +168,27 @@ RoomResults? callableResults(Object? raw, int members) {
     participants: members,
     winnerCard: winnerCard is Map ? cardRestaurant(winnerCard) : null,
     backupCard: backupCard is Map ? cardRestaurant(backupCard) : null,
+    countedOut: (raw['countedOut'] as num?)?.toInt() ?? 0,
   );
+}
+
+/// The host's list of who is still voting, from a results check.
+List<VoterProgress>? voterProgress(Object? raw) {
+  if (raw is! List) return null;
+  return [
+    for (final person in raw)
+      if (person is Map)
+        VoterProgress(
+          name: person['name'] as String?,
+          host: person['host'] == true,
+          votes: (person['votes'] as num).toInt(),
+          total: (person['total'] as num).toInt(),
+          done: person['done'] == true,
+          inactive: Duration(
+            seconds: (person['inactiveSeconds'] as num).toInt(),
+          ),
+        ),
+  ];
 }
 
 /// Rooms managed by the server-side room callables. The server owns
@@ -495,10 +515,15 @@ class CallableRoomBackend implements RoomBackend {
       _call('setNoTimer', {'roomId': roomId, 'noTimer': noTimer});
 
   @override
-  Future<void> nudge(String roomId) async {
+  Future<List<VoterProgress>?> nudge(String roomId) async {
     // Closes the room on the server once everyone has voted or time is up.
-    await _call('roomResults', {'roomId': roomId});
+    final result = await _call('roomResults', {'roomId': roomId});
+    return voterProgress(result['progress']);
   }
+
+  @override
+  Future<void> finishWithoutInactive(String roomId) =>
+      _call('roomResults', {'roomId': roomId, 'finish': 'inactive'});
 
   // Finds the location while the host waits for guests, so Start does not.
   @override
