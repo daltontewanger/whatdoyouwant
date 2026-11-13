@@ -1,15 +1,16 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 /// The app's speech-bubble icons, drawn like the logo's food bubbles: a
 /// thick ink outline, a coloured bubble and a white glyph. Painted rather
 /// than loaded, so they stay sharp at any size.
 enum BubbleGlyph {
-  /// A "yum" face: votes yes.
+  /// Says "Yes": votes yes.
   yes(Color(0xFF65B292)),
 
-  /// A "meh" face: votes no.
+  /// Says "No": votes no.
   no(Color(0xFFF59E84)),
 
   /// A crossed-out empty plate: Never what I want.
@@ -109,9 +110,9 @@ class _BubblePainter extends CustomPainter {
       ..drawPath(bubble, _stroke(9));
     switch (glyph) {
       case BubbleGlyph.yes:
-        _yum(canvas);
+        _word(canvas, 'Yes');
       case BubbleGlyph.no:
-        _meh(canvas);
+        _word(canvas, 'No');
       case BubbleGlyph.never:
         _plate(canvas);
       case BubbleGlyph.favorite:
@@ -121,48 +122,25 @@ class _BubblePainter extends CustomPainter {
     }
   }
 
-  void _face(Canvas canvas) =>
-      canvas
-        ..drawCircle(const Offset(80, 70), 34, _fill(Colors.white))
-        ..drawCircle(const Offset(80, 70), 34, _stroke(8));
-
-  void _yum(Canvas canvas) {
-    _face(canvas);
-    final eyes =
-        Path()
-          ..moveTo(62, 62)
-          ..quadraticBezierTo(68, 54, 74, 62)
-          ..moveTo(86, 62)
-          ..quadraticBezierTo(92, 54, 98, 62);
-    final mouth =
-        Path()
-          ..moveTo(62, 76)
-          ..quadraticBezierTo(80, 96, 98, 76)
-          ..close();
-    final tongue =
-        Path()
-          ..moveTo(73, 84)
-          ..quadraticBezierTo(80, 92, 87, 84)
-          ..close();
-    canvas
-      ..drawPath(eyes, _stroke(6))
-      ..drawPath(mouth, _fill(_ink))
-      ..drawPath(mouth, _stroke(5))
-      ..drawPath(tongue, _fill(_coral));
-  }
-
-  void _meh(Canvas canvas) {
-    _face(canvas);
-    final mouth =
-        Path()
-          ..moveTo(62, 84)
-          ..quadraticBezierTo(68, 78, 74, 84)
-          ..quadraticBezierTo(80, 90, 86, 84)
-          ..quadraticBezierTo(92, 78, 98, 84);
-    canvas
-      ..drawLine(const Offset(62, 62), const Offset(74, 62), _stroke(6))
-      ..drawLine(const Offset(86, 62), const Offset(98, 62), _stroke(6))
-      ..drawPath(mouth, _stroke(6));
+  // The word itself, so the vote reads at a glance. Dark ink on the bubble's
+  // colour, centred in its body.
+  void _word(Canvas canvas, String word) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: word,
+        style: GoogleFonts.baloo2(
+          color: _ink,
+          fontSize: word.length > 2 ? 52 : 58,
+          fontWeight: FontWeight.w800,
+          height: 1,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    painter.paint(
+      canvas,
+      Offset(80 - painter.width / 2, 70 - painter.height / 2),
+    );
   }
 
   void _plate(Canvas canvas) =>
