@@ -29,9 +29,9 @@ class IntroScreen extends StatefulWidget {
     ),
     (
       'Everyone swipes',
-      'Swipe right for yes, left for no, each on your own phone. Tap the '
-          'heart to save a favorite, or the crossed plate to rule a spot out '
-          'for good.',
+      'Swipe right for yes, left for no, each on your own phone. Saving a '
+          'Favorite counts as a yes, and choosing Never counts as a no; both '
+          'are remembered for next time.',
     ),
     (
       'See where to eat',
@@ -116,6 +116,8 @@ class _IntroScreenState extends State<IntroScreen> {
                     picture: _picture(index),
                     title: title,
                     text: text,
+                    // The last page introduces the two cards under it.
+                    titleFirst: index == count - 1,
                     action:
                         index == count - 1
                             ? OutlinedButton.icon(
@@ -216,16 +218,29 @@ class _IntroPage extends StatelessWidget {
     required this.title,
     required this.text,
     this.action,
+    this.titleFirst = false,
   });
 
   final Widget picture;
   final String title;
   final String text;
   final Widget? action;
+  final bool titleFirst;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final heading = Semantics(
+      header: true,
+      child: Text(
+        title,
+        textAlign: TextAlign.center,
+        style: theme.textTheme.headlineSmall!.copyWith(
+          color: theme.colorScheme.primary,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
@@ -233,19 +248,10 @@ class _IntroPage extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 420),
           child: Column(
             children: [
+              if (titleFirst) ...[heading, const SizedBox(height: 16)],
               picture,
               const SizedBox(height: 24),
-              Semantics(
-                header: true,
-                child: Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.headlineSmall!.copyWith(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
+              if (!titleFirst) heading,
               const SizedBox(height: 8),
               Text(
                 text,
@@ -635,11 +641,11 @@ class _ResultsScene extends StatelessWidget {
       child: Column(
         children: [
           Text(
-            'Results',
+            'This is what you wanted',
             style: TextStyle(
               color: primary,
               fontWeight: FontWeight.w900,
-              fontSize: 24,
+              fontSize: 18,
             ),
           ),
           const SizedBox(height: 8),

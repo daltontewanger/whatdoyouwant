@@ -477,7 +477,7 @@ class _ResultViewState extends State<_ResultView> {
         const SizedBox(height: 16),
         if (_votedBackup) ...[
           const Center(
-            child: _Banner(text: 'Your backup plan', icon: Icons.support),
+            child: _Banner(text: 'If not that, then this', icon: Icons.support),
           ),
           const SizedBox(height: 16),
           PlaceCard(
@@ -488,7 +488,7 @@ class _ResultViewState extends State<_ResultView> {
           ),
         ] else if (random != null) ...[
           const Center(
-            child: _Banner(text: 'Your random backup plan', icon: Icons.casino),
+            child: _Banner(text: 'If not that, then this', icon: Icons.casino),
           ),
           const SizedBox(height: 16),
           PlaceCard(
@@ -549,11 +549,11 @@ class _ResultViewState extends State<_ResultView> {
               alignment: Alignment.center,
               children: [
                 Text(
-                  'Results',
+                  'This is what you wanted',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.headlineMedium!.copyWith(
                     fontWeight: FontWeight.w900,
-                    fontSize: 34,
+                    fontSize: 30,
                     color: theme.colorScheme.primary,
                     shadows: const [
                       Shadow(

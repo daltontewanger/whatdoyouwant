@@ -51,9 +51,10 @@ void main() {
     expect(find.text('7 of 10 left'), findsOneWidget);
     expect(filledDots(tester), 7);
     expect(
-      find.textContaining('Picks from your own list never use one.'),
+      find.text('More arrive ${resetTimeText(DateTime.utc(2026, 11, 16))}.'),
       findsOneWidget,
     );
+    expect(find.byIcon(Icons.search), findsNothing);
   });
 
   testWidgets('a new account sees its first-day allowance', (tester) async {

@@ -100,6 +100,17 @@ void main() {
     for (final friend in demoFriends) {
       expect(find.text(friend), findsOneWidget);
     }
+    // The other side: what friends see while the host gets ready.
+    await tester.tap(find.text('What joining looks like'));
+    // The food loader never settles; step past the page transition.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.text('Waiting for the host...'), findsOneWidget);
+    expect(find.text('What to expect'), findsOneWidget);
+    expect(find.text("Who's deciding?"), findsOneWidget);
+    await tester.tap(find.byTooltip('Back to the host view'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
     await tester.ensureVisible(find.text('Start Swiping'));
     await tester.tap(find.text('Start Swiping'));
     await tester.pump();

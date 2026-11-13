@@ -11,6 +11,7 @@ import 'results_screen.dart';
 import 'room_roster.dart';
 import 'room_screen.dart' show UntimedNotice, announceNoTimer;
 import 'swipe_screen.dart';
+import 'what_to_expect.dart';
 import '../themes/main_theme.dart';
 import '../services/usage_counts.dart';
 
@@ -153,7 +154,7 @@ class JoinRoomScreenState extends State<JoinRoomScreen> {
                 const SizedBox(height: 8),
                 Center(
                   child: Text(
-                    "Join a Room",
+                    'Join the deciding',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.headlineMedium!.copyWith(
                       fontSize: 30,
@@ -296,7 +297,7 @@ class _WaitingForOptionsScreenState extends State<WaitingForOptionsScreen> {
                 const SizedBox(height: 12),
                 Center(
                   child: Text(
-                    "Waiting for Host...",
+                    'Waiting for the host...',
                     style: theme.textTheme.headlineMedium!.copyWith(
                       fontSize: 26,
                       color: theme.colorScheme.primary,
@@ -365,14 +366,10 @@ class _WaitingForOptionsScreenState extends State<WaitingForOptionsScreen> {
                     return Column(
                       children: [
                         const FoodLoader(size: FoodLoader.largeSize),
-                        const SizedBox(height: 20),
-                        Text(
-                          'Waiting for host to choose restaurant options...',
-                          style: theme.textTheme.bodyLarge?.copyWith(
-                            fontSize: 18,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
+                        const SizedBox(height: 16),
+                        // Rooms take a few seconds to start: a good moment
+                        // to explain how voting works.
+                        const WhatToExpectPanel(),
                         if (room.untimed) const UntimedNotice(),
                         const SizedBox(height: 20),
                         RoomRoster(

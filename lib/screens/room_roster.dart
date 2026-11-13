@@ -11,7 +11,7 @@ bool canHaveNickname(BuildContext context) {
   return user != null && !user.isAnonymous && user.emailVerified;
 }
 
-/// "Who's here": everyone in the room as a chip with their first letter,
+/// "Who's deciding?": everyone in the room as a chip with their first letter,
 /// guests folded into one chip. Names only; votes stay anonymous.
 class RoomRoster extends StatelessWidget {
   const RoomRoster({
@@ -68,7 +68,7 @@ class RoomRoster extends StatelessWidget {
     return Semantics(
       container: true,
       label:
-          "Who's here, $count ${count == 1 ? 'person' : 'people'}"
+          "Who's deciding, $count ${count == 1 ? 'person' : 'people'}"
           '${spoken.isEmpty ? '' : ': $spoken'}',
       excludeSemantics: true,
       child: Column(
@@ -78,7 +78,7 @@ class RoomRoster extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  "Who's here",
+                  "Who's deciding?",
                   style: theme.textTheme.titleMedium!.copyWith(
                     fontWeight: FontWeight.w700,
                   ),

@@ -118,7 +118,7 @@ void main() {
     // The winner fades out, then the backup grows into place.
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
-    expect(find.text('Your backup plan'), findsOneWidget);
+    expect(find.text('If not that, then this'), findsOneWidget);
     expect(find.text('Demo Tacos'), findsOneWidget);
     expect(find.textContaining('2 of 4 liked it'), findsOneWidget);
     expect(find.text('Winner'), findsOneWidget);
@@ -158,7 +158,7 @@ void main() {
     expect(find.text('Demo Noodles'), findsNothing);
     await tester.tap(find.text('Close'));
     await tester.pumpAndSettle();
-    expect(find.text('Your random backup plan'), findsOneWidget);
+    expect(find.text('If not that, then this'), findsOneWidget);
     expect(find.text('Demo Noodles'), findsOneWidget);
     expect(find.textContaining('picked at random'), findsOneWidget);
     expect(find.text('Pick a random one for me'), findsNothing);

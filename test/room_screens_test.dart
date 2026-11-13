@@ -179,7 +179,7 @@ void main() {
         ),
       ),
     );
-    expect(find.text('Join a Room'), findsOneWidget);
+    expect(find.text('Join the deciding'), findsOneWidget);
     await tester.tap(find.widgetWithText(ElevatedButton, 'Join'));
     await tester.pump();
     expect(find.text('Please enter a room code.'), findsOneWidget);

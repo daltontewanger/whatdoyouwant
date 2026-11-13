@@ -12,6 +12,7 @@ import 'food_loader.dart';
 import 'my_places_screen.dart';
 import 'place_marks.dart';
 import 'room_roster.dart';
+import 'what_to_expect.dart';
 import 'search_panel.dart';
 import 'swipe_screen.dart';
 import '../models/own_spot.dart';
@@ -462,6 +463,48 @@ class _RoomScreenState extends State<RoomScreen> with SearchStarter {
                                           onPressed:
                                               () => Navigator.of(context).pop(),
                                         ),
+                                        // The demo can show what friends who
+                                        // join see while the host gets ready.
+                                        if (RoomBackendScope.maybeOf(
+                                              context,
+                                            )?.demo ==
+                                            true)
+                                          Expanded(
+                                            child: Align(
+                                              alignment: Alignment.centerRight,
+                                              child: OutlinedButton.icon(
+                                                onPressed:
+                                                    () => Navigator.of(
+                                                      context,
+                                                    ).push(
+                                                      MaterialPageRoute<void>(
+                                                        builder:
+                                                            (
+                                                              _,
+                                                            ) => JoiningPreview(
+                                                              people:
+                                                                  snapshot
+                                                                      .data
+                                                                      ?.people ??
+                                                                  const [],
+                                                              memberCount:
+                                                                  snapshot
+                                                                      .data
+                                                                      ?.memberCount ??
+                                                                  1,
+                                                            ),
+                                                      ),
+                                                    ),
+                                                icon: const Icon(
+                                                  Icons.visibility_outlined,
+                                                  size: 18,
+                                                ),
+                                                label: const Text(
+                                                  'What joining looks like',
+                                                ),
+                                              ),
+                                            ),
+                                          ),
                                       ],
                                     ),
                                     if (shownCode != null) ...[

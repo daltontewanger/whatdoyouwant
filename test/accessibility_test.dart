@@ -75,6 +75,9 @@ void main() {
     await tester.pumpWidget(swiping(backend, settings: settings));
     await tester.pump();
     expect(find.text('No timer'), findsOneWidget);
+    // The help says so once opened.
+    await tester.tap(find.text('What am I supposed to do?'));
+    await tester.pump();
     expect(find.textContaining('No timer for you'), findsOneWidget);
     await wait(tester, 20);
     expect(backend.votes, isEmpty, reason: 'nothing is voted for them');

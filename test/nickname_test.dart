@@ -104,7 +104,7 @@ void main() {
     );
     await tester.pump();
     await tester.pump();
-    expect(find.text("Who's here"), findsOneWidget);
+    expect(find.text("Who's deciding?"), findsOneWidget);
     expect(find.text('4 of 15'), findsOneWidget);
     expect(find.text('Dalton'), findsOneWidget);
     expect(find.text('host · you'), findsOneWidget);
@@ -112,7 +112,7 @@ void main() {
     expect(find.text('2 guests'), findsOneWidget);
     expect(
       find.bySemanticsLabel(
-        "Who's here, 4 people: Dalton, host, you; WinnerDinner; 2 guests",
+        "Who's deciding, 4 people: Dalton, host, you; WinnerDinner; 2 guests",
       ),
       findsOneWidget,
     );
@@ -203,7 +203,7 @@ void main() {
     );
     await tester.pump();
     await tester.pump();
-    expect(find.text("Who's here"), findsOneWidget);
+    expect(find.text("Who's deciding?"), findsOneWidget);
     expect(find.text('Guest'), findsOneWidget);
     expect(find.text('you'), findsOneWidget);
     expect(find.text('1 guest'), findsOneWidget);

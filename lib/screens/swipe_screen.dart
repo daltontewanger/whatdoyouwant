@@ -12,6 +12,7 @@ import '../services/accessibility.dart';
 import '../services/my_places.dart';
 import '../services/search_defaults.dart';
 import 'bubble_icons.dart';
+import 'what_to_expect.dart';
 import 'food_chips.dart';
 import 'place_marks.dart';
 import 'results_screen.dart';
@@ -57,7 +58,7 @@ class SwipeScreenState extends State<SwipeScreen> {
   late final List<Restaurant> swipeOptions;
   final CardSwiperController _cardSwiperController = CardSwiperController();
 
-  static const int swipeTimeoutSeconds = 15;
+  static const int swipeTimeoutSeconds = swipeSeconds;
 
   final List<bool> _localVotes = [];
   int _currentIndex = 0;
@@ -439,7 +440,7 @@ class SwipeScreenState extends State<SwipeScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
                                   Text(
-                                    'Swipe to Choose',
+                                    'Decide what you want',
                                     textAlign: TextAlign.center,
                                     style: theme.textTheme.headlineMedium!
                                         .copyWith(
@@ -455,29 +456,18 @@ class SwipeScreenState extends State<SwipeScreen> {
                                         ),
                                   ),
 
-                                  // Only as tall as its text: a stretchy
-                                  // block here grows with the text and pushes
-                                  // the vote buttons off short screens.
-                                  Padding(
-                                    padding: const EdgeInsets.fromLTRB(
-                                      8,
-                                      12,
-                                      8,
-                                      4,
-                                    ),
-                                    child: Text(
-                                      'Swipe right, tap the thumbs up or Favorite for a place you want\n'
-                                      'Swipe left, tap the thumbs down or Never for a place you '
-                                      "don't want\n"
-                                      '${untimed ? "No timer for you, so take your time. If you don't vote for 3 minutes, the rest count as places you don't want" : "After $swipeTimeoutSeconds seconds it will auto vote that you don't want this place"}',
-                                      textAlign: TextAlign.center,
-                                      style: theme.textTheme.bodyMedium!
-                                          .copyWith(
-                                            fontSize: 14,
-                                            color: Colors.black.withValues(
-                                              alpha: 0.7,
-                                            ),
-                                          ),
+                                  // Folded by default so the cards and the
+                                  // timer show first; it opens above the
+                                  // card and pushes it down.
+                                  const Padding(
+                                    padding: EdgeInsets.only(top: 4),
+                                    child: SwipeHelp(),
+                                  ),
+                                  Text(
+                                    'Option ${(_placesBefore(_currentIndex) + 1).clamp(1, _placeCount)} of $_placeCount',
+                                    style: theme.textTheme.bodyMedium!.copyWith(
+                                      color: inkSoft,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
 
@@ -662,17 +652,7 @@ class SwipeScreenState extends State<SwipeScreen> {
                                       ),
                                     ),
 
-                                  Padding(
-                                    padding: const EdgeInsets.only(
-                                      bottom: 8,
-                                      top: 4,
-                                    ),
-                                    child: Text(
-                                      'Option ${(_placesBefore(_currentIndex) + 1).clamp(1, _placeCount)} of $_placeCount',
-                                      style: theme.textTheme.bodyMedium!
-                                          .copyWith(color: inkSoft),
-                                    ),
-                                  ),
+                                  const SizedBox(height: 8),
                                 ],
                               ),
                             ),

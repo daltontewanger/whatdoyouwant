@@ -208,7 +208,7 @@ class _QuickPickScreenState extends State<QuickPickScreen> with SearchStarter {
     return Column(
       children: [
         Text(
-          _chosen ? "You're going to:" : 'How about:',
+          _chosen ? "You're going to:" : 'This is what you want',
           style: theme.textTheme.titleLarge!.copyWith(
             fontWeight: FontWeight.bold,
             fontSize: 22,

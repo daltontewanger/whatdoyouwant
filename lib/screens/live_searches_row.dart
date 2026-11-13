@@ -61,7 +61,7 @@ class _LiveSearchesRowState extends State<LiveSearchesRow> {
             ? 'More arrive $when.'
             : allowance.newAccount
             ? 'New accounts start with $cap. More arrive $when.'
-            : 'More arrive $when. Picks from your own list never use one.';
+            : 'More arrive $when.';
 
     return Semantics(
       container: true,
@@ -75,8 +75,6 @@ class _LiveSearchesRowState extends State<LiveSearchesRow> {
           const SizedBox(height: 12),
           Row(
             children: [
-              Icon(Icons.search, size: 18, color: primaryGreen),
-              const SizedBox(width: 6),
               const Expanded(child: Text('Live searches')),
               Text(
                 summary,
