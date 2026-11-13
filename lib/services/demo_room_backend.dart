@@ -230,6 +230,7 @@ class DemoRoomBackend implements RoomBackend {
     room
       ..deck = deck
       ..status = 'voting'
+      ..startedAt = _now()
       ..voters = room.friends
       ..endsAt = _now().add(const Duration(minutes: 10))
       ..friendDone = List.filled(room.friends, false);
@@ -302,7 +303,39 @@ class DemoRoomBackend implements RoomBackend {
   @override
   Future<HostProgress?> nudge(String roomId) async {
     _settle(roomId);
-    return null;
+    final room = _rooms[roomId]!;
+    if (room.status != 'voting') return null;
+    // The friends' votes land steadily until each one's finish time, so the
+    // host's screen fills up the way a real room does.
+    final cards = room.deck.length;
+    final started = room.startedAt ?? _now();
+    final elapsed = _now().difference(started);
+    int friendVotes(int f) {
+      if (room.friendDone[f]) return cards;
+      final finish = pace * (3 + 2 * f);
+      if (finish == Duration.zero) return cards;
+      final share = elapsed.inMilliseconds / finish.inMilliseconds;
+      return (share * cards).floor().clamp(0, cards - 1);
+    }
+
+    final hostDone = room.myVotes.length >= cards;
+    return HostProgress(
+      people: [
+        VoterProgress(host: true, done: hostDone, inactive: Duration.zero),
+        for (var f = 0; f < room.voters; f++)
+          VoterProgress(
+            name: demoFriends[f],
+            done: room.friendDone[f],
+            inactive: Duration.zero,
+          ),
+      ],
+      votesIn:
+          room.myVotes.length.clamp(0, cards) +
+          [
+            for (var f = 0; f < room.voters; f++) friendVotes(f),
+          ].fold(0, (sum, votes) => sum + votes),
+      votesTotal: cards * (1 + room.voters),
+    );
   }
 
   @override
@@ -406,6 +439,7 @@ class _DemoRoom {
   final myVotes = <String, bool>{};
   final friendLikes = <Set<String>>[];
   List<bool> friendDone = const [];
+  DateTime? startedAt;
   DateTime? endsAt;
   RoomResults? results;
 }

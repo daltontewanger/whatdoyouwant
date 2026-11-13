@@ -15,6 +15,44 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   group('demo backend', () {
+    testWidgets(
+      'the host sees the friends decide over time, as in a real room',
+      (tester) async {
+        var clock = DateTime(2026, 11, 12, 18);
+        final demo = DemoRoomBackend(
+          pace: const Duration(seconds: 1),
+          now: () => clock,
+        );
+        final room = await demo.createRoom();
+        await tester.pump(const Duration(seconds: 4));
+        final deck = await demo.start(
+          room.id,
+          search: const SearchPreferences(radius: 3, deckSize: 5),
+        );
+        for (final (i, card) in deck.indexed) {
+          await demo.vote(room.id, card, liked: true, index: i, total: 5);
+        }
+        final early = (await demo.nudge(room.id))!;
+        expect(early.people.map((p) => (p.name, p.done)), [
+          (null, true),
+          for (final friend in demoFriends) (friend, false),
+        ]);
+        expect((early.votesIn, early.votesTotal), (5, 20));
+
+        // Two seconds in, the votes have climbed; the first friend is done at
+        // three seconds and moves to decided.
+        clock = clock.add(const Duration(seconds: 2));
+        final climbing = (await demo.nudge(room.id))!;
+        expect(climbing.votesIn, greaterThan(early.votesIn));
+        clock = clock.add(const Duration(seconds: 2));
+        await tester.pump(const Duration(seconds: 4));
+        final later = (await demo.nudge(room.id))!;
+        expect(later.people[1].done, isTrue);
+        expect(later.votesIn, greaterThan(climbing.votesIn));
+        demo.dispose();
+      },
+    );
+
     test('friends join, vote, and the room settles on a winner', () async {
       final demo = DemoRoomBackend(pace: Duration.zero);
       final room = await demo.createRoom();
