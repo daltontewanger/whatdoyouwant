@@ -253,4 +253,23 @@ void main() {
       findsNothing,
     );
   });
+
+  testWidgets('copy and share sit in the winner card, beside its menu', (
+    tester,
+  ) async {
+    await showResults(
+      tester,
+      RoomResults(winnerId: 'a', likes: const {'a': 3}, participants: 3),
+    );
+    final card = find.byType(PlaceCard).first;
+    expect(
+      find.descendant(of: card, matching: find.byTooltip('Share')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: card, matching: find.byTooltip('Copy')),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('Share'), findsOneWidget, reason: 'only in the card');
+  });
 }

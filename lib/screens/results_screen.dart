@@ -156,8 +156,14 @@ class ResultsScreenState extends State<ResultsScreen> {
                             _nudges?.votingEndsAt(room.votingEndsAt);
                             if (room.people.any((p) => p.you && p.host)) {
                               // The host's list stays fresh with a check every
-                              // 20 seconds instead of every minute.
-                              _nudges?.every(const Duration(seconds: 20));
+                              // 20 seconds instead of every minute; the demo's
+                              // friends vote within seconds, so it checks
+                              // more often.
+                              _nudges?.every(
+                                RoomBackendScope.of(context).demo
+                                    ? const Duration(seconds: 2)
+                                    : const Duration(seconds: 20),
+                              );
                               return HostWaiting(
                                 progress: _progress,
                                 checkedAt: _progressAt,
@@ -274,13 +280,6 @@ class _ResultViewState extends State<_ResultView> {
   bool get _votedBackup => widget.backup != null && widget.backupLikes > 0;
 
   bool get _hasBackupTile => widget.backup != null || widget.others.isNotEmpty;
-
-  /// The place Copy and Share send: whichever card is open.
-  Restaurant get _shown {
-    if (!_backupOpen) return widget.winner;
-    if (_votedBackup) return widget.backup!;
-    return _randomBackup ?? widget.winner;
-  }
 
   // Drawn on the phone from the room's own places, so it costs no search.
   // Each person gets their own.
@@ -433,6 +432,7 @@ class _ResultViewState extends State<_ResultView> {
         restaurant: widget.winner,
         note: _likedNote(widget.winnerLikes),
         menu: PlaceMenu(restaurant: widget.winner),
+        shareable: true,
         child: _actions(widget.winner),
       ),
       if (_hasBackupTile) ...[
@@ -484,6 +484,7 @@ class _ResultViewState extends State<_ResultView> {
             restaurant: backup!,
             note: _likedNote(widget.backupLikes),
             menu: PlaceMenu(restaurant: backup),
+            shareable: true,
             child: _actions(backup),
           ),
         ] else if (random != null) ...[
@@ -495,6 +496,7 @@ class _ResultViewState extends State<_ResultView> {
             restaurant: random,
             note: 'picked at random',
             menu: PlaceMenu(restaurant: random),
+            shareable: true,
             child: _actions(random),
           ),
         ] else
@@ -545,12 +547,6 @@ class _ResultViewState extends State<_ResultView> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Share and copy get their own row, so the title never runs
-            // under them.
-            Align(
-              alignment: Alignment.centerRight,
-              child: PlaceShareButtons(restaurant: _shown),
-            ),
             Text(
               'This is what you wanted',
               textAlign: TextAlign.center,

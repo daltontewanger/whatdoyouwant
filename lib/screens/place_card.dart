@@ -23,6 +23,7 @@ class PlaceCard extends StatelessWidget {
     this.note,
     this.child,
     this.menu,
+    this.shareable = false,
   });
 
   final Restaurant restaurant;
@@ -31,6 +32,10 @@ class PlaceCard extends StatelessWidget {
 
   /// Sits in the top right corner, usually a [PlaceMenu].
   final Widget? menu;
+
+  /// Puts Copy and Share in the top right corner, beside [menu], so sharing
+  /// clearly means this place.
+  final bool shareable;
 
   @override
   Widget build(BuildContext context) {
@@ -70,7 +75,11 @@ class PlaceCard extends StatelessWidget {
                   ),
                 ),
               Padding(
-                padding: EdgeInsets.only(right: menu == null ? 0 : 36),
+                // Room beside the name for the corner buttons, so a long name
+                // wraps instead of running under them.
+                padding: EdgeInsets.only(
+                  right: (menu == null ? 0 : 36) + (shareable ? 84 : 0),
+                ),
                 child: Text(
                   restaurant.name,
                   style: theme.textTheme.headlineSmall!.copyWith(
@@ -116,8 +125,18 @@ class PlaceCard extends StatelessWidget {
               ],
             ],
           ),
-          if (menu case final menu?)
-            Positioned(top: -8, right: -8, child: menu),
+          if (menu != null || shareable)
+            Positioned(
+              top: -8,
+              right: -8,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (shareable) PlaceShareButtons(restaurant: restaurant),
+                  if (menu case final menu?) menu,
+                ],
+              ),
+            ),
         ],
       ),
     );
