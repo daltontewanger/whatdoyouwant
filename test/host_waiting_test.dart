@@ -57,6 +57,12 @@ void main() {
       expect(finishesWithoutThemAt([person(idleSeconds: 10)], checked), isNull);
     });
 
+    test('the host is listed by their nickname, marked as them', () {
+      expect(voterLabels([person(host: true, name: 'Dalton')]), [
+        'Dalton (you)',
+      ]);
+    });
+
     test('names: nicknames, one guest as Guest, more guests numbered', () {
       expect(voterLabels([person(host: true), person()]), ['You', 'Guest']);
       expect(
@@ -110,7 +116,7 @@ void main() {
         votesIn: 23,
         votesTotal: 40,
       );
-      expect(find.text("You're done voting"), findsOneWidget);
+      expect(find.text("You've decided"), findsOneWidget);
       expect(find.byType(FoodLoader), findsOneWidget);
       expect(find.text('23 of 40 votes in'), findsOneWidget);
       expect(find.text('Deciding what they want'), findsOneWidget);
@@ -168,7 +174,7 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.text("You're done voting"), findsNothing);
+    expect(find.text("You've decided"), findsNothing);
     expect(find.text('Waiting for 2 more votes...'), findsOneWidget);
   });
 

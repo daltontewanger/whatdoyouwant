@@ -40,14 +40,14 @@ DateTime? finishesWithoutThemAt(List<VoterProgress> people, DateTime checked) {
 }
 
 /// Names for the list: nicknames, "Guest" for one guest, numbered guests for
-/// more, and "You" for the host.
+/// more, and the host as "Name (you)", or "You" without a nickname.
 List<String> voterLabels(List<VoterProgress> people) {
   final guests = people.where((p) => p.name == null && !p.host).length;
   var guest = 0;
   return [
     for (final person in people)
       person.host
-          ? 'You'
+          ? (person.name == null ? 'You' : '${person.name} (you)')
           : person.name ?? (guests == 1 ? 'Guest' : 'Guest ${++guest}'),
   ];
 }
@@ -86,18 +86,10 @@ class HostWaiting extends StatelessWidget {
               for (final person in people)
                 if (person.done) person,
             ];
-    // Each guest keeps the same food bubble while the screen is open.
-    final guests =
-        people == null
-            ? const <VoterProgress>[]
-            : [
-              for (final person in people)
-                if (person.name == null && !person.host) person,
-            ];
-    Widget avatar(VoterProgress person, {double size = 32}) => _Avatar(
+    Widget avatar(VoterProgress person, {double size = 40}) => _Avatar(
       label: label(person),
       host: person.host,
-      guest: guests.indexOf(person),
+      guest: person.name == null && !person.host,
       size: size,
     );
     final finishAt =
@@ -112,7 +104,7 @@ class HostWaiting extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          "You're done voting",
+          "You've decided",
           textAlign: TextAlign.center,
           style: theme.textTheme.headlineMedium!.copyWith(
             fontSize: 26,
@@ -203,7 +195,7 @@ class HostWaiting extends StatelessWidget {
                     key: ValueKey('decided-${label(person)}'),
                     child: _DecidedChip(
                       label: label(person),
-                      avatar: avatar(person, size: 22),
+                      avatar: avatar(person, size: 24),
                     ),
                   ),
               ],
@@ -332,15 +324,6 @@ class _Panel extends StatelessWidget {
   }
 }
 
-const _foods = [
-  (Icons.local_pizza, Color(0xFFFAEEDA), Color(0xFF854F0B)),
-  (Icons.lunch_dining, Color(0xFFFAECE7), Color(0xFF993C1D)),
-  (Icons.set_meal, Color(0xFFE1F5EE), Color(0xFF0F6E56)),
-  (Icons.ramen_dining, Color(0xFFEEEDFE), Color(0xFF3C3489)),
-  (Icons.icecream, Color(0xFFFBEAF0), Color(0xFF72243E)),
-  (Icons.bakery_dining, Color(0xFFF1EFE8), Color(0xFF444441)),
-];
-
 const _initials = [
   (Color(0xFFEEEDFE), Color(0xFF3C3489)),
   (Color(0xFFE6F1FB), Color(0xFF0C447C)),
@@ -348,8 +331,9 @@ const _initials = [
   (Color(0xFFFAEEDA), Color(0xFF633806)),
 ];
 
-/// A person's circle: "You" for the host, an initial for a nickname, and a
-/// food bubble for each guest.
+/// A person's circle with the first letter of how they are listed: the
+/// host's in green, a guest's "G" in a plain grey, and a soft colour for each
+/// nickname.
 class _Avatar extends StatelessWidget {
   const _Avatar({
     required this.label,
@@ -361,40 +345,25 @@ class _Avatar extends StatelessWidget {
   final String label;
   final bool host;
 
-  /// This guest's place among the room's guests, or -1 for anyone else.
-  final int guest;
+  final bool guest;
   final double size;
 
   @override
   Widget build(BuildContext context) {
-    final Color background;
-    final Widget inside;
-    if (host) {
-      background = primaryGreen;
-      inside = Text(
-        'You',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: size * 0.34,
-          fontWeight: FontWeight.w700,
-        ),
-      );
-    } else if (guest >= 0) {
-      final (icon, fill, ink) = _foods[guest % _foods.length];
-      background = fill;
-      inside = Icon(icon, size: size * 0.55, color: ink);
-    } else {
-      final (fill, ink) = _initials[label.codeUnitAt(0) % _initials.length];
-      background = fill;
-      inside = Text(
-        label.characters.first.toUpperCase(),
-        style: TextStyle(
-          color: ink,
-          fontSize: size * 0.42,
-          fontWeight: FontWeight.w700,
-        ),
-      );
-    }
+    final (background, ink) =
+        host
+            ? (primaryGreen, Colors.white)
+            : guest
+            ? (const Color(0xFFF1EFE8), const Color(0xFF444441))
+            : _initials[label.codeUnitAt(0) % _initials.length];
+    final inside = Text(
+      label.characters.first.toUpperCase(),
+      style: TextStyle(
+        color: ink,
+        fontSize: size * 0.4,
+        fontWeight: FontWeight.w700,
+      ),
+    );
     return ExcludeSemantics(
       child: Container(
         width: size,
