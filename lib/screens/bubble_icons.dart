@@ -1,34 +1,39 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// The app's speech-bubble icons, drawn like the logo's food bubbles: a
-/// thick ink outline, a coloured bubble and a white glyph. Painted rather
-/// than loaded, so they stay sharp at any size.
+/// The app's speech-bubble icons: soft pastel bubbles with a deeper edge
+/// underneath and no outline, the "tail" a less rounded corner pointing
+/// toward the middle. Painted rather than loaded, so they stay sharp at any
+/// size.
 enum BubbleGlyph {
   /// Says "Yes": votes yes.
-  yes(Color(0xFF65B292)),
+  yes(Color(0xFFC2EDDD), Color(0xFF5DCAA5), Color(0xFF085041)),
 
   /// Says "No": votes no.
-  no(Color(0xFFF59E84)),
+  no(Color(0xFFFAD6C8), Color(0xFFF0997B), Color(0xFF712B13)),
 
-  /// A crossed-out empty plate: Never what I want.
-  never(Color(0xFFA7ACA8)),
+  /// A crossed-out plate: Never what I want.
+  never(Color(0xFFE4E3DE), Color(0xFFB4B2A9), Color(0xFF444441)),
 
-  /// A heart with a sparkle: I know what I want.
-  favorite(Color(0xFFFBD3E2)),
+  /// A heart: I know what I want.
+  favorite(Color(0xFFFBDCE8), Color(0xFFED93B1), Color(0xFF993556)),
 
   /// An exclamation mark: something needs attention.
-  notice(Color(0xFFF7C948));
+  notice(Color(0xFFFFF1C9), Color(0xFFF7C948), Color(0xFF6B4E00));
 
-  const BubbleGlyph(this.color);
+  const BubbleGlyph(this.color, this.edge, this.ink);
+
+  /// The bubble's fill.
   final Color color;
+
+  /// The deeper edge drawn just under the bubble.
+  final Color edge;
+
+  /// The word or symbol on it.
+  final Color ink;
 }
 
-const _ink = Color(0xFF1D2B2C);
-const _coral = Color(0xFFF59E84);
-const _heart = Color(0xFFE0558A);
+const _heart = Color(0xFFD4537E);
 
 class BubbleIcon extends StatelessWidget {
   const BubbleIcon(
@@ -41,7 +46,8 @@ class BubbleIcon extends StatelessWidget {
   final BubbleGlyph glyph;
   final double size;
 
-  /// Puts the bubble's tail at the bottom right instead of the bottom left.
+  /// Puts the bubble's tail corner at the bottom right instead of the bottom
+  /// left.
   final bool tailRight;
 
   @override
@@ -57,7 +63,7 @@ class _BubblePainter extends CustomPainter {
   final BubbleGlyph glyph;
   final bool tailRight;
 
-  Paint _stroke(double width, [Color color = _ink]) =>
+  Paint _stroke(double width, Color color) =>
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = width
@@ -69,45 +75,24 @@ class _BubblePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Drawn on a 160-unit square, like the site's bubble artwork.
+    // Drawn on a 160-unit square. The bubble is a little wider than tall,
+    // centred, with room under it for the edge.
     canvas.scale(size.width / 160);
-    final body =
-        Path()..addRRect(
-          RRect.fromLTRBR(14, 10, 146, 126, const Radius.circular(46)),
-        );
-    final tail =
-        Path()
-          ..moveTo(76, 118)
-          ..lineTo(44, 152)
-          ..lineTo(52, 110)
-          ..close();
-    var bubble = Path.combine(PathOperation.union, body, tail);
-    if (tailRight) {
-      // Mirrored across the middle of the 160-unit square.
-      bubble = bubble.transform(
-        Float64List.fromList([
-          -1,
-          0,
-          0,
-          0,
-          0,
-          1,
-          0,
-          0,
-          0,
-          0,
-          1,
-          0,
-          160,
-          0,
-          0,
-          1,
-        ]),
-      );
-    }
+    const round = Radius.circular(48);
+    const tail = Radius.circular(16);
+    RRect bubbleAt(double dy) => RRect.fromLTRBAndCorners(
+      6,
+      20 + dy,
+      154,
+      134 + dy,
+      topLeft: round,
+      topRight: round,
+      bottomLeft: tailRight ? round : tail,
+      bottomRight: tailRight ? tail : round,
+    );
     canvas
-      ..drawPath(bubble, _fill(glyph.color))
-      ..drawPath(bubble, _stroke(9));
+      ..drawRRect(bubbleAt(9), _fill(glyph.edge))
+      ..drawRRect(bubbleAt(0), _fill(glyph.color));
     switch (glyph) {
       case BubbleGlyph.yes:
         _word(canvas, 'Yes');
@@ -122,15 +107,14 @@ class _BubblePainter extends CustomPainter {
     }
   }
 
-  // The word itself, so the vote reads at a glance. Dark ink on the bubble's
-  // colour, centred in its body.
+  // The word itself, so the vote reads at a glance, centred in the bubble.
   void _word(Canvas canvas, String word) {
     final painter = TextPainter(
       text: TextSpan(
         text: word,
         style: GoogleFonts.baloo2(
-          color: _ink,
-          fontSize: word.length > 2 ? 52 : 58,
+          color: glyph.ink,
+          fontSize: word.length > 2 ? 54 : 60,
           fontWeight: FontWeight.w800,
           height: 1,
         ),
@@ -139,57 +123,45 @@ class _BubblePainter extends CustomPainter {
     )..layout();
     painter.paint(
       canvas,
-      Offset(80 - painter.width / 2, 70 - painter.height / 2),
+      Offset(80 - painter.width / 2, 78 - painter.height / 2),
     );
   }
 
   void _plate(Canvas canvas) =>
       canvas
-        ..drawCircle(const Offset(80, 68), 31, _fill(Colors.white))
-        ..drawCircle(const Offset(80, 68), 31, _stroke(8))
-        ..drawCircle(
-          const Offset(80, 68),
-          17,
-          _stroke(5, const Color(0xFFE3E1DA)),
-        )
-        ..drawLine(const Offset(58, 46), const Offset(102, 90), _stroke(13))
+        ..drawCircle(const Offset(80, 77), 30, _stroke(9, glyph.ink))
         ..drawLine(
-          const Offset(58, 46),
-          const Offset(102, 90),
-          _stroke(5, _coral),
+          const Offset(59, 56),
+          const Offset(101, 98),
+          _stroke(9, glyph.ink),
         );
 
   void _heartGlyph(Canvas canvas) {
     final heart =
         Path()
-          ..moveTo(80, 104)
-          ..cubicTo(44, 82, 40, 52, 60, 44)
-          ..cubicTo(70, 40, 78, 46, 80, 54)
-          ..cubicTo(82, 46, 90, 40, 100, 44)
-          ..cubicTo(120, 52, 116, 82, 80, 104)
+          ..moveTo(80, 110)
+          ..cubicTo(46, 90, 42, 62, 61, 54)
+          ..cubicTo(70, 50, 78, 56, 80, 63)
+          ..cubicTo(82, 56, 90, 50, 99, 54)
+          ..cubicTo(118, 62, 114, 90, 80, 110)
           ..close();
     final shine =
         Path()
-          ..moveTo(60, 58)
-          ..cubicTo(62, 53, 67, 51, 71, 53);
+          ..moveTo(61, 67)
+          ..cubicTo(63, 62, 67, 60, 71, 62);
     canvas
       ..drawPath(heart, _fill(_heart))
-      ..drawPath(heart, _stroke(8))
-      ..drawPath(shine, _stroke(5, Colors.white))
-      ..drawLine(const Offset(112, 34), const Offset(112, 44), _stroke(4))
-      ..drawLine(const Offset(107, 39), const Offset(117, 39), _stroke(4));
+      ..drawPath(shine, _stroke(5, Colors.white));
   }
 
   void _exclamation(Canvas canvas) =>
       canvas
-        ..drawLine(const Offset(80, 36), const Offset(80, 78), _stroke(22))
         ..drawLine(
-          const Offset(80, 36),
-          const Offset(80, 78),
-          _stroke(10, Colors.white),
+          const Offset(80, 46),
+          const Offset(80, 84),
+          _stroke(14, glyph.ink),
         )
-        ..drawCircle(const Offset(80, 100), 11, _fill(Colors.white))
-        ..drawCircle(const Offset(80, 100), 11, _stroke(6));
+        ..drawCircle(const Offset(80, 106), 8, _fill(glyph.ink));
 
   @override
   bool shouldRepaint(_BubblePainter old) =>
