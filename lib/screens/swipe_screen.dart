@@ -463,48 +463,72 @@ class SwipeScreenState extends State<SwipeScreen> {
                                     padding: EdgeInsets.only(top: 4),
                                     child: SwipeHelp(),
                                   ),
-                                  Text(
-                                    'Option ${(_placesBefore(_currentIndex) + 1).clamp(1, _placeCount)} of $_placeCount',
-                                    style: theme.textTheme.bodyMedium!.copyWith(
-                                      color: inkSoft,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
 
                                   Expanded(
                                     flex: 3,
-                                    child: Center(
-                                      // The swiper sizes cards from these constraints; with
-                                      // a loose width every card shrinks to its own text
-                                      // and sits at the left edge.
-                                      child: SizedBox(
-                                        width: double.infinity,
-                                        height: _cardHeight(context),
-                                        child: CardSwiper(
-                                          controller: _cardSwiperController,
-                                          cardsCount: _cardWidgets.length,
-                                          // The swiper shows two stacked cards by
-                                          // default and rejects a one-card deck.
-                                          numberOfCardsDisplayed:
-                                              _cardWidgets.length < 2 ? 1 : 2,
-                                          cardBuilder: (context, index, h, v) {
-                                            if (index >= _cardWidgets.length) {
-                                              return null;
-                                            }
-                                            return _cardWidgets[index];
-                                          },
-                                          isLoop: false,
-                                          onSwipe: _handleSwipe,
-                                          onEnd: () async {
-                                            // Finished locally — navigate now (waiting screen if others not done)
-                                            if (!_navigated) _goToResults();
-                                            // Also nudge watchdog
-                                            await _backend
-                                                .nudge(widget.roomCode)
-                                                .catchError((_) => null);
-                                          },
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        // Sits with the card it counts, not
+                                        // with the help above.
+                                        const SizedBox(height: 28),
+                                        Text(
+                                          'Option ${(_placesBefore(_currentIndex) + 1).clamp(1, _placeCount)} of $_placeCount',
+                                          style: theme.textTheme.bodyMedium!
+                                              .copyWith(
+                                                color: inkSoft,
+                                                fontWeight: FontWeight.w600,
+                                              ),
                                         ),
-                                      ),
+                                        const SizedBox(height: 2),
+                                        // The swiper sizes cards from these constraints; with
+                                        // a loose width every card shrinks to its own text
+                                        // and sits at the left edge.
+                                        SizedBox(
+                                          width: double.infinity,
+                                          height: _cardHeight(context),
+                                          child: CardSwiper(
+                                            controller: _cardSwiperController,
+                                            cardsCount: _cardWidgets.length,
+                                            // The swiper shows two stacked cards by
+                                            // default and rejects a one-card deck.
+                                            numberOfCardsDisplayed:
+                                                _cardWidgets.length < 2 ? 1 : 2,
+                                            cardBuilder: (
+                                              context,
+                                              index,
+                                              h,
+                                              v,
+                                            ) {
+                                              if (index >=
+                                                  _cardWidgets.length) {
+                                                return null;
+                                              }
+                                              return _cardWidgets[index];
+                                            },
+                                            // Less room above the card than the
+                                            // default, so "Option 3 of 10" reads
+                                            // as part of it.
+                                            padding: const EdgeInsets.fromLTRB(
+                                              20,
+                                              6,
+                                              20,
+                                              25,
+                                            ),
+                                            isLoop: false,
+                                            onSwipe: _handleSwipe,
+                                            onEnd: () async {
+                                              // Finished locally — navigate now (waiting screen if others not done)
+                                              if (!_navigated) _goToResults();
+                                              // Also nudge watchdog
+                                              await _backend
+                                                  .nudge(widget.roomCode)
+                                                  .catchError((_) => null);
+                                            },
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
 

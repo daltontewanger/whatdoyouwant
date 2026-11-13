@@ -545,30 +545,27 @@ class _ResultViewState extends State<_ResultView> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                Text(
-                  'This is what you wanted',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.headlineMedium!.copyWith(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 30,
-                    color: theme.colorScheme.primary,
-                    shadows: const [
-                      Shadow(
-                        color: Colors.black12,
-                        blurRadius: 4,
-                        offset: Offset(1, 2),
-                      ),
-                    ],
+            // Share and copy get their own row, so the title never runs
+            // under them.
+            Align(
+              alignment: Alignment.centerRight,
+              child: PlaceShareButtons(restaurant: _shown),
+            ),
+            Text(
+              'This is what you wanted',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.headlineMedium!.copyWith(
+                fontWeight: FontWeight.w900,
+                fontSize: 30,
+                color: theme.colorScheme.primary,
+                shadows: const [
+                  Shadow(
+                    color: Colors.black12,
+                    blurRadius: 4,
+                    offset: Offset(1, 2),
                   ),
-                ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: PlaceShareButtons(restaurant: _shown),
-                ),
-              ],
+                ],
+              ),
             ),
             const SizedBox(height: 12),
           ],
